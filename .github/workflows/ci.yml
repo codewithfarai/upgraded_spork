@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   pre-commit:
@@ -44,6 +44,10 @@ jobs:
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Terraform init
+        run: terraform init
+        working-directory: terraform/
 
       - name: Cache pre-commit
         uses: actions/cache@v4
