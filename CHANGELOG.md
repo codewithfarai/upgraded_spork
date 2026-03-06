@@ -1,3 +1,9 @@
+## v0.1.1 (2026-03-06)
+
+### docs
+
+- add README with Poetry installation and pre-commit hook setup instructions.
+
 ## v0.1.0 (2026-03-06)
 
 ### feat
