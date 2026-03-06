@@ -10,7 +10,7 @@ permissions:
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
-    # This runs every step below INSIDE the tool-rich container
+    # Using the official image with all binaries (Terraform, TFLint, Trivy)
     container:
       image: ghcr.io/antonbabenko/pre-commit-terraform:v1.96.0
 
@@ -20,10 +20,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # TFLint needs its plugins initialized once (like terraform init)
+      # Fixes the "git failed" FatalError by trusting the workspace
+      - name: Fix git permissions
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Pre-download TFLint plugins so the hook doesn't fail/slow down
       - name: TFLint Init
         run: tflint --init
 
+      # Caches the hooks (Trivy DB, TFLint plugins, etc.) to speed up runs
       - name: Cache pre-commit
         uses: actions/cache@v4
         with:
@@ -31,5 +36,5 @@ jobs:
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Run pre-commit
-        # We run 'pre-commit' directly because it's the container's entrypoint
+        # We run directly; no 'poetry run' needed as pre-commit is in the $PATH
         run: pre-commit run --all-files
