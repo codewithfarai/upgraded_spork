@@ -4,5 +4,5 @@ in-project = true
 path = ".venv"
 
 [installer]
-parallel = true 
+parallel = true
 max-workers = 10
