@@ -1,0 +1,51 @@
+[tool.poetry]
+name = "fluffy_system"
+version = "0.0.0"
+description = "IAC & Ansible Automation for the Cloud Hetzner Deployment of High Availability Docker Swarm with Traefik as a Reverse Proxy & Authentik as an Authentication Provider"
+authors = ["Farai Wande <faraiwande@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["iac", "ansible", "hetzner", "docker", "swarm"]
+packages = [{include = "upgraded_spork"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+ansible = "^13.1.0"
+
+[tool.poetry.group.dev.dependencies]
+commitizen = "^4.8.3"
+
+
+[tool.commitizen]
+name = "cz_customize"
+tag_format = "v$version"
+version_scheme = "semver2"
+version = "0.0.0"
+version_files = [
+    "pyproject.toml:version",
+    "upgraded_spork/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.commitizen.customize]
+schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
+changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
+commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):\\s(?P<message>.*)?"
+change_type_order = ["feat", "fix", "perf", "build", "refactor", "test", "style", "chore", "docs", "ci"]
+
+[tool.commitizen.customize.bump_map]
+feat = "MINOR"
+fix = "PATCH"
+perf = "PATCH"
+build = "PATCH"
+docs = "PATCH"
+refactor = "PATCH"
+test = "PATCH"
+style = "PATCH"
+chore = "PATCH"
+ci = "PATCH"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
