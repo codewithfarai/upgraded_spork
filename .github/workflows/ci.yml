@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     # Using the official image with all binaries (Terraform, TFLint, Trivy)
     container:
-      image: ghcr.io/antonbabenko/pre-commit-terraform:v1.96.0
+      image: ghcr.io/antonbabenko/pre-commit-terraform:latest
 
     steps:
       - name: Checkout code
