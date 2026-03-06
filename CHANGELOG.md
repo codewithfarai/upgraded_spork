@@ -1,3 +1,9 @@
+## v0.1.2 (2026-03-06)
+
+### docs
+
+- move detailed setup and contribution guidelines from README.md to a new CONTRIBUTING.md file
+
 ## v0.1.1 (2026-03-06)
 
 ### docs
