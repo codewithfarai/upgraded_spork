@@ -40,22 +40,7 @@ trivy --version  # verify
 
 #### Project Setup
 
-1. Environment setup and AWS Keys:
-   Create a `.env` file in the `terraform/` directory with your AWS credentials. This is because we use a Makefile to automatically parse the `.env` file and export the keys dynamically before running `terraform` commands without declaring dummy variables in code:
-
-   ```env
-   AWS_ACCESS_KEY_ID="your_access_key"
-   AWS_SECRET_ACCESS_KEY="your_secret_key"
-   ```
-
-2. Run Terraform via the Makefile:
-   Navigate to the `terraform/` directory and run commands via `make` so keys are correctly exported:
-   ```bash
-   make init
-   make plan
-   ```
-
-3. Install Python dependencies and create the in-project virtualenv:
+1. Install Python dependencies and create the in-project virtualenv:
 
 ```bash
 poetry install
