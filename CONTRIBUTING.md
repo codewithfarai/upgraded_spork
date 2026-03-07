@@ -1,12 +1,14 @@
-## Contributing
+# Contributing
 
-### Development Setup
+## Development Setup
 
-#### Prerequisites
+### Prerequisites
 
-Install the following tools before working on this project:
+Install the following tools before working on this project.
 
-##### Poetry
+---
+
+#### Poetry
 
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
@@ -14,7 +16,7 @@ export PATH="$HOME/.local/bin:$PATH"  # add to ~/.zshrc or ~/.bashrc
 poetry --version  # verify
 ```
 
-##### Terraform
+#### Terraform
 
 ```bash
 brew tap hashicorp/tap
@@ -22,23 +24,23 @@ brew install hashicorp/tap/terraform
 terraform -version  # verify
 ```
 
-##### tflint
+#### tflint
 
 ```bash
 brew install tflint
 tflint --version  # verify
 ```
 
-##### trivy
+#### trivy
 
 ```bash
 brew install aquasecurity/trivy/trivy
 trivy --version  # verify
 ```
 
-##### Make
+#### Make
 
-Make is required if you want to use the automated `Makefile` workflow for terraform commands.
+Required to use the automated `Makefile` workflow for Terraform commands.
 
 ```bash
 brew install make
@@ -46,38 +48,56 @@ brew install make
 
 ---
 
-#### Project Setup
+## Project Setup
 
-1. **Install Python dependencies and create the in-project virtualenv:**
+**1. Install Python dependencies and create the in-project virtualenv:**
 
 ```bash
 poetry install
 ```
 
-2. **Environment setup and AWS Keys:**
+**2. Environment setup and AWS credentials:**
 
-Terraform requires AWS credentials to access the remote state. You can provide these keys in two ways:
+Terraform requires AWS credentials to access remote state. Two options:
 
-**Option A: Using the Makefile (Recommended)**
+**Option A — Makefile (Recommended)**
 
-If you have `make` installed, you can use the automatic `.env` loading feature. Copy the `.env.template` file to `.env`:
+Copy the env template and populate your keys:
 
 ```bash
-cp terraform/.env.template terraform/.env  # (first time only)
+cp terraform/.env.template terraform/.env  # first time only
 ```
 
-Edit `terraform/.env` and add your actual AWS keys. Then, from the `terraform/` directory, use `make` instead of `terraform` directly:
+Then use `make` from the `terraform/` directory. All commands support the `ENV` variable (`dev`, `stage`, `prod`).
 
 ```bash
 cd terraform
-make init
-make plan
-make apply
+
+# 1. Initialize (must run when switching ENV)
+make init ENV=dev
+
+# 2. Plan changes
+make plan ENV=dev
+
+# 3. Apply changes (deploys infrastructure)
+make apply ENV=dev
+
+# 4. Destroy an environment
+make destroy ENV=dev
+
+# 5. Destroy ALL environments (dev, stage, prod)
+make destroy_all
+
+# 6. Run linting and static analysis
+make lint
+
+# 7. Verify security hardening and NAT connectivity
+make verify ENV=dev SSH_KEY=~/.ssh/your_private_key
 ```
 
-**Option B: Manual Export**
+> **Important**: You must run `make init ENV=<name>` whenever switching environments to ensure the correct state file is loaded.
 
-If you prefer not to use `make` or `.env`, you can export the keys directly in your terminal session before running `terraform` commands:
+**Option B — Manual export**
 
 ```bash
 export AWS_ACCESS_KEY_ID=<YOUR_AWS_ACCESS_KEY_ID>
@@ -88,17 +108,52 @@ terraform init
 terraform plan
 ```
 
-3. **Register pre-commit hooks (run once after cloning):**
+**3. Setup pre-commit:**
+   ```bash
+   poetry run pre-commit install
+   ```
 
+### 3. SSH Key Infrastructure
+For security and isolation, this project uses unique SSH keys for each environment. You can generate these automatically:
+
+1. **Check Project Name**: Ensure your `project_name` is set in `terraform/terraform.tfvars`.
+2. **Generate Keys**: Run the following command:
+   ```bash
+   cd terraform
+   make setup_keys
+   ```
+3. **Update TerraformVars**: Copy the HCL block printed by the script into your `terraform/terraform.tfvars`.
+
+To verify your keys on disk:
 ```bash
-poetry run pre-commit install --install-hooks
+cd terraform
+make view_keys
 ```
+
+This will list all `project_name_*` keys in your `~/.ssh/` directory.
+
+### 4. Clearing Known Hosts
+When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
+
+To surgically remove only the IPs associated with the current project environment:
+```bash
+cd terraform
+make ssh_cleanup
+```
+
+To clear **all** host records (start fresh):
+```bash
+# Backup and clear
+cp ~/.ssh/known_hosts ~/.ssh/known_hosts.bak && > ~/.ssh/known_hosts
+```
+
+### 5. Infrastructure Deployment
 
 ---
 
-#### Pre-Commit Hooks
+## Pre-Commit Hooks
 
-All commits are checked by [pre-commit](https://pre-commit.com/). Hooks run automatically on `git commit`, or manually:
+All commits are checked by [pre-commit](https://pre-commit.com/). Hooks run automatically on `git commit`, or trigger manually:
 
 ```bash
 poetry run pre-commit run --all-files
@@ -118,8 +173,8 @@ poetry run pre-commit run --all-files
 
 ---
 
-#### Commit Convention
+## Commit Convention
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/). Valid types:
+This project follows [Conventional Commits](https://www.conventionalcommits.org/).
 
-`feat` &middot; `fix` &middot; `perf` &middot; `build` &middot; `refactor` &middot; `test` &middot; `style` &middot; `chore` &middot; `docs` &middot; `ci`
+Valid types: `feat` · `fix` · `perf` · `build` · `refactor` · `test` · `style` · `chore` · `docs` · `ci`
