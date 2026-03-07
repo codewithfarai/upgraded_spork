@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  terraform-ci:
+  terraform-continuous-integration:
     runs-on: ubuntu-latest
 
     steps:
