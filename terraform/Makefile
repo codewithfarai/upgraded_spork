@@ -7,7 +7,9 @@ endif
 .PHONY: init plan apply destroy lint
 
 init:
-	terraform init
+	terraform init \
+		-backend-config="bucket=$(TF_STATE_BUCKET)" \
+		-backend-config="key=$(TF_STATE_KEY)"
 
 plan:
 	terraform plan
