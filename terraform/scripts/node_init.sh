@@ -187,6 +187,17 @@ EOL
     # Apply kernel settings
     sysctl -p
     echo "Kernel hardening completed successfully"
+
+    # Install and configure unattended-upgrades for automatic security patching
+    echo "Configuring automated security updates..."
+    apt-get install -y unattended-upgrades
+
+    # Ensure it's enabled and configured to only install security updates
+    cat > /etc/apt/apt.conf.d/20auto-upgrades << EOL
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+EOL
+    echo "Automated security updates enabled successfully"
 fi
 
 # Create final completion markers for Ansible
