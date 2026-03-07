@@ -1,3 +1,9 @@
+## v0.2.0 (2026-03-07)
+
+### feat
+
+- Terraform State Setup (#3)
+
 ## v0.1.3 (2026-03-07)
 
 ### build
