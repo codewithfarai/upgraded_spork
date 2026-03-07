@@ -339,6 +339,43 @@ resource "hcloud_server" "edge" {
   ]
 }
 
+# Managed Load Balancer (TCP Pass-Through)
+resource "hcloud_load_balancer" "main" {
+  name               = "${var.project_name}_lb_${var.environment}"
+  load_balancer_type = var.lb_type
+  location           = var.location
+  labels             = local.common_labels
+}
+
+resource "hcloud_load_balancer_network" "main" {
+  load_balancer_id = hcloud_load_balancer.main.id
+  network_id       = hcloud_network.main.id
+  ip               = "10.0.1.5"
+}
+
+resource "hcloud_load_balancer_target" "edge" {
+  count            = var.edge_count[var.environment]
+  type             = "server"
+  load_balancer_id = hcloud_load_balancer.main.id
+  server_id        = hcloud_server.edge[count.index].id
+  use_private_ip   = true
+  depends_on       = [hcloud_load_balancer_network.main]
+}
+
+resource "hcloud_load_balancer_service" "http" {
+  load_balancer_id = hcloud_load_balancer.main.id
+  protocol         = "tcp"
+  listen_port      = 80
+  destination_port = 80
+}
+
+resource "hcloud_load_balancer_service" "https" {
+  load_balancer_id = hcloud_load_balancer.main.id
+  protocol         = "tcp"
+  listen_port      = 443
+  destination_port = 443
+}
+
 # Docker Swarm Worker Nodes
 resource "hcloud_server" "worker" {
   count       = var.worker_count[var.environment]

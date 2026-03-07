@@ -9,6 +9,8 @@ variable "project_name" {
   type        = string
 }
 
+
+
 variable "network_ip_range" {
   description = "The IP range of the network"
   type        = string
@@ -158,6 +160,12 @@ variable "edge_server_type" {
     stage = "cx23"
     dev   = "cx23"
   }
+}
+
+variable "lb_type" {
+  description = "Type of the Hetzner Load Balancer"
+  type        = string
+  default     = "lb11"
 }
 
 variable "edge_count" {
