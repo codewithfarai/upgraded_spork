@@ -1,3 +1,9 @@
+## v0.1.3 (2026-03-07)
+
+### build
+
+- Add GitHub Actions Continuous Integration workflow for pre-com… (#2)
+
 ## v0.1.2 (2026-03-06)
 
 ### docs
