@@ -9,8 +9,6 @@ variable "project_name" {
   type        = string
 }
 
-
-
 variable "network_ip_range" {
   description = "The IP range of the network"
   type        = string
