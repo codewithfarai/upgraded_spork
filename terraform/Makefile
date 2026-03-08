@@ -7,7 +7,32 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: init plan apply destroy destroy_all setup_keys sync_secrets view_keys ssh_cleanup verify verify_bastion verify_node_manager verify_node_worker lint
+.PHONY: init plan apply destroy destroy_all setup_keys setup_dns sync_secrets view_keys ssh_cleanup verify verify_bastion verify_node_manager verify_node_worker lint
+
+setup_dns:
+	@DOMAIN=$$(grep -E '^\s*domain_name\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	TOKEN=$$(grep -E '^\s*hcloud_token\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -z "$$DOMAIN" ] || [ -z "$$TOKEN" ]; then \
+		echo "❌ Error: domain_name or hcloud_token not found in terraform.tfvars"; \
+		exit 1; \
+	fi; \
+	echo "🌐 Creating DNS zone for $$DOMAIN..."; \
+	RESPONSE=$$(curl -s -w "\n%{http_code}" -X POST "https://api.hetzner.cloud/v1/zones" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-H "Content-Type: application/json" \
+		-d "{\"name\": \"$$DOMAIN\", \"mode\": \"primary\"}"); \
+	HTTP_CODE=$$(echo "$$RESPONSE" | tail -1); \
+	BODY=$$(echo "$$RESPONSE" | sed '$$d'); \
+	if [ "$$HTTP_CODE" = "201" ]; then \
+		echo "✅ Zone '$$DOMAIN' created successfully!"; \
+		echo "$$BODY" | python3 -c "import sys,json; ns=json.load(sys.stdin).get('zone',{}).get('authoritative_nameservers',{}).get('assigned',[]); print('📋 Nameservers to set in GoDaddy:'); [print(f'   {n}') for n in ns]" 2>/dev/null || true; \
+	elif [ "$$HTTP_CODE" = "409" ]; then \
+		echo "✅ Zone '$$DOMAIN' already exists (no action needed)."; \
+	else \
+		echo "❌ Failed to create zone (HTTP $$HTTP_CODE):"; \
+		echo "$$BODY"; \
+		exit 1; \
+	fi
 
 setup_keys:
 	@bash ../scripts/generate_ssh_keys.sh
@@ -40,6 +65,10 @@ sync_secrets:
 	ALLOWED_SSH_IPS=$$(grep -E '^\s*allowed_ssh_ips\s*=' terraform.tfvars | sed -E 's/^\s*allowed_ssh_ips\s*=\s*(.*)/\1/' | sed 's/^ *//;s/ *$$//'); \
 	if [ -n "$$ALLOWED_SSH_IPS" ]; then \
 		gh secret set "TF_VAR_allowed_ssh_ips" --body "$$ALLOWED_SSH_IPS" && echo "  ✅ Set: TF_VAR_allowed_ssh_ips"; \
+	fi; \
+	DOMAIN_NAME=$$(grep -E '^\s*domain_name\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$DOMAIN_NAME" ]; then \
+		gh secret set "TF_VAR_domain_name" --body "$$DOMAIN_NAME" && echo "  ✅ Set: TF_VAR_domain_name"; \
 	fi; \
 	SSH_DEV=$$(grep -E '^\s*dev\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
 	if [ -n "$$SSH_DEV" ]; then \

@@ -38,3 +38,8 @@ output "internal_ips" {
   }
   description = "Map of internal IP addresses for all nodes"
 }
+
+output "hcloud_nameservers" {
+  value       = data.hcloud_zone.main.authoritative_nameservers.assigned
+  description = "The Nameservers assigned by Hetzner. Paste these into your Domain Registrar (e.g. GoDaddy)!"
+}

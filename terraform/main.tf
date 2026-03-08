@@ -479,3 +479,24 @@ resource "hcloud_server" "database" {
     hcloud_server.edge
   ]
 }
+
+# ------------------------------------------------------------------------------
+# AUTOMATIC DNS ROUTING (HETZNER DNS)
+# ------------------------------------------------------------------------------
+data "hcloud_zone" "main" {
+  name = var.domain_name
+}
+
+resource "hcloud_zone_rrset" "environment_routing" {
+  zone = data.hcloud_zone.main.id
+  name = var.environment == "prod" ? "@" : var.environment
+  type = "A"
+  records = [{
+    value = hcloud_load_balancer.main.ipv4
+  }]
+  ttl = 60
+
+  depends_on = [
+    hcloud_load_balancer.main
+  ]
+}

@@ -138,7 +138,34 @@ cd terraform
 make ssh ENV=dev
 ```
 
-### 4. GitHub Actions CI Secrets
+### 4. DNS Zone Setup (One-Time)
+
+Before deploying any environment, the DNS zone must exist in Hetzner Cloud. This only needs to be done **once per domain**.
+
+1. **Ensure `domain_name` is set** in `terraform/terraform.tfvars`:
+   ```hcl
+   domain_name = "uzuri.co.uk"
+   ```
+
+2. **Create the zone**:
+   ```bash
+   cd terraform
+   make setup-dns
+   ```
+
+3. **Copy the nameservers** printed in the terminal output and paste them into your domain registrar (e.g. GoDaddy) under **Custom Nameservers**:
+   ```
+   hydrogen.ns.hetzner.com.
+   oxygen.ns.hetzner.com.
+   helium.ns.hetzner.de.
+   ```
+
+> **How it works**: Each `make apply ENV=<name>` automatically creates an A record pointing to that environment's Load Balancer:
+> - `make apply ENV=dev` → `dev.uzuri.co.uk`
+> - `make apply ENV=stage` → `stage.uzuri.co.uk`
+> - `make apply ENV=prod` → `uzuri.co.uk` (root domain)
+
+### 5. GitHub Actions CI Secrets
 The GitHub Actions workflow requires your local environment variables and Hetzner Token to function. You can automate syncing these secrets to your repository using the GitHub CLI (`gh`):
 
 1. **Install GitHub CLI**: `brew install gh` (macOS)
@@ -154,7 +181,7 @@ This will automatically:
 2. Push `HCLOUD_TOKEN` to your **Repository Secrets**.
 3. Create `dev`, `stage`, and `prod` **GitHub Environments** and push the isolated `TF_VAR_ssh_key` into each environment securely.
 
-### 5. Clearing Known Hosts
+### 6. Clearing Known Hosts
 When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
 
 To surgically remove only the IPs associated with the current project environment:
@@ -169,7 +196,7 @@ To clear **all** host records (start fresh):
 cp ~/.ssh/known_hosts ~/.ssh/known_hosts.bak && > ~/.ssh/known_hosts
 ```
 
-### 5. Infrastructure Deployment
+### 7. Infrastructure Deployment
 
 ---
 

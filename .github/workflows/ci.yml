@@ -65,6 +65,7 @@ jobs:
         working-directory: terraform/
         env:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_domain_name: ${{ secrets.TF_VAR_domain_name }}
           TF_VAR_project_name: ${{ secrets.TF_VAR_project_name }}
           # This dynamically injects the correct key for the matching environment
           TF_VAR_ssh_key: ${{ secrets.TF_VAR_ssh_key }}

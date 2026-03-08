@@ -4,6 +4,11 @@ variable "hcloud_token" {
   sensitive   = true
 }
 
+variable "domain_name" {
+  description = "The root domain name (e.g. uzuri.co.uk)"
+  type        = string
+}
+
 variable "project_name" {
   description = "Name of the Project"
   type        = string
