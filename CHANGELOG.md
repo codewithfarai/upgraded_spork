@@ -1,3 +1,9 @@
+## v0.9.0 (2026-03-08)
+
+### feat
+
+- Implement Traefik and Socket Proxy deployment for edge load balancing and routing in the Swarm cluster.
+
 ## v0.8.0 (2026-03-08)
 
 ### feat
