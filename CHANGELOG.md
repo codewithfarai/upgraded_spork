@@ -1,3 +1,9 @@
+## v0.10.0 (2026-03-08)
+
+### feat
+
+- Offload TLS termination and certificate management from Traefik to the Hetzner Load Balancer.
+
 ## v0.9.0 (2026-03-08)
 
 ### feat
