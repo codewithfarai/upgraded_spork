@@ -1,3 +1,9 @@
+## v0.5.0 (2026-03-08)
+
+### feat
+
+- enable dynamic configuration of allowed SSH IPs via GitHub secrets for CI.
+
 ## v0.4.0 (2026-03-08)
 
 ### feat
