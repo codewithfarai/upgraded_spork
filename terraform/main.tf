@@ -210,7 +210,7 @@ resource "hcloud_server" "bastion" {
   name         = "${replace(var.project_name, "_", "-")}-bastion-${var.environment}"
   image        = var.vps_image
   server_type  = var.bastion_server_type
-  location     = var.location
+  location     = var.locations[0]
   ssh_keys     = [hcloud_ssh_key.default.id]
   firewall_ids = [hcloud_firewall.bastion_ssh.id]
 
@@ -247,7 +247,7 @@ resource "hcloud_server" "manager" {
   name        = "${replace(var.project_name, "_", "-")}-manager-${var.environment}-${count.index + 1}"
   image       = var.vps_image
   server_type = var.manager_server_type[var.environment]
-  location    = var.location
+  location    = element(var.locations, count.index)
   ssh_keys    = [hcloud_ssh_key.default.id]
 
   public_net {
@@ -297,7 +297,7 @@ resource "hcloud_server" "edge" {
   name        = "${replace(var.project_name, "_", "-")}-edge-${var.environment}-${count.index + 1}"
   image       = var.vps_image
   server_type = var.edge_server_type[var.environment]
-  location    = var.location
+  location    = element(var.locations, count.index)
   ssh_keys    = [hcloud_ssh_key.default.id]
 
   # Edge accepts public web traffic, internal SSH, and Swarm communication
@@ -344,7 +344,7 @@ resource "hcloud_server" "edge" {
 resource "hcloud_load_balancer" "main" {
   name               = "${var.project_name}_lb_${var.environment}"
   load_balancer_type = var.lb_type
-  location           = var.location
+  location           = var.locations[0]
   labels             = local.common_labels
 }
 
@@ -383,7 +383,7 @@ resource "hcloud_server" "worker" {
   name        = "${replace(var.project_name, "_", "-")}-worker-${var.environment}-${count.index + 1}"
   image       = var.vps_image
   server_type = var.worker_server_type[var.environment]
-  location    = var.location
+  location    = element(var.locations, count.index)
   ssh_keys    = [hcloud_ssh_key.default.id]
 
   public_net {
@@ -434,7 +434,7 @@ resource "hcloud_server" "database" {
   name        = "${replace(var.project_name, "_", "-")}-db-${var.environment}-${count.index + 1}"
   image       = var.vps_image
   server_type = var.db_server_type[var.environment]
-  location    = var.location
+  location    = element(var.locations, count.index)
   ssh_keys    = [hcloud_ssh_key.default.id]
 
   public_net {

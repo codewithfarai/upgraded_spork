@@ -124,10 +124,10 @@ variable "worker_count" {
   }
 }
 
-variable "location" {
-  description = "Hetzner datacenter location"
-  type        = string
-  default     = "nbg1" # Nuremberg, Germany
+variable "locations" {
+  description = "List of Hetzner datacenter locations for High Availability distribution"
+  type        = list(string)
+  default     = ["nbg1", "fsn1"] # Nuremberg and Falkenstein
 }
 
 variable "manager_count" {
