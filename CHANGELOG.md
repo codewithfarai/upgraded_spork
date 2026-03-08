@@ -1,3 +1,9 @@
+## v0.6.0 (2026-03-08)
+
+### feat
+
+- Implement automatic DNS routing for environments using Hetzner DNS.
+
 ## v0.5.0 (2026-03-08)
 
 ### feat
