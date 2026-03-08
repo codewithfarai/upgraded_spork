@@ -196,8 +196,40 @@ To clear **all** host records (start fresh):
 cp ~/.ssh/known_hosts ~/.ssh/known_hosts.bak && > ~/.ssh/known_hosts
 ```
 
-### 7. Infrastructure Deployment
+### 7. Docker Swarm Deployment (Ansible)
 
+After infrastructure is deployed via `make apply`, bootstrap Docker Swarm:
+
+1. **Ensure dependencies are installed** (Ansible is included in the project's Poetry dependencies):
+   ```bash
+   poetry install
+   ```
+
+2. **Bootstrap Docker Swarm** for an environment:
+   ```bash
+   cd ansible
+   make swarm ENV=dev
+   ```
+
+   This will:
+   - Install Docker CE on all nodes (managers, workers, edge, database)
+   - Initialize Docker Swarm on the primary manager
+   - Join all other managers and workers to the cluster
+   - Apply role labels (`edge`, `database`, `worker`) to nodes
+   - Drain manager nodes (managers only orchestrate, not run workloads)
+
+3. **Dry-run** (check mode, no changes made):
+   ```bash
+   make swarm_check ENV=dev
+   ```
+
+4. **Verify** the cluster by SSH'ing into a manager:
+   ```bash
+   make ssh ENV=dev
+   # Then on the bastion, jump to a manager:
+   ssh 10.0.2.10
+   docker node ls
+   ```
 ---
 
 ## Pre-Commit Hooks

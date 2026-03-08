@@ -1,0 +1,166 @@
+---
+# Docker Swarm Bootstrap Playbook
+# Installs Docker, initializes Swarm, joins nodes, and applies labels.
+#
+# Usage:
+#   ENV=dev ansible-playbook playbooks/swarm.yml
+#   make swarm ENV=dev
+
+# ==============================================================================
+# Play 1: Install Docker on all nodes
+# ==============================================================================
+- name: Install Docker on all Swarm nodes
+  hosts: docker_nodes
+  become: yes
+
+  pre_tasks:
+    - name: Verify connectivity to all nodes
+      ping:
+
+    - name: Wait for nodes to be ready
+      wait_for_connection:
+        timeout: 60
+
+  tasks:
+    - name: Install and configure Docker
+      include_role:
+        name: docker
+
+  post_tasks:
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version_output
+      changed_when: false
+      failed_when: docker_version_output.rc != 0
+
+    - name: Verify Docker Compose installation
+      command: docker compose version
+      register: compose_version_output
+      changed_when: false
+      failed_when: compose_version_output.rc != 0
+
+    - name: Display Docker versions
+      debug:
+        msg:
+          - "Docker: {{ docker_version_output.stdout }}"
+          - "Docker Compose: {{ compose_version_output.stdout }}"
+
+# ==============================================================================
+# Play 2: Initialize Swarm on Manager-1
+# ==============================================================================
+- name: Initialize Swarm on primary manager
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Check Swarm status
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_status
+      changed_when: false
+
+    - name: Initialize Swarm
+      command: >
+        docker swarm init
+        --advertise-addr {{ inventory_hostname }}
+        --default-addr-pool 172.16.0.0/12
+        --default-addr-pool-mask-length 24
+      when: swarm_status.stdout == "inactive"
+      register: swarm_init
+
+    - name: Get Manager Join Token
+      command: docker swarm join-token -q manager
+      register: manager_token
+      changed_when: false
+
+    - name: Get Worker Join Token
+      command: docker swarm join-token -q worker
+      register: worker_token
+      changed_when: false
+
+# ==============================================================================
+# Play 3: Join remaining Managers
+# ==============================================================================
+- name: Join remaining managers to Swarm
+  hosts: managers:!managers[0]
+  become: yes
+  tasks:
+    - name: Check Swarm status
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_status
+      changed_when: false
+
+    - name: Join Swarm as Manager
+      command: >
+        docker swarm join
+        --token {{ hostvars[groups['managers'][0]]['manager_token'].stdout }}
+        {{ hostvars[groups['managers'][0]]['inventory_hostname'] }}:2377
+      when: swarm_status.stdout == "inactive"
+
+# ==============================================================================
+# Play 4: Join Workers, Edge, and Database nodes
+# ==============================================================================
+- name: Join worker nodes to Swarm
+  hosts: workers:edge:database
+  become: yes
+  tasks:
+    - name: Check Swarm status
+      command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+      register: swarm_status
+      changed_when: false
+
+    - name: Join Swarm as Worker
+      command: >
+        docker swarm join
+        --token {{ hostvars[groups['managers'][0]]['worker_token'].stdout }}
+        {{ hostvars[groups['managers'][0]]['inventory_hostname'] }}:2377
+      when: swarm_status.stdout == "inactive"
+
+# ==============================================================================
+# Play 5: Apply node labels and drain managers
+# ==============================================================================
+- name: Configure Swarm node labels
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Gather facts from all nodes
+      setup:
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ groups['docker_nodes'] }}"
+      when: hostvars[item]['ansible_facts'] is not defined or hostvars[item]['ansible_facts']['hostname'] is not defined
+
+    - name: Label Edge nodes
+      command: "docker node update --label-add role=edge {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      loop: "{{ groups['edge'] }}"
+      when: hostvars[item]['ansible_facts'] is defined
+      changed_when: true
+      ignore_errors: yes
+
+    - name: Label Database nodes
+      command: "docker node update --label-add role=database {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      loop: "{{ groups['database'] }}"
+      when: hostvars[item]['ansible_facts'] is defined
+      changed_when: true
+      ignore_errors: yes
+
+    - name: Label Worker nodes
+      command: "docker node update --label-add role=worker {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      loop: "{{ groups['workers'] }}"
+      when: hostvars[item]['ansible_facts'] is defined
+      changed_when: true
+      ignore_errors: yes
+
+    - name: Drain Manager nodes (managers should not run workloads)
+      command: "docker node update --availability drain {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      loop: "{{ groups['managers'] }}"
+      when: hostvars[item]['ansible_facts'] is defined
+      changed_when: true
+      ignore_errors: yes
+
+    - name: Verify Swarm cluster
+      command: docker node ls
+      register: node_list
+      changed_when: false
+
+    - name: Display Swarm cluster status
+      debug:
+        msg: "{{ node_list.stdout_lines }}"
