@@ -1,0 +1,37 @@
+tls:
+  options:
+    default:
+      minVersion: "VersionTLS12"
+      sniStrict: true
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+
+http:
+  middlewares:
+    security-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+
+    # Rate limiting only
+    global-ratelimit:
+      rateLimit:
+        average: 100
+        burst: 50
+
+{% if traefik_dashboard_basic_auth | default("") != "" %}
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "{{ traefik_dashboard_basic_auth }}"
+{% endif %}

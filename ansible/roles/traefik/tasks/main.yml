@@ -1,0 +1,82 @@
+---
+# Traefik Role
+# Sets up Traefik in the Docker Swarm cluster along with a secure Socket Proxy
+
+# ===========================================================================
+# Tasks that run on EDGE nodes only (where Traefik containers actually run)
+# ===========================================================================
+- name: Create Traefik directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "1000"
+    group: "1000"
+  loop:
+    - /opt/docker/stacks/traefik
+    - /opt/docker/stacks/traefik/data
+    - /opt/docker/stacks/traefik/data/dynamic
+    - /opt/docker/stacks/traefik/logs
+  when: "'edge' in group_names"
+
+- name: Sync dynamic routing configuration
+  template:
+    src: traefik_dynamic.yml.j2
+    dest: /opt/docker/stacks/traefik/data/dynamic/dynamic.yml
+    mode: '0644'
+  register: dynamic_sync_result
+  when: "'edge' in group_names"
+
+- name: Sync main Traefik static configuration
+  template:
+    src: traefik_static.yml.j2
+    dest: /opt/docker/stacks/traefik/data/traefik.yml
+    mode: '0644'
+  register: static_sync_result
+  when: "'edge' in group_names"
+
+- name: Create ACME files with correct permissions
+  file:
+    path: "{{ item }}"
+    state: touch
+    mode: '0600'
+    owner: "1000"
+    group: "1000"
+  loop:
+    - /opt/docker/stacks/traefik/data/acme.json
+    - /opt/docker/stacks/traefik/data/acme-staging.json
+  when: "'edge' in group_names"
+
+# ===========================================================================
+# Tasks that run on MANAGER[0] only (Swarm control plane commands)
+# ===========================================================================
+- name: Create Traefik stack directory on manager
+  file:
+    path: /opt/docker/stacks/traefik
+    state: directory
+    mode: '0755'
+  when: "inventory_hostname == groups['managers'][0]"
+
+- name: Run Swarm Manager specific tasks
+  block:
+    - name: Set Traefik Domain fact
+      set_fact:
+        traefik_domain: "traefik.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+
+    - name: Generate Traefik stack definition
+      template:
+        src: traefik_stack.yml.j2
+        dest: /opt/docker/stacks/traefik/docker-compose.yml
+        mode: '0644'
+      register: stack_def_result
+
+    - name: Create traefik-public overlay network
+      shell: |
+        docker network create --driver overlay --attachable --scope swarm --subnet 172.20.0.0/24 --opt com.docker.network.driver.mtu=1400 traefik-public || true
+      register: network_create_result
+      changed_when: "'created' in network_create_result.stdout|lower"
+
+    - name: Deploy Traefik and Socket Proxy stack
+      command: docker stack deploy -c /opt/docker/stacks/traefik/docker-compose.yml traefik
+
+  when: "inventory_hostname == groups['managers'][0]"

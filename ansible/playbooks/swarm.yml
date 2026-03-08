@@ -149,13 +149,6 @@
       changed_when: true
       ignore_errors: yes
 
-    - name: Drain Manager nodes (managers should not run workloads)
-      command: "docker node update --availability drain {{ hostvars[item]['ansible_facts']['hostname'] }}"
-      loop: "{{ groups['managers'] }}"
-      when: hostvars[item]['ansible_facts'] is defined
-      changed_when: true
-      ignore_errors: yes
-
     - name: Verify Swarm cluster
       command: docker node ls
       register: node_list
@@ -164,3 +157,14 @@
     - name: Display Swarm cluster status
       debug:
         msg: "{{ node_list.stdout_lines }}"
+
+# ==============================================================================
+# Play 6: Deploy Edge Load Balancer (Traefik) and Socket Proxy
+# ==============================================================================
+- name: Deploy Traefik and Socket Proxy
+  hosts: edge,managers[0]
+  become: yes
+  tasks:
+    - name: Configure Traefik and Socket Proxy
+      include_role:
+        name: traefik

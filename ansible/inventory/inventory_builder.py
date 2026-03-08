@@ -42,6 +42,7 @@ def build_inventory(data, env, ssh_key_path):
         "ansible_ssh_common_args": proxy_cmd,
         "ansible_ssh_private_key_file": ssh_key_path,
         "target_env": env,
+        "domain_name": data.get("domain_name", {}).get("value", ""),
     }
 
     hostvars = {}

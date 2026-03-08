@@ -500,3 +500,17 @@ resource "hcloud_zone_rrset" "environment_routing" {
     hcloud_load_balancer.main
   ]
 }
+
+resource "hcloud_zone_rrset" "environment_wildcard" {
+  zone = data.hcloud_zone.main.id
+  name = var.environment == "prod" ? "*" : "*.${var.environment}"
+  type = "A"
+  records = [{
+    value = hcloud_load_balancer.main.ipv4
+  }]
+  ttl = 60
+
+  depends_on = [
+    hcloud_load_balancer.main
+  ]
+}
