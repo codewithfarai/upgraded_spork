@@ -135,7 +135,16 @@ This will list all `project_name_*` keys in your `~/.ssh/` directory.
 To quickly jump into the active environment's Bastion host:
 ```bash
 cd terraform
-make ssh ENV=dev
+make ssh_bastion ENV=dev
+```
+
+You can also use proxy commands to directly connect to cluster nodes through the bastion:
+
+```bash
+cd terraform
+make ssh_manager ENV=dev
+# or
+make ssh_worker ENV=dev
 ```
 
 ### 4. DNS Zone Setup (One-Time)
@@ -225,9 +234,7 @@ After infrastructure is deployed via `make apply`, bootstrap Docker Swarm:
 
 4. **Verify** the cluster by SSH'ing into a manager:
    ```bash
-   make ssh ENV=dev
-   # Then on the bastion, jump to a manager:
-   ssh 10.0.2.10
+   make ssh_manager ENV=dev
    docker node ls
    ```
 ---

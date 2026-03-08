@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "fluffy_system"
+name = "upgraded_spork"
 version = "0.7.0"
 description = "IAC & Ansible Automation for the Cloud Hetzner Deployment of High Availability Docker Swarm with Traefik as a Reverse Proxy & Authentik as an Authentication Provider"
 authors = ["Farai Wande <faraiwande@gmail.com>"]
