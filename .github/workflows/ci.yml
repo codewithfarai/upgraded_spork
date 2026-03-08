@@ -11,22 +11,25 @@ jobs:
   terraform-continuous-integration:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        environment: [dev, stage, prod]
+
+    environment: ${{ matrix.environment }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+        run: curl -sSL https://install.python-poetry.org | python3 -
 
       - name: Install dependencies
         run: poetry install --only dev
@@ -48,8 +51,8 @@ jobs:
       - name: Install Make
         run: sudo apt-get update && sudo apt-get install -y make
 
-      - name: Terraform init
-        run: make init ENV=dev
+      - name: Terraform init (${{ matrix.environment }})
+        run: make init ENV=${{ matrix.environment }}
         working-directory: terraform/
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -57,13 +60,14 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
 
-      - name: Terraform plan
-        run: make plan ENV=dev
+      - name: Terraform plan (${{ matrix.environment }})
+        run: make plan ENV=${{ matrix.environment }}
         working-directory: terraform/
         env:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_project_name: ${{ secrets.TF_VAR_project_name }}
-          TF_VAR_ssh_keys: '{ dev = "${{ secrets.TF_VAR_ssh_dev }}" }'
+          # This dynamically injects the correct key for the matching environment
+          TF_VAR_ssh_key: ${{ secrets.TF_VAR_ssh_key }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}

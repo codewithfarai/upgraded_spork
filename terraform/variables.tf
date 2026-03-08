@@ -219,14 +219,20 @@ variable "db_count" {
 
 
 variable "ssh_public_key" {
-  description = "public ssh key for server access. Optional if ssh_keys is set for the environment."
+  description = "public ssh key for server access. Optional if ssh_key is set."
   sensitive   = true
   type        = string
   default     = null
 }
 
+variable "ssh_key" {
+  description = "Environment-specific SSH public key provided via CI."
+  type        = string
+  default     = null
+}
+
 variable "ssh_keys" {
-  description = "Map of environment to SSH public key. Overrides ssh_public_key if set for the current environment."
+  description = "Map of environment to SSH public key. (Used locally from tfvars)."
   type        = map(string)
   default     = {}
 }

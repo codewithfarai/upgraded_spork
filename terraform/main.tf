@@ -3,8 +3,9 @@ provider "hcloud" {
 }
 
 resource "hcloud_ssh_key" "default" {
-  name       = "fluffy_system_ssh_key_${var.environment}"
-  public_key = lookup(var.ssh_keys, var.environment, var.ssh_public_key)
+  name = "${var.project_name}_ssh_key_${var.environment}"
+  # Use dynamically injected var.ssh_key (from CI) if available. Otherwise, fallback to the local ssh_keys map.
+  public_key = var.ssh_key != null ? var.ssh_key : lookup(var.ssh_keys, var.environment, var.ssh_public_key)
 }
 
 locals {

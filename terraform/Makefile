@@ -39,15 +39,18 @@ sync_secrets:
 	fi; \
 	SSH_DEV=$$(grep -E '^\s*dev\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
 	if [ -n "$$SSH_DEV" ]; then \
-		gh secret set "TF_VAR_ssh_dev" --body "$$SSH_DEV" && echo "  ✅ Set: TF_VAR_ssh_dev"; \
+		gh api -X PUT /repos/{owner}/{repo}/environments/dev --silent 2>/dev/null || true; \
+		gh secret set "TF_VAR_ssh_key" --env dev --body "$$SSH_DEV" && echo "  ✅ Set: TF_VAR_ssh_key (dev env)"; \
 	fi; \
 	SSH_STAGE=$$(grep -E '^\s*stage\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
 	if [ -n "$$SSH_STAGE" ]; then \
-		gh secret set "TF_VAR_ssh_stage" --body "$$SSH_STAGE" && echo "  ✅ Set: TF_VAR_ssh_stage"; \
+		gh api -X PUT /repos/{owner}/{repo}/environments/stage --silent 2>/dev/null || true; \
+		gh secret set "TF_VAR_ssh_key" --env stage --body "$$SSH_STAGE" && echo "  ✅ Set: TF_VAR_ssh_key (stage env)"; \
 	fi; \
 	SSH_PROD=$$(grep -E '^\s*prod\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
 	if [ -n "$$SSH_PROD" ]; then \
-		gh secret set "TF_VAR_ssh_prod" --body "$$SSH_PROD" && echo "  ✅ Set: TF_VAR_ssh_prod"; \
+		gh api -X PUT /repos/{owner}/{repo}/environments/prod --silent 2>/dev/null || true; \
+		gh secret set "TF_VAR_ssh_key" --env prod --body "$$SSH_PROD" && echo "  ✅ Set: TF_VAR_ssh_key (prod env)"; \
 	fi
 	@echo "🎉 Sync complete!"
 
@@ -92,10 +95,22 @@ destroy_all:
 	$(MAKE) destroy ENV=prod
 
 # Security & NAT Verification
+ssh:
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
+	RAW_KEY=$$(eval echo $$SSH_KEY); \
+	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
+	echo "🔌 Connecting to Bastion Host ($$BASTION_IP) using key ($$RAW_KEY)..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no
+	 -o UserKnownHostsFile=/dev/null root@$$BASTION_IP
+
 verify: verify_bastion verify_node_manager verify_node_worker
 
 verify_bastion:
-	@BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
@@ -104,7 +119,8 @@ verify_bastion:
 	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$$BASTION_IP "bash -s" < scripts/verify_security.sh
 
 verify_node_manager:
-	@BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
@@ -117,7 +133,8 @@ verify_node_manager:
 		root@$$MANAGER_IP "bash -s $$EDGE_IP" < scripts/verify_security.sh
 
 verify_node_worker:
-	@BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \

@@ -132,6 +132,12 @@ make view_keys
 
 This will list all `project_name_*` keys in your `~/.ssh/` directory.
 
+To quickly jump into the active environment's Bastion host:
+```bash
+cd terraform
+make ssh ENV=dev
+```
+
 ### 4. GitHub Actions CI Secrets
 The GitHub Actions workflow requires your local environment variables and Hetzner Token to function. You can automate syncing these secrets to your repository using the GitHub CLI (`gh`):
 
@@ -143,7 +149,10 @@ The GitHub Actions workflow requires your local environment variables and Hetzne
    make sync_secrets
    ```
 
-This will automatically push `TF_STATE_BUCKET`, `TF_STATE_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` from `.env` and `HCLOUD_TOKEN` from `terraform.tfvars`.
+This will automatically:
+1. Push `TF_STATE_BUCKET`, `TF_STATE_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `TF_VAR_project_name` to your **Repository Variables**.
+2. Push `HCLOUD_TOKEN` to your **Repository Secrets**.
+3. Create `dev`, `stage`, and `prod` **GitHub Environments** and push the isolated `TF_VAR_ssh_key` into each environment securely.
 
 ### 5. Clearing Known Hosts
 When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
