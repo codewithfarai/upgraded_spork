@@ -35,17 +35,7 @@
   register: static_sync_result
   when: "'edge' in group_names"
 
-- name: Create ACME files with correct permissions
-  file:
-    path: "{{ item }}"
-    state: touch
-    mode: '0600'
-    owner: "1000"
-    group: "1000"
-  loop:
-    - /opt/docker/stacks/traefik/data/acme.json
-    - /opt/docker/stacks/traefik/data/acme-staging.json
-  when: "'edge' in group_names"
+# ACME file creation removed - handled by LB
 
 # ===========================================================================
 # Tasks that run on MANAGER[0] only (Swarm control plane commands)

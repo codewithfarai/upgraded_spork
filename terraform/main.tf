@@ -363,18 +363,25 @@ resource "hcloud_load_balancer_target" "edge" {
   depends_on       = [hcloud_load_balancer_network.main]
 }
 
-resource "hcloud_load_balancer_service" "http" {
-  load_balancer_id = hcloud_load_balancer.main.id
-  protocol         = "tcp"
-  listen_port      = 80
-  destination_port = 80
-}
-
 resource "hcloud_load_balancer_service" "https" {
   load_balancer_id = hcloud_load_balancer.main.id
-  protocol         = "tcp"
+  protocol         = "https"
   listen_port      = 443
-  destination_port = 443
+  destination_port = 80 # Forward to Traefik HTTP
+  http {
+    certificates  = [hcloud_managed_certificate.wildcard.id]
+    redirect_http = true
+  }
+  health_check {
+    protocol = "http"
+    port     = 80
+    interval = 10
+    timeout  = 5
+    retries  = 3
+    http {
+      path = "/ping" # Traefik ping endpoint
+    }
+  }
 }
 
 # Docker Swarm Worker Nodes
