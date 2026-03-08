@@ -8,8 +8,6 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "tf-state-bucket"
-    key    = "terraform.tfstate"
     endpoints = {
       s3 = "https://fsn1.your-objectstorage.com"
     }
