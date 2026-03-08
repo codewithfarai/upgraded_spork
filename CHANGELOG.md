@@ -1,3 +1,9 @@
+## v0.4.0 (2026-03-08)
+
+### feat
+
+- Replace single location variable with a list of locations to distribute resources across multiple data centers.
+
 ## v0.3.0 (2026-03-08)
 
 ### feat
