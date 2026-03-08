@@ -35,6 +35,7 @@ output "internal_ips" {
     managers = hcloud_server.manager[*].network[*].ip
     workers  = hcloud_server.worker[*].network[*].ip
     edge     = hcloud_server.edge[*].network[*].ip
+    database = hcloud_server.database[*].network[*].ip
   }
   description = "Map of internal IP addresses for all nodes"
 }
