@@ -1,3 +1,13 @@
+## v0.7.0 (2026-03-08)
+
+### feat
+
+- Add Ansible playbooks, roles, and dynamic inventory for Docker Swarm cluster provisioning.
+
+### refactor
+
+- Add database server IP addresses to the `internal_ips` output.
+
 ## v0.6.0 (2026-03-08)
 
 ### feat
