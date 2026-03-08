@@ -7,10 +7,49 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: init plan apply destroy destroy_all setup_keys view_keys ssh_cleanup verify verify_bastion verify_node_manager verify-node-worker lint
+.PHONY: init plan apply destroy destroy_all setup_keys sync_secrets view_keys ssh_cleanup verify verify_bastion verify_node_manager verify_node_worker lint
 
 setup_keys:
 	@bash ../scripts/generate_ssh_keys.sh
+
+sync_secrets:
+	@echo "🔐 Syncing secrets to GitHub..."
+	@if ! command -v gh &> /dev/null; then \
+		echo "❌ Error: GitHub CLI (gh) is not installed. Run 'brew install gh' first."; \
+		exit 1; \
+	fi
+	@if ! gh auth status &> /dev/null; then \
+		echo "❌ Error: Not logged into GitHub CLI. Run 'gh auth login' first."; \
+		exit 1; \
+	fi
+	@if [ -f .env ]; then \
+		echo "Pushing variables from .env..."; \
+		grep -v '^#' .env | grep -v '^$$' | while IFS='=' read -r key value; do \
+			gh secret set "$$key" --body "$$value" && echo "  ✅ Set: $$key"; \
+		done; \
+	else echo "⚠️ No .env file found to sync."; fi
+	@echo "Pushing variables from terraform.tfvars..."; \
+	HCLOUD_TOKEN=$$(grep -E '^\s*hcloud_token\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$HCLOUD_TOKEN" ]; then \
+		gh secret set "HCLOUD_TOKEN" --body "$$HCLOUD_TOKEN" && echo "  ✅ Set: HCLOUD_TOKEN"; \
+	fi; \
+	PROJECT_NAME=$$(grep -E '^\s*project_name\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$PROJECT_NAME" ]; then \
+		gh secret set "TF_VAR_project_name" --body "$$PROJECT_NAME" && echo "  ✅ Set: TF_VAR_project_name"; \
+	fi; \
+	SSH_DEV=$$(grep -E '^\s*dev\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$SSH_DEV" ]; then \
+		gh secret set "TF_VAR_ssh_dev" --body "$$SSH_DEV" && echo "  ✅ Set: TF_VAR_ssh_dev"; \
+	fi; \
+	SSH_STAGE=$$(grep -E '^\s*stage\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$SSH_STAGE" ]; then \
+		gh secret set "TF_VAR_ssh_stage" --body "$$SSH_STAGE" && echo "  ✅ Set: TF_VAR_ssh_stage"; \
+	fi; \
+	SSH_PROD=$$(grep -E '^\s*prod\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
+	if [ -n "$$SSH_PROD" ]; then \
+		gh secret set "TF_VAR_ssh_prod" --body "$$SSH_PROD" && echo "  ✅ Set: TF_VAR_ssh_prod"; \
+	fi
+	@echo "🎉 Sync complete!"
 
 view_keys:
 	@PROJECT_NAME=$$(grep -E '^\s*project_name\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \

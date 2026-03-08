@@ -132,7 +132,20 @@ make view_keys
 
 This will list all `project_name_*` keys in your `~/.ssh/` directory.
 
-### 4. Clearing Known Hosts
+### 4. GitHub Actions CI Secrets
+The GitHub Actions workflow requires your local environment variables and Hetzner Token to function. You can automate syncing these secrets to your repository using the GitHub CLI (`gh`):
+
+1. **Install GitHub CLI**: `brew install gh` (macOS)
+2. **Login**: `gh auth login`
+3. **Sync Secrets**:
+   ```bash
+   cd terraform
+   make sync_secrets
+   ```
+
+This will automatically push `TF_STATE_BUCKET`, `TF_STATE_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` from `.env` and `HCLOUD_TOKEN` from `terraform.tfvars`.
+
+### 5. Clearing Known Hosts
 When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
 
 To surgically remove only the IPs associated with the current project environment:
