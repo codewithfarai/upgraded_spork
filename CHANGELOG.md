@@ -1,3 +1,9 @@
+## v0.3.0 (2026-03-08)
+
+### feat
+
+- Multi Environment Orchestration & Security Verification (#4)
+
 ## v0.2.0 (2026-03-07)
 
 ### feat
