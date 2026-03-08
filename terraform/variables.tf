@@ -71,7 +71,6 @@ variable "environment" {
 variable "allowed_ssh_ips" {
   type        = list(string)
   description = "List of IPs allowed to SSH into the bastion host"
-  default     = ["86.28.208.241/32"]
 }
 
 variable "vps_image" {

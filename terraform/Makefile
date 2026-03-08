@@ -37,6 +37,10 @@ sync_secrets:
 	if [ -n "$$PROJECT_NAME" ]; then \
 		gh secret set "TF_VAR_project_name" --body "$$PROJECT_NAME" && echo "  ✅ Set: TF_VAR_project_name"; \
 	fi; \
+	ALLOWED_SSH_IPS=$$(grep -E '^\s*allowed_ssh_ips\s*=' terraform.tfvars | sed -E 's/^\s*allowed_ssh_ips\s*=\s*(.*)/\1/' | sed 's/^ *//;s/ *$$//'); \
+	if [ -n "$$ALLOWED_SSH_IPS" ]; then \
+		gh secret set "TF_VAR_allowed_ssh_ips" --body "$$ALLOWED_SSH_IPS" && echo "  ✅ Set: TF_VAR_allowed_ssh_ips"; \
+	fi; \
 	SSH_DEV=$$(grep -E '^\s*dev\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
 	if [ -n "$$SSH_DEV" ]; then \
 		gh api -X PUT /repos/{owner}/{repo}/environments/dev --silent 2>/dev/null || true; \
