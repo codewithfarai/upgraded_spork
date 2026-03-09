@@ -129,23 +129,20 @@
       when: hostvars[item]['ansible_facts'] is not defined or hostvars[item]['ansible_facts']['hostname'] is not defined
 
     - name: Label Edge nodes
-      command: "docker node update --label-add role=edge {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      command: "docker node update --label-add role=edge {{ hostvars[item]['ansible_hostname'] | default(item) }}"
       loop: "{{ groups['edge'] }}"
-      when: hostvars[item]['ansible_facts'] is defined
       changed_when: true
       ignore_errors: yes
 
     - name: Label Database nodes
-      command: "docker node update --label-add role=database {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      command: "docker node update --label-add role=database {{ hostvars[item]['ansible_hostname'] | default(item) }}"
       loop: "{{ groups['database'] }}"
-      when: hostvars[item]['ansible_facts'] is defined
       changed_when: true
       ignore_errors: yes
 
     - name: Label Worker nodes
-      command: "docker node update --label-add role=worker {{ hostvars[item]['ansible_facts']['hostname'] }}"
+      command: "docker node update --label-add role=worker {{ hostvars[item]['ansible_hostname'] | default(item) }}"
       loop: "{{ groups['workers'] }}"
-      when: hostvars[item]['ansible_facts'] is defined
       changed_when: true
       ignore_errors: yes
 
@@ -168,3 +165,14 @@
     - name: Configure Traefik and Socket Proxy
       include_role:
         name: traefik
+
+# ==============================================================================
+# Play 7: Deploy Authentik SSO
+# ==============================================================================
+- name: Deploy Authentik SSO
+  hosts: database,managers[0]
+  become: yes
+  tasks:
+    - name: Configure Authentik SSO
+      include_role:
+        name: authentik

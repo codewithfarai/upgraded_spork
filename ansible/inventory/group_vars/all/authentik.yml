@@ -1,0 +1,22 @@
+# Authentik SSO Configuration
+
+# Authentik version (pinned for reproducibility)
+authentik_version: "2026.2.1"
+
+# Domain prefix — results in auth.dev.uzuri.co.uk (dev) or auth.uzuri.co.uk (prod)
+authentik_domain: "auth"
+
+# Admin account
+authentik_admin_email: "{{ lookup('env', 'AUTHENTIK_ADMIN_EMAIL') | default('admin@uzuri.co.uk', true) }}"
+
+# All secrets are loaded from .env via the Makefile.
+# Run: make generate_secrets to auto-generate them.
+# The lookup('env', ...) pulls from environment variables set by the Makefile.
+authentik_admin_password: "{{ lookup('env', 'AUTHENTIK_ADMIN_PASSWORD') }}"
+authentik_secret_key: "{{ lookup('env', 'AUTHENTIK_SECRET_KEY') }}"
+authentik_db_password: "{{ lookup('env', 'AUTHENTIK_DB_PASSWORD') }}"
+authentik_bootstrap_token: "{{ lookup('env', 'AUTHENTIK_BOOTSTRAP_TOKEN') }}"
+
+# HA Configuration — number of replicas for server and worker
+authentik_server_replicas: 2
+authentik_worker_replicas: 2

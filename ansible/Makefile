@@ -1,6 +1,16 @@
 ENV ?= dev
 
-.PHONY: swarm swarm_check
+# Load secrets from .env if it exists
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
+.PHONY: swarm swarm_check generate_secrets
+
+generate_secrets:
+	@chmod +x scripts/generate_authentik_secrets.sh
+	@bash scripts/generate_authentik_secrets.sh
 
 swarm:
 	@echo "🐝 Bootstrapping Docker Swarm ($(ENV))..."

@@ -1,10 +1,4 @@
-# Default variables for Traefik and ACME DNS-01 Challenge
+# Default variables for Traefik
 
 # Standard Domain variables
-acme_email: "faraiwande@gmail.com"
 traefik_version: "v3.6.5"
-
-# Dashboard Authentication
-# You can generate a htpasswd string and place it here to enable Basic Auth for the Traefik dashboard
-# Example: traefik_dashboard_basic_auth: "admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/"
-traefik_dashboard_basic_auth: ""
