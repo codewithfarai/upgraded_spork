@@ -1,3 +1,10 @@
+## v0.11.0 (2026-03-09)
+
+### feat
+
+- Add egress firewall rules for bastion to allow internal SSH, DNS, APT updates, and NTP.
+- Harden Traefik security by encrypting the public overlay network, restricting web ingress to the load balancer, adding comprehensive egress firewall rules, and refining Traefik configurations.
+
 ## v0.10.0 (2026-03-08)
 
 ### feat
