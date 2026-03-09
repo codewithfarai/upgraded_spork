@@ -1,3 +1,10 @@
+## v0.12.0 (2026-03-09)
+
+### feat
+
+- Implement Authentik for centralized authentication and integrate it with Traefik, alongside network security enhancements.
+- Add Authentik SSO deployment, including secret generation, Ansible role, and Traefik integration.
+
 ## v0.11.0 (2026-03-09)
 
 ### feat
