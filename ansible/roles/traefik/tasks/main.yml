@@ -60,9 +60,9 @@
         mode: '0644'
       register: stack_def_result
 
-    - name: Create traefik-public overlay network
+    - name: Create encrypted traefik-public overlay network
       shell: |
-        docker network create --driver overlay --attachable --scope swarm --subnet 172.20.0.0/24 --opt com.docker.network.driver.mtu=1400 traefik-public || true
+        docker network create --driver overlay --attachable --scope swarm --subnet 172.20.0.0/24 --opt com.docker.network.driver.mtu=1400 --opt encrypted=true traefik-public || true
       register: network_create_result
       changed_when: "'created' in network_create_result.stdout|lower"
 

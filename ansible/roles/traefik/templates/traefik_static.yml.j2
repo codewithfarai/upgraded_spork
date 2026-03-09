@@ -3,23 +3,19 @@ ping:
 
 api:
   dashboard: true
-  debug: true
+  debug: false
   insecure: false
 
 entryPoints:
   web:
     address: ":80"
+    http:
+      middlewares:
+        - global-ratelimit@file
+        - security-headers@file
     forwardedHeaders:
-      insecure: true # Trust headers from the Hetzner LB
-  websecure:
-    address: ":443"
-    # Even though LB forwards to 80, keeping 443 for internal/direct access if needed
-    forwardedHeaders:
-      insecure: true
-  traefik:
-    address: ":8080"
-  metrics:
-    address: ":8082"
+      trustedIPs:
+        - "10.0.1.5/32"  # Only trust headers from the Hetzner Load Balancer
 
 providers:
   swarm:
@@ -37,7 +33,7 @@ metrics:
   prometheus:
     addEntryPointsLabels: true
     addServicesLabels: true
-    entryPoint: metrics
+    entryPoint: web
 
 log:
   level: INFO

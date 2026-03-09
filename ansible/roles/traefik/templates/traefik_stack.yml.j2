@@ -16,8 +16,8 @@ services:
       EVENTS: 1
       VERSION: 1
       PING: 1
-      VOLUMES: 1
-      IMAGES: 1
+      VOLUMES: 0
+      IMAGES: 0
     networks:
       - socket-proxy
     deploy:
@@ -69,14 +69,6 @@ services:
         published: 80
         protocol: tcp
         mode: host
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: host
-      - target: 8080
-        published: 8080
-        protocol: tcp
-        mode: host
     environment:
       - DOCKER_API_VERSION=1.44
       - "CONFIG_HASH={{ static_sync_result.checksum | default('initial') }}"
@@ -116,7 +108,7 @@ services:
         - traefik.enable=true
         - traefik.http.routers.api.rule=Host(`{{ traefik_domain }}`)
         - traefik.http.routers.api.service=api@internal
-        - traefik.http.routers.api.entrypoints=web,websecure
+        - traefik.http.routers.api.entrypoints=web
 {% if traefik_dashboard_basic_auth | default("") != "" %}
         - traefik.http.routers.api.middlewares=security-headers@file,dashboard-auth@file
 {% else %}

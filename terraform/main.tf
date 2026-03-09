@@ -90,22 +90,13 @@ resource "hcloud_firewall" "internal_ssh" {
 resource "hcloud_firewall" "web_traffic" {
   name = "${var.project_name}_web_traffic_firewall_${var.environment}"
 
-  # HTTP
+  # HTTP (LB Only)
   rule {
     direction   = "in"
     protocol    = "tcp"
     port        = "80"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "HTTP traffic (redirects to HTTPS)"
-  }
-
-  # HTTPS
-  rule {
-    direction   = "in"
-    protocol    = "tcp"
-    port        = "443"
-    source_ips  = ["0.0.0.0/0", "::/0"]
-    description = "HTTPS traffic for Traefik"
+    source_ips  = ["10.0.1.5/32"]
+    description = "Allow HTTP only from Load Balancer"
   }
 
   labels = merge(local.common_labels, {
@@ -160,6 +151,75 @@ resource "hcloud_firewall" "docker_swarm" {
     port        = "4789"
     source_ips  = [var.network_ip_range]
     description = "Overlay network VXLAN"
+  }
+
+  # === EGRESS RULES ===
+  # Restrict outbound traffic from all Swarm nodes.
+  # Without these, compromised nodes could exfiltrate data or establish reverse shells.
+
+  # Private network - all traffic (inter-node communication)
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "any"
+    destination_ips = [var.network_ip_range]
+    description     = "All TCP outbound to private network"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "any"
+    destination_ips = [var.network_ip_range]
+    description     = "All UDP outbound to private network"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "icmp"
+    destination_ips = [var.network_ip_range]
+    description     = "ICMP outbound to private network"
+  }
+
+  # DNS resolution
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "53"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "DNS resolution (UDP)"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "53"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "DNS resolution (TCP)"
+  }
+
+  # HTTP - APT package updates
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "80"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "HTTP outbound (APT updates)"
+  }
+
+  # HTTPS - Docker image pulls + APT HTTPS repos
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "443"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "HTTPS outbound (Docker pulls, APT updates)"
+  }
+
+  # NTP - time synchronization
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "123"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "NTP time synchronization"
   }
 
   labels = merge(local.common_labels, {
