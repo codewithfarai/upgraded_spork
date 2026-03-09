@@ -54,6 +54,72 @@ resource "hcloud_firewall" "bastion_ssh" {
     description = "ssh access from allowed admin IPs"
   }
 
+  # === EGRESS RULES ===
+  # Bastion only needs: internal SSH, DNS, APT updates, NTP
+
+  # Private network - SSH to internal nodes
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "any"
+    destination_ips = [var.network_ip_range]
+    description     = "All TCP outbound to private network (SSH to nodes)"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "any"
+    destination_ips = [var.network_ip_range]
+    description     = "All UDP outbound to private network"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "icmp"
+    destination_ips = [var.network_ip_range]
+    description     = "ICMP outbound to private network"
+  }
+
+  # DNS
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "53"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "DNS resolution (UDP)"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "53"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "DNS resolution (TCP)"
+  }
+
+  # APT updates
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "80"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "HTTP outbound (APT updates)"
+  }
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "443"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "HTTPS outbound (APT updates)"
+  }
+
+  # NTP
+  rule {
+    direction       = "out"
+    protocol        = "udp"
+    port            = "123"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "NTP time synchronization"
+  }
+
   labels = merge(local.common_labels, {
     purpose = "bastion"
     type    = var.firewall_label_type
