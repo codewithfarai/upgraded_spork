@@ -176,7 +176,7 @@ variable "edge_count" {
   default = {
     prod  = 2
     stage = 1
-    dev   = 1
+    dev   = 2
   }
 
   validation {
@@ -211,7 +211,7 @@ variable "db_count" {
   default = {
     prod  = 2
     stage = 1
-    dev   = 1
+    dev   = 2
   }
 
   validation {

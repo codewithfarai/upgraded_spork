@@ -23,7 +23,7 @@ if [[ "$NODE_TYPE" != "edge" && "$NODE_TYPE" != "bastion" ]]; then
 
     # Wait for NAT Gateway/Connectivity (Wait until we can reach an external nameserver)
     echo "Waiting for NAT Gateway (Edge) to provide internet access..."
-    until ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; do
+    until curl -s -m 2 https://1.1.1.1 >/dev/null 2>&1; do
         echo "Internet not reachable yet. Sleeping 5s..."
         sleep 5
     done

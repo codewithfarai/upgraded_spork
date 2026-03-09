@@ -219,6 +219,13 @@ resource "hcloud_firewall" "docker_swarm" {
     description = "Overlay network VXLAN"
   }
 
+  # IPSec/ESP for encrypted overlay networks
+  rule {
+    direction   = "in"
+    protocol    = "esp"
+    source_ips  = [var.network_ip_range]
+    description = "IPSec ESP for encrypted overlay"
+  }
   # === EGRESS RULES ===
   # Restrict outbound traffic from all Swarm nodes.
   # Without these, compromised nodes could exfiltrate data or establish reverse shells.
@@ -243,6 +250,14 @@ resource "hcloud_firewall" "docker_swarm" {
     protocol        = "icmp"
     destination_ips = [var.network_ip_range]
     description     = "ICMP outbound to private network"
+  }
+
+  # IPSec/ESP for encrypted overlay networks outbound
+  rule {
+    direction       = "out"
+    protocol        = "esp"
+    destination_ips = [var.network_ip_range]
+    description     = "IPSec ESP outbound for encrypted overlay"
   }
 
   # DNS resolution

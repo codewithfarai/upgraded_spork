@@ -109,11 +109,7 @@ services:
         - traefik.http.routers.api.rule=Host(`{{ traefik_domain }}`)
         - traefik.http.routers.api.service=api@internal
         - traefik.http.routers.api.entrypoints=web
-{% if traefik_dashboard_basic_auth | default("") != "" %}
-        - traefik.http.routers.api.middlewares=security-headers@file,dashboard-auth@file
-{% else %}
-        - traefik.http.routers.api.middlewares=security-headers@file
-{% endif %}
+        - traefik.http.routers.api.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
 
 volumes:
