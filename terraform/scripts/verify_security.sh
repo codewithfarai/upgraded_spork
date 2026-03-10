@@ -84,12 +84,21 @@ check_sysctl "net.ipv4.tcp_syncookies" "1"
 if [[ "$(hostname)" != *"bastion"* && "$(hostname)" != *"edge"* ]]; then
     echo "------------------------------------------------"
     echo "Checking NAT Gateway / Outbound IP..."
-    CURRENT_IP=$(curl -s --connect-timeout 5 https://ifconfig.me)
+    CURRENT_IP=$(curl -s --connect-timeout 5 https://icanhazip.com | tr -d '\n')
     if [[ -n "$EXPECTED_NAT_IP" ]]; then
-        if [[ "$CURRENT_IP" == "$EXPECTED_NAT_IP" ]]; then
-            log_pass "NAT: Outbound IP correctly matches Edge Public IP ($CURRENT_IP)"
+        # Check if current IP is in the list of expected IPs
+        found_match=0
+        for expected in $EXPECTED_NAT_IP; do
+            if [[ "$CURRENT_IP" == "$expected" ]]; then
+                found_match=1
+                break
+            fi
+        done
+
+        if [[ $found_match -eq 1 ]]; then
+            log_pass "NAT: Outbound IP correctly matches one of the Edge IPs ($CURRENT_IP)"
         else
-            log_fail "NAT: Outbound IP ($CURRENT_IP) DOES NOT match Edge Public IP ($EXPECTED_NAT_IP)"
+            log_fail "NAT: Outbound IP ($CURRENT_IP) DOES NOT match any Edge IPs ($EXPECTED_NAT_IP)"
         fi
     else
         if [[ -z "$CURRENT_IP" ]]; then
