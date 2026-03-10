@@ -1,3 +1,14 @@
+## v0.13.1 (2026-03-10)
+
+### fix
+
+- Use traefik.swarm.network instead of traefik.docker.network for the authentik-outpost service.
+
+### chore
+
+- better ssh_commands & using -system instead of -p
+- replaced curl
+
 ## v0.13.0 (2026-03-10)
 
 ### feat
