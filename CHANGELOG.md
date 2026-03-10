@@ -1,3 +1,9 @@
+## v0.13.0 (2026-03-10)
+
+### feat
+
+- Enhance Authentik database resilience with Patroni integration, increased replicas, and improved HAProxy configuration, and add a database SSH helper.
+
 ## v0.12.0 (2026-03-09)
 
 ### feat
