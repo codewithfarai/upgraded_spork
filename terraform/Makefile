@@ -1,5 +1,7 @@
 # Default environment (dev, stage, prod)
 ENV ?= dev
+# Default node index for SSH (0-indexed)
+NODE ?= 0
 
 # Load environment variables from .env file if it exists
 ifneq (,$(wildcard ./.env))
@@ -7,7 +9,11 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: init plan apply destroy destroy_all setup_keys setup_dns sync_secrets view_keys ssh_cleanup verify verify_bastion verify_node_manager verify_node_worker lint
+.PHONY: init plan apply destroy destroy_all setup_keys setup_dns sync_secrets view_keys ssh_cleanup verify verify_bastion verify_node_manager verify_node_worker verify_node_database lint
+
+# Helper to get SSH Key Name from public key string in tfvars
+# This remains the fallback if not provided via environment
+GET_SSH_KEY_NAME = $$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}')
 
 setup_dns:
 	@DOMAIN=$$(grep -E '^\s*domain_name\s*=' terraform.tfvars | sed -E 's/.*"(.*)".*/\1/'); \
@@ -127,102 +133,110 @@ destroy_all:
 	$(MAKE) destroy ENV=stage
 	$(MAKE) destroy ENV=prod
 
-# Security & NAT Verification
+# Common logic for SSH connectivity
 ssh_bastion:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
-	echo "🔌 Connecting to Bastion Host ($$BASTION_IP) using key ($$RAW_KEY)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no \
-	 -o UserKnownHostsFile=/dev/null root@$$BASTION_IP
+	echo "🔌 Connecting to Bastion Host ($$BASTION_IP)..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$$BASTION_IP
 
 ssh_manager:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	MANAGER_IP=$$(terraform output -json internal_ips | jq -r '.managers[0][0]'); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	MANAGER_IP=$$(terraform output -json internal_ips | jq -r ".managers[$(NODE)][0]"); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
-	echo "🔌 Connecting to Manager Node ($$MANAGER_IP) via Bastion Host ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no \
-	 -o UserKnownHostsFile=/dev/null \
-	 -o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
-	 root@$$MANAGER_IP
+	echo "🔌 Connecting to Manager Node ($$MANAGER_IP) [index $(NODE)] via Bastion..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		root@$$MANAGER_IP
 
 ssh_worker:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	WORKER_IP=$$(terraform output -json internal_ips | jq -r '.workers[0][0]'); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	WORKER_IP=$$(terraform output -json internal_ips | jq -r ".workers[$(NODE)][0]"); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
-	echo "🔌 Connecting to Worker Node ($$WORKER_IP) via Bastion Host ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no \
-	 -o UserKnownHostsFile=/dev/null \
-	 -o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
-	 root@$$WORKER_IP
+	echo "🔌 Connecting to Worker Node ($$WORKER_IP) [index $(NODE)] via Bastion..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		root@$$WORKER_IP
 
 ssh_db: ssh_database
 ssh_database:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	DB_IP=$$(terraform output -json internal_ips | jq -r '.database[0][0]'); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	DB_IP=$$(terraform output -json internal_ips | jq -r ".database[$(NODE)][0]"); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
-	echo "🔌 Connecting to Database Node ($$DB_IP) via Bastion Host ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no \
-	 -o UserKnownHostsFile=/dev/null \
-	 -o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
-	 root@$$DB_IP
+	echo "🔌 Connecting to Database Node ($$DB_IP) [index $(NODE)] via Bastion..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		root@$$DB_IP
 
-
-
-verify: verify_bastion verify_node_manager verify_node_worker
+# Verification targets
+verify: verify_bastion verify_node_manager verify_node_worker verify_node_database
 
 verify_bastion:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found (Derived from tfvars: $$SSH_KEY_NAME)"; exit 1; fi; \
-	echo "🔍 Verifying Bastion Host ($$BASTION_IP) using key ($$RAW_KEY)..."; \
+	echo "🔍 Verifying Bastion Host ($$BASTION_IP)..."; \
 	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$$BASTION_IP "bash -s" < scripts/verify_security.sh
 
 verify_node_manager:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
+	MANAGER_IPS=$$(terraform output -json internal_ips | jq -r '.managers[] | .[]'); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	EDGE_IP=$$(terraform output -json edge_public_ips | jq -r '.[0]'); \
-	MANAGER_IP=$$(terraform output -json internal_ips | jq -r '.managers[0][0]'); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found (Derived from tfvars: $$SSH_KEY_NAME)"; exit 1; fi; \
-	echo "🔍 Verifying Manager-1 ($$MANAGER_IP) via Bastion ($$BASTION_IP) using key ($$RAW_KEY)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
-		root@$$MANAGER_IP "bash -s $$EDGE_IP" < scripts/verify_security.sh
+	for ip in $$MANAGER_IPS; do \
+		echo "🔍 Verifying Manager ($$ip) via Bastion..."; \
+		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
+	done
 
 verify_node_worker:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
+	WORKER_IPS=$$(terraform output -json internal_ips | jq -r '.workers[] | .[]'); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	EDGE_IP=$$(terraform output -json edge_public_ips | jq -r '.[0]'); \
-	WORKER_IP=$$(terraform output -json internal_ips | jq -r '.workers[0][0]'); \
-	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found (Derived from tfvars: $$SSH_KEY_NAME)"; exit 1; fi; \
-	echo "🔍 Verifying Worker-1 ($$WORKER_IP) via Bastion ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
-		root@$$WORKER_IP "bash -s $$EDGE_IP" < scripts/verify_security.sh
+	for ip in $$WORKER_IPS; do \
+		echo "🔍 Verifying Worker ($$ip) via Bastion..."; \
+		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
+	done
+
+verify_node_database:
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
+	DB_IPS=$$(terraform output -json internal_ips | jq -r '.database[] | .[]'); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
+	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
+	RAW_KEY=$$(eval echo $$SSH_KEY); \
+	for ip in $$DB_IPS; do \
+		echo "🔍 Verifying Database Node ($$ip) via Bastion..."; \
+		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
+	done
 
 lint:
 	poetry run pre-commit run --all-files

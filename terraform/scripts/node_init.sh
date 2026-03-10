@@ -27,7 +27,7 @@ if [[ "$NODE_TYPE" != "edge" && "$NODE_TYPE" != "bastion" ]]; then
         echo "Internet not reachable yet. Sleeping 5s..."
         sleep 5
     done
-    echo "✅ Internet is reachable via NAT. Proceeding with init..."
+    echo "✅ Internet is reachable via NAT. Proceeding with init.."
 fi
 
 # NAT Gateway Setup (Edge Nodes Only)
@@ -184,8 +184,8 @@ net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
 EOL
 
-    # Apply kernel settings
-    sysctl -p
+    # Apply kernel settings - forcing refresh from all config files
+    sysctl --system
     echo "Kernel hardening completed successfully"
 
     # Install and configure unattended-upgrades for automatic security patching
