@@ -167,6 +167,21 @@ ssh_worker:
 	 -o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
 	 root@$$WORKER_IP
 
+ssh_db: ssh_database
+ssh_database:
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	DB_IP=$$(terraform output -json internal_ips | jq -r '.database[0][0]'); \
+	SSH_KEY_NAME=$$(grep -E "^\s*$(ENV)\s*=" terraform.tfvars | sed -E 's/.*"(.*)".*/\1/' | awk '{print $$NF}'); \
+	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
+	RAW_KEY=$$(eval echo $$SSH_KEY); \
+	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
+	echo "🔌 Connecting to Database Node ($$DB_IP) via Bastion Host ($$BASTION_IP)..."; \
+	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no \
+	 -o UserKnownHostsFile=/dev/null \
+	 -o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+	 root@$$DB_IP
+
 
 
 verify: verify_bastion verify_node_manager verify_node_worker

@@ -175,7 +175,7 @@ variable "edge_count" {
   type        = map(number)
   default = {
     prod  = 2
-    stage = 1
+    stage = 3
     dev   = 2
   }
 
@@ -210,7 +210,7 @@ variable "db_count" {
   type        = map(number)
   default = {
     prod  = 2
-    stage = 1
+    stage = 3
     dev   = 2
   }
 

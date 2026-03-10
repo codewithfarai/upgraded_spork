@@ -23,9 +23,13 @@ services:
     image: ghcr.io/zalando/spilo-16:3.3-p3
     environment:
       SCOPE: authentik
+      PATRONI_NAME: "{{ target_env }}-pg-0"
       ETCD_HOST: authentik_etcd:2379
       POSTGRES_PASSWORD_FILE: "/run/secrets/authentik_db_password"
       PGPASSWORD_SUPERUSER_FILE: "/run/secrets/authentik_db_password"
+      PATRONI_REPLICATION_USERNAME: standby
+      PATRONI_REPLICATION_PASSWORD: "{{ authentik_db_password }}"
+      PATRONI_REPLICATION_ADDRESS: "0.0.0.0/0"
       SPILO_CONFIGURATION: |
         superuser: postgres
         admin_role: admin
@@ -43,7 +47,8 @@ services:
           users:
             authentik:
               password: "{{ authentik_db_password }}"
-              options: [createdb, createrole]
+              # SUPERUSER is required to prevent "InsufficientPrivilege" on schema public
+              options: [createdb, createrole, SUPERUSER]
             standby:
               password: "{{ authentik_db_password }}"
               options: [replication]
@@ -56,7 +61,8 @@ services:
           pg_hba:
             - local all all trust
             - host all all 0.0.0.0/0 md5
-            - host replication all 0.0.0.0/0 md5
+            - host replication standby 0.0.0.0/0 trust
+            - local replication standby trust
     volumes:
       - authentik-postgres-0:/home/postgres/pgdata
     networks:
@@ -74,9 +80,13 @@ services:
     image: ghcr.io/zalando/spilo-16:3.3-p3
     environment:
       SCOPE: authentik
+      PATRONI_NAME: "{{ target_env }}-pg-1"
       ETCD_HOST: authentik_etcd:2379
       POSTGRES_PASSWORD_FILE: "/run/secrets/authentik_db_password"
       PGPASSWORD_SUPERUSER_FILE: "/run/secrets/authentik_db_password"
+      PATRONI_REPLICATION_USERNAME: standby
+      PATRONI_REPLICATION_PASSWORD: "{{ authentik_db_password }}"
+      PATRONI_REPLICATION_ADDRESS: "0.0.0.0/0"
       SPILO_CONFIGURATION: |
         superuser: postgres
         admin_role: admin
@@ -94,7 +104,7 @@ services:
           users:
             authentik:
               password: "{{ authentik_db_password }}"
-              options: [createdb, createrole]
+              options: [createdb, createrole, SUPERUSER]
             standby:
               password: "{{ authentik_db_password }}"
               options: [replication]
@@ -107,7 +117,8 @@ services:
           pg_hba:
             - local all all trust
             - host all all 0.0.0.0/0 md5
-            - host replication all 0.0.0.0/0 md5
+            - host replication standby 0.0.0.0/0 trust
+            - local replication standby trust
     volumes:
       - authentik-postgres-1:/home/postgres/pgdata
     networks:
@@ -124,7 +135,7 @@ services:
   pgpool:
     image: haproxy:2.8-alpine
     command: |
-      sh -c 'cat <<EOF > /tmp/haproxy.cfg
+      sh -c 'cat <<-"EOF" > /tmp/haproxy.cfg
       global
         maxconn 100
       defaults
@@ -139,9 +150,10 @@ services:
         bind *:5432
         option httpchk GET /primary
         http-check expect status 200
-        default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr last,libc,none
-        server pg-0 tasks.authentik_pg-0:5432 maxconn 100 check port 8008
-        server pg-1 tasks.authentik_pg-1:5432 maxconn 100 check port 8008
+        # init-addr libc,none ensures HAProxy keeps retrying DNS until the DB nodes appear in the Swarm network
+        default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
+        server pg-0 authentik_pg-0:5432 maxconn 100 check port 8008
+        server pg-1 authentik_pg-1:5432 maxconn 100 check port 8008
       EOF
       haproxy -f /tmp/haproxy.cfg'
     networks:
@@ -152,6 +164,9 @@ services:
         constraints:
           - node.labels.role == database
 
+  # ==========================================================================
+  # Redis Cluster
+  # ==========================================================================
   redis-primary:
     image: redis:7-alpine
     command: |
@@ -202,6 +217,9 @@ services:
         preferences:
           - spread: node.id
 
+  # ==========================================================================
+  # Authentik App Stack
+  # ==========================================================================
   server:
     image: ghcr.io/goauthentik/server:{{ authentik_version | default('2026.2.1') }}
     command: server
@@ -220,6 +238,9 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: "file:///run/secrets/authentik_db_password"
+      AUTHENTIK_POSTGRESQL__SSLMODE: disable
+      AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
+      AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
       AUTHENTIK_BOOTSTRAP_PASSWORD: "file:///run/secrets/authentik_admin_password"
       AUTHENTIK_BOOTSTRAP_TOKEN: "file:///run/secrets/authentik_bootstrap_token"
       AUTHENTIK_BOOTSTRAP_EMAIL: "file:///run/secrets/authentik_admin_email"
@@ -257,6 +278,7 @@ services:
         - traefik.http.routers.authentik-outpost.entrypoints=web
         - traefik.http.routers.authentik-outpost.service=authentik-svc
         - traefik.http.routers.authentik-outpost.priority=15
+        - traefik.docker.network=traefik-public
 
   worker:
     image: ghcr.io/goauthentik/server:{{ authentik_version | default('2026.2.1') }}
@@ -276,6 +298,9 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: "file:///run/secrets/authentik_db_password"
+      AUTHENTIK_POSTGRESQL__SSLMODE: disable
+      AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
+      AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
     networks:
       - authentik-backend
     secrets:
