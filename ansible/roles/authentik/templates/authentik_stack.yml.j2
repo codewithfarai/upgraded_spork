@@ -278,7 +278,7 @@ services:
         - traefik.http.routers.authentik-outpost.entrypoints=web
         - traefik.http.routers.authentik-outpost.service=authentik-svc
         - traefik.http.routers.authentik-outpost.priority=15
-        - traefik.docker.network=traefik-public
+        - traefik.swarm.network=traefik-public
 
   worker:
     image: ghcr.io/goauthentik/server:{{ authentik_version | default('2026.2.1') }}
