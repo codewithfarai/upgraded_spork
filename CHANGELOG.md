@@ -1,3 +1,10 @@
+## v0.14.0 (2026-03-14)
+
+### feat
+
+- Configure PostgreSQL SSL, enhance HAProxy health checks and DNS resolution, update poetry lock, and ignore new authentication and script files.
+- Extract Authentik's PostgreSQL HA cluster into a new `database_ha` role and stack, and reduce default node counts.
+
 ## v0.13.1 (2026-03-10)
 
 ### fix
