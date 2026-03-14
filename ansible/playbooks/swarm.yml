@@ -115,45 +115,29 @@
       when: swarm_status.stdout == "inactive"
 
 # ==============================================================================
-# Play 5: Apply node labels and drain managers
+# Play 5: Apply node labels
 # ==============================================================================
 - name: Configure Swarm node labels
   hosts: managers[0]
   become: yes
   tasks:
-    - name: Gather facts from all nodes
-      setup:
-      delegate_to: "{{ item }}"
-      delegate_facts: true
-      loop: "{{ groups['docker_nodes'] }}"
-      when: hostvars[item]['ansible_facts'] is not defined or hostvars[item]['ansible_facts']['hostname'] is not defined
-
     - name: Label Edge nodes
-      command: "docker node update --label-add role=edge {{ hostvars[item]['ansible_hostname'] | default(item) }}"
+      command: "docker node update --label-add role=edge {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['edge'] }}"
+      when: groups['edge'] is defined
       changed_when: true
-      ignore_errors: yes
 
     - name: Label Database nodes
-      command: "docker node update --label-add role=database {{ hostvars[item]['ansible_hostname'] | default(item) }}"
+      command: "docker node update --label-add role=database {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['database'] }}"
+      when: groups['database'] is defined
       changed_when: true
-      ignore_errors: yes
 
     - name: Label Worker nodes
-      command: "docker node update --label-add role=worker {{ hostvars[item]['ansible_hostname'] | default(item) }}"
+      command: "docker node update --label-add role=worker {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['workers'] }}"
+      when: groups['workers'] is defined
       changed_when: true
-      ignore_errors: yes
-
-    - name: Verify Swarm cluster
-      command: docker node ls
-      register: node_list
-      changed_when: false
-
-    - name: Display Swarm cluster status
-      debug:
-        msg: "{{ node_list.stdout_lines }}"
 
 # ==============================================================================
 # Play 6: Deploy Edge Load Balancer (Traefik) and Socket Proxy
@@ -169,8 +153,19 @@
 # ==============================================================================
 # Play 7: Deploy Authentik SSO
 # ==============================================================================
-- name: Deploy Authentik SSO
+- name: Deploy Database HA Stack
   hosts: database,managers[0]
+  become: yes
+  tasks:
+    - name: Configure Database HA Stack
+      include_role:
+        name: database_ha
+
+# ==============================================================================
+# Play 8: Deploy Authentik SSO
+# ==============================================================================
+- name: Deploy Authentik SSO
+  hosts: edge,managers[0]
   become: yes
   tasks:
     - name: Configure Authentik SSO

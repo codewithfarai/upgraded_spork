@@ -1,0 +1,190 @@
+version: '3.8'
+
+# Gather the database nodes from Ansible inventory (dynamically handles 2 or 3 nodes)
+{% set db_nodes = groups['database'] %}
+{% set db_count = db_nodes | length %}
+
+# Build etcd cluster connection strings dynamically
+{% set etcd_cluster_list = [] %}
+{% set etcd_client_list = [] %}
+{% for host in db_nodes %}
+{% set _ = etcd_cluster_list.append('etcd-' ~ loop.index0 ~ '=http://etcd-' ~ loop.index0 ~ ':2380') %}
+{% set _ = etcd_client_list.append('etcd-' ~ loop.index0 ~ ':2379') %}
+{% endfor %}
+{% set etcd_initial_cluster = etcd_cluster_list | join(',') %}
+{% set etcd_client_hosts = etcd_client_list | join(',') %}
+
+services:
+
+{% for db_host in db_nodes %}
+  # ==========================================================================
+  # Node {{ loop.index0 }} Services (Matches Terraform Hostnames)
+  # ==========================================================================
+
+  etcd-{{ loop.index0 }}:
+    image: quay.io/coreos/etcd:v3.5.11
+    environment:
+      ETCD_UNSUPPORTED_ARCH: arm64
+      ETCD_NAME: etcd-{{ loop.index0 }}
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd-{{ loop.index0 }}:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd-{{ loop.index0 }}:2380
+      ETCD_INITIAL_CLUSTER: "{{ etcd_initial_cluster }}"
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: pg-ha-cluster
+      ETCD_ENABLE_V2: "true"
+    networks:
+      - shared-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          # Matches standard terraform hostname format: upgraded-spork-db-dev-1
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
+
+  pg-{{ loop.index0 }}:
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    environment:
+      SCOPE: authentik
+      PATRONI_NAME: "{{ target_env }}-pg-{{ loop.index0 }}"
+      ETCD_HOST: "etcd-{{ loop.index0 }}:2379"
+      POSTGRES_PASSWORD_FILE: "/run/secrets/authentik_db_password"
+      PGPASSWORD_SUPERUSER_FILE: "/run/secrets/authentik_db_password"
+      PATRONI_REPLICATION_USERNAME: standby
+      PATRONI_REPLICATION_PASSWORD: "{{ authentik_db_password }}"
+      PATRONI_REPLICATION_ADDRESS: "0.0.0.0/0"
+      SPILO_CONFIGURATION: |
+        superuser: postgres
+        admin_role: admin
+        bootstrap:
+          dcs:
+            ttl: 30
+            loop_wait: 10
+            retry_timeout: 10
+            maximum_lag_on_failover: 1048576
+          initdb:
+            - auth-host: md5
+            - auth-local: trust
+            - encoding: UTF8
+            - data-checksums
+          users:
+            authentik:
+              password: "{{ authentik_db_password }}"
+              options: [createdb, createrole, SUPERUSER]
+            standby:
+              password: "{{ authentik_db_password }}"
+              options: [replication]
+          databases:
+            authentik: authentik
+        postgresql:
+          use_pg_rewind: true
+          parameters:
+            listen_addresses: '*'
+          pg_hba:
+            - local all all trust
+            - host all all 0.0.0.0/0 md5
+            - host replication standby 0.0.0.0/0 trust
+            - local replication standby trust
+    volumes:
+      - postgres-{{ loop.index0 }}:/home/postgres/pgdata
+    networks:
+      - shared-backend
+    secrets:
+      - source: authentik_db_password-{{ authentik_db_password_hash }}
+        target: authentik_db_password
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
+
+  redis-{{ loop.index0 }}:
+    image: redis:7-alpine
+    command: sh -c 'redis-server {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel warning'
+    volumes:
+      - redis-{{ loop.index0 }}:/data
+    networks:
+      - shared-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
+
+{% endfor %}
+
+  # ==========================================================================
+  # Dynamic Routing & Monitors
+  # ==========================================================================
+  pgpool:
+    image: haproxy:2.8-alpine
+    environment:
+      HAPROXY_CFG: |
+        global
+          maxconn 1000
+          log stdout format raw local0 info
+        defaults
+          log global
+          mode tcp
+          retries 2
+          timeout client 30m
+          timeout connect 4s
+          timeout server 30m
+          timeout check 5s
+
+        listen postgres
+          bind *:5432
+          option httpchk GET /primary
+          http-check expect status 200
+          default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
+          {% for host in db_nodes %}
+          server pg-{{ loop.index0 }} pg-{{ loop.index0 }}:5432 maxconn 100 check port 8008
+          {% endfor %}
+
+        listen redis
+          bind *:6379
+          option tcp-check
+          tcp-check send PING\r\n
+          tcp-check expect string +PONG
+          tcp-check send info\ replication\r\n
+          tcp-check expect string role:master
+          tcp-check send QUIT\r\n
+          tcp-check expect string +OK
+          default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
+          {% for host in db_nodes %}
+          server redis-{{ loop.index0 }} redis-{{ loop.index0 }}:6379 check
+          {% endfor %}
+    # We use $$ to escape the variable so Compose passes it directly to the container's shell
+    command: sh -c 'echo "$$HAPROXY_CFG" > /tmp/haproxy.cfg && exec haproxy -W -db -f /tmp/haproxy.cfg'
+    networks:
+      - shared-backend
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.role == database
+
+volumes:
+{% for host in db_nodes %}
+  postgres-{{ loop.index0 }}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/stacks/database_ha/postgres-{{ loop.index0 }}
+  redis-{{ loop.index0 }}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/stacks/database_ha/redis-{{ loop.index0 }}
+{% endfor %}
+
+networks:
+  shared-backend:
+    external: true
+
+secrets:
+  authentik_db_password-{{ authentik_db_password_hash }}:
+    file: /opt/docker/stacks/database_ha/secrets/authentik_db_password

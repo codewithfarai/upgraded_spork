@@ -51,9 +51,9 @@ def build_inventory(data, env, ssh_key_path):
     for ip in workers:
         hostvars[ip] = {"swarm_role": "worker"}
     for ip in edge:
-        hostvars[ip] = {"swarm_role": "worker"}
+        hostvars[ip] = {"swarm_role": "edge"}
     for ip in database:
-        hostvars[ip] = {"swarm_role": "worker"}
+        hostvars[ip] = {"swarm_role": "database"}
 
     return {
         "managers": {"hosts": managers},

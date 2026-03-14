@@ -1,0 +1,68 @@
+---
+# Identify which index (0, 1, 2) this specific database node represents
+- name: Determine node index for volume mapping
+  set_fact:
+    node_index: "{{ groups['database'].index(inventory_hostname) }}"
+  when: "'database' in group_names"
+
+- name: Create Postgres directory for this node
+  file:
+    path: "/opt/docker/stacks/database_ha/postgres-{{ node_index }}"
+    state: directory
+    owner: '101'
+    group: '101'
+    mode: '0700'
+  when: "'database' in group_names"
+
+- name: Create Redis directory for this node
+  file:
+    path: "/opt/docker/stacks/database_ha/redis-{{ node_index }}"
+    state: directory
+    mode: '0777'
+  when: "'database' in group_names"
+
+# Execute Swarm deployment on the Manager
+- name: Run Swarm Manager specific tasks
+  block:
+    - name: Create database stack directory
+      file:
+        path: /opt/docker/stacks/database_ha/secrets
+        state: directory
+        mode: '0755'
+
+    - name: Generate Authentik DB password (if not set)
+      set_fact:
+        authentik_db_password_generated: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      when: authentik_db_password | default('') == ''
+
+    - name: Set effective DB secret
+      set_fact:
+        effective_db_password: "{{ authentik_db_password | default(authentik_db_password_generated, true) }}"
+
+    - name: Write DB password to secret file
+      copy:
+        content: "{{ effective_db_password }}"
+        dest: "/opt/docker/stacks/database_ha/secrets/authentik_db_password"
+        mode: '0600'
+      register: db_secret_file
+
+    - name: Set secret hash fact
+      set_fact:
+        authentik_db_password_hash: "{{ db_secret_file.checksum | default(effective_db_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
+
+    - name: Create shared backend overlay network
+      shell: |
+        docker network create --driver overlay --attachable --scope swarm --subnet 172.21.0.0/24 --opt encrypted=true shared-backend || true
+      register: network_create
+      changed_when: "'created' in network_create.stdout|lower"
+
+    - name: Generate Database HA stack definition
+      template:
+        src: database_stack.yml.j2
+        dest: /opt/docker/stacks/database_ha/docker-compose.yml
+        mode: '0644'
+
+    - name: Deploy Database HA stack
+      command: docker stack deploy -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
+
+  when: "inventory_hostname == groups['managers'][0]"

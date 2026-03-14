@@ -1,101 +1,60 @@
 ---
-# Authentik SSO Role
-
-# ===========================================================================
-# Tasks that run on DATABASE nodes
-# ===========================================================================
-- name: Create Authentik Postgres data directories on database node
-  file:
-    path: "{{ item }}"
-    state: directory
-    # Postgres is extremely strict about permissions. 0777 will often cause crashes.
-    # We assign ownership to UID/GID 101 which is the Spilo/postgres container user.
-    owner: '101'
-    group: '101'
-    mode: '0700'
-  loop:
-    - /opt/docker/stacks/authentik/postgres-0
-    - /opt/docker/stacks/authentik/postgres-1
-  when: "'database' in group_names"
-
-- name: Create Authentik Redis and Media directories on database node
-  file:
-    path: "{{ item }}"
-    state: directory
-    # 0777 ensures the container users can write data to the bind mount for these services
-    mode: '0777'
-  loop:
-    - /opt/docker/stacks/authentik/redis-0
-    - /opt/docker/stacks/authentik/redis-1
-    - /opt/docker/stacks/authentik/media
-    - /opt/docker/stacks/authentik/templates
-  when: "'database' in group_names"
-
 # ===========================================================================
 # Tasks that run on MANAGER[0] only
 # ===========================================================================
 - name: Run Swarm Manager specific tasks
   block:
-    - name: Create Authentik stack directory on manager
+    - name: Create Authentik stack directory
       file:
-        path: /opt/docker/stacks/authentik
+        path: /opt/docker/stacks/authentik/secrets
         state: directory
         mode: '0755'
 
-    # --- Secret Generation ---
-    - name: Generate Authentik secret key (if not set)
+    - name: Slurp database password
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+      register: slurped_db_pass
+
+    # NEW: Grab the exact checksum of the file that database_ha created
+    - name: Get database password file stats
+      stat:
+        path: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+      register: db_pass_stat
+
+    - name: Generate Authentik secrets (if not set)
       set_fact:
         authentik_secret_key_generated: "{{ lookup('password', '/dev/null length=50 chars=ascii_letters,digits') }}"
-      when: authentik_secret_key | default('') == ''
-
-    - name: Generate Authentik DB password (if not set)
-      set_fact:
-        authentik_db_password_generated: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-      when: authentik_db_password | default('') == ''
-
-    - name: Generate Bootstrap API token (if not set)
-      set_fact:
         authentik_bootstrap_token_generated: "{{ lookup('password', '/dev/null length=40 chars=ascii_letters,digits') }}"
-      when: authentik_bootstrap_token | default('') == ''
 
     - name: Set effective secrets
       set_fact:
         effective_secret_key: "{{ authentik_secret_key | default(authentik_secret_key_generated, true) }}"
-        effective_db_password: "{{ authentik_db_password | default(authentik_db_password_generated, true) }}"
         effective_bootstrap_token: "{{ authentik_bootstrap_token | default(authentik_bootstrap_token_generated, true) }}"
-
-    - name: Set Authentik Domain fact
-      set_fact:
+        effective_db_password: "{{ slurped_db_pass['content'] | b64decode }}"
         authentik_full_domain: "{{ authentik_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
         traefik_dashboard_domain: "traefik.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
 
-    - name: Create Authentik secrets directory on manager
-      file:
-        path: /opt/docker/stacks/authentik/secrets
-        state: directory
-        mode: '0700'
-
-    - name: Write Authentik secrets to secure files and generate hashes
+    - name: Write Authentik secrets to secure files
       copy:
         content: "{{ item.value }}"
         dest: "/opt/docker/stacks/authentik/secrets/{{ item.name }}"
         mode: '0600'
       loop:
         - { name: 'authentik_secret_key', value: '{{ effective_secret_key }}' }
-        - { name: 'authentik_db_password', value: '{{ effective_db_password }}' }
         - { name: 'authentik_admin_password', value: '{{ authentik_admin_password }}' }
         - { name: 'authentik_bootstrap_token', value: '{{ effective_bootstrap_token }}' }
         - { name: 'authentik_admin_email', value: '{{ authentik_admin_email }}' }
       no_log: true
       register: secret_files
 
-    - name: Set secret hash facts for rotatable Docker Secrets
+    - name: Set secret hash facts
       set_fact:
         authentik_secret_key_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_secret_key') | first).checksum | default(effective_secret_key | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
-        authentik_db_password_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_db_password') | first).checksum | default(effective_db_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
         authentik_admin_password_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_admin_password') | first).checksum | default(authentik_admin_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
         authentik_bootstrap_token_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_bootstrap_token') | first).checksum | default(effective_bootstrap_token | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
         authentik_admin_email_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_admin_email') | first).checksum | default(authentik_admin_email | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
+        # NEW: Guarantee the DB hash perfectly matches what Swarm has
+        authentik_db_password_hash: "{{ db_pass_stat.stat.checksum | truncate(10, True, '') }}"
 
     - name: Generate Authentik stack definition
       template:
@@ -105,47 +64,5 @@
 
     - name: Deploy Authentik stack
       command: docker stack deploy -c /opt/docker/stacks/authentik/docker-compose.yml authentik
-
-    - name: Wait for Authentik API to be ready
-      uri:
-        url: "http://localhost:9000/api/v3/root/config/"
-        method: GET
-        headers:
-          Authorization: "Bearer {{ effective_bootstrap_token }}"
-        status_code: 200
-        validate_certs: false
-      register: authentik_health
-      retries: 30
-      delay: 10
-      until: authentik_health.status == 200
-      failed_when: false
-
-    # API Configuration block
-    - name: Configure Authentik via API
-      when: authentik_health.status == 200
-      block:
-        - name: Check for existing Traefik dashboard provider
-          uri:
-            url: "http://localhost:9000/api/v3/providers/proxy/?search=traefik-dashboard"
-            method: GET
-            headers: { Authorization: "Bearer {{ effective_bootstrap_token }}" }
-          register: existing_provider
-
-        - name: Set provider exists flag
-          set_fact:
-            provider_exists: "{{ (existing_provider.json.results | length) > 0 }}"
-
-        - name: Create Proxy Provider for Traefik dashboard
-          uri:
-            url: "http://localhost:9000/api/v3/providers/proxy/"
-            method: POST
-            headers: { Authorization: "Bearer {{ effective_bootstrap_token }}", Content-Type: "application/json" }
-            body_format: json
-            body:
-              name: "traefik-dashboard"
-              external_host: "https://{{ traefik_dashboard_domain }}"
-              mode: "forward_single"
-            status_code: [200, 201]
-          when: not provider_exists
 
   when: "inventory_hostname == groups['managers'][0]"
