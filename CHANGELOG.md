@@ -1,3 +1,9 @@
+## v0.15.0 (2026-03-14)
+
+### feat
+
+- Add tasks to wait for PostgreSQL master readiness via pgpool and idempotently create the Authentik database.
+
 ## v0.14.0 (2026-03-14)
 
 ### feat
