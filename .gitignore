@@ -38,3 +38,6 @@ terraform.rc
 
 # Environment variables
 .env
+setup_auth.sh
+ss.sh
+upgraded_spork/auth.py

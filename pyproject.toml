@@ -12,6 +12,7 @@ packages = [{include = "upgraded_spork"}]
 python = "^3.12"
 ansible = "^13.1.0"
 docker = "^7.1.0"
+requests = "^2.32.5"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.8.3"

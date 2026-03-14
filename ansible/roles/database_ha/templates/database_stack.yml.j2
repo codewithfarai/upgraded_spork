@@ -81,6 +81,7 @@ services:
           use_pg_rewind: true
           parameters:
             listen_addresses: '*'
+            ssl: 'off'
           pg_hba:
             - local all all trust
             - host all all 0.0.0.0/0 md5
@@ -124,6 +125,14 @@ services:
         global
           maxconn 1000
           log stdout format raw local0 info
+
+        resolvers docker
+          nameserver dns 127.0.0.11:53
+          resolve_retries 3
+          timeout resolve 1s
+          timeout retry   1s
+          hold valid      10s
+
         defaults
           log global
           mode tcp
@@ -135,11 +144,13 @@ services:
 
         listen postgres
           bind *:5432
-          option httpchk GET /primary
+          mode tcp
+          option httpchk
+          http-check send meth GET uri /master ver HTTP/1.1 hdr Host pgpool
           http-check expect status 200
           default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server pg-{{ loop.index0 }} pg-{{ loop.index0 }}:5432 maxconn 100 check port 8008
+          server pg-{{ loop.index0 }} pg-{{ loop.index0 }}:5432 maxconn 100 check port 8008 resolvers docker resolve-prefer ipv4
           {% endfor %}
 
         listen redis
