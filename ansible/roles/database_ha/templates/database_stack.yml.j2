@@ -71,7 +71,7 @@ services:
           users:
             authentik:
               password: "{{ authentik_db_password }}"
-              options: [createdb, createrole, SUPERUSER]
+              options: [createdb, createrole]
             standby:
               password: "{{ authentik_db_password }}"
               options: [replication]
@@ -85,7 +85,7 @@ services:
           pg_hba:
             - local all all trust
             - hostssl all all 0.0.0.0/0 md5
-            - host replication standby 0.0.0.0/0 trust
+            - host replication standby 0.0.0.0/0 md5
             - local replication standby trust
     volumes:
       - postgres-{{ loop.index0 }}:/home/postgres/pgdata
