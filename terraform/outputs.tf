@@ -49,3 +49,8 @@ output "domain_name" {
   value       = var.domain_name
   description = "The root domain name used for the project"
 }
+
+output "network_ip_range" {
+  value       = var.network_ip_range
+  description = "The internal IP range of the private network"
+}

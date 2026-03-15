@@ -10,6 +10,24 @@ NETWORK_GATEWAY="${network_gateway}"
 WORKER_COUNT="${worker_count}"
 ENABLE_HARDENING="${enable_hardening}"
 
+# 1. Provision dedicated 'provision' user IMMEDIATELY (Before network wait)
+# This ensures we can always SSH in to debug even if internet/NAT is not up yet.
+if [[ "$ENABLE_HARDENING" == "true" ]]; then
+    if ! id "provision" &>/dev/null; then
+        echo "Creating 'provision' user and preparing SSH access..."
+        useradd -m -s /bin/bash provision
+        echo "provision ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/provision
+        chmod 0440 /etc/sudoers.d/provision
+
+        # Copy authorized keys from root
+        mkdir -p /home/provision/.ssh
+        cp /root/.ssh/authorized_keys /home/provision/.ssh/
+        chown -R provision:provision /home/provision/.ssh
+        chmod 700 /home/provision/.ssh
+        chmod 600 /home/provision/.ssh/authorized_keys
+    fi
+fi
+
 # Permanent DNS Configuration (Required for Private Nodes)
 echo "Configuring persistent DNS..."
 sed -i 's/#DNS=/DNS=185.12.64.2 185.12.64.1/' /etc/systemd/resolved.conf
@@ -51,6 +69,20 @@ apt-get update
 apt-get dist-upgrade -y
 apt-get install -y python3 python3-pip net-tools curl jq
 
+# Configure Docker MTU and logging to prevent hangs and disk exhaustion
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << EOL
+{
+  "mtu": 1450,
+  "iptables": true,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOL
+
 # Extract fail2ban config values from the JSON-like string using jq
 FAIL2BAN_CONFIG_JSON='${fail2ban_config}'
 FAIL2BAN_BANTIME=$(echo "$FAIL2BAN_CONFIG_JSON" | jq -r '.bantime')
@@ -69,25 +101,10 @@ for i in $(seq 1 $WORKER_COUNT); do
     echo "10.0.3.$((29 + i)) worker-$i" >> /etc/hosts
 done
 
-# SSH hardening - THIS IS THE CORE SECURITY
+# 2. Hardening & Fail2Ban
 if [[ "$ENABLE_HARDENING" == "true" ]]; then
-    echo "Applying security hardening and provisioning 'provision' user..."
-
-    # 1. Provision dedicated 'provision' user
-    if ! id "provision" &>/dev/null; then
-        useradd -m -s /bin/bash provision
-        echo "provision ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/provision
-        chmod 0440 /etc/sudoers.d/provision
-
-        # Copy authorized keys from root
-        mkdir -p /home/provision/.ssh
-        cp /root/.ssh/authorized_keys /home/provision/.ssh/
-        chown -R provision:provision /home/provision/.ssh
-        chmod 700 /home/provision/.ssh
-        chmod 600 /home/provision/.ssh/authorized_keys
-    fi
-
-    # 2. SSH Configuration - Prevent brute force and unauthorized access
+    echo "Applying SSH security hardening..."
+    # SSH Configuration - Prevent brute force and unauthorized access
     sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
     sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
     sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
@@ -149,7 +166,8 @@ fi
 if [[ "$ENABLE_HARDENING" == "true" ]]; then
     echo "Applying kernel-level security hardening..."
 
-    cat >> /etc/sysctl.conf << 'EOL'
+    # Use a high-priority conf file to ensure settings stick (overrides cloud-init/hetzner defaults)
+    cat > /etc/sysctl.d/99-hardened.conf << 'EOL'
 # IP Spoofing protection
 net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
@@ -174,11 +192,14 @@ net.ipv4.icmp_echo_ignore_broadcasts = 1
 # Ignore Directed pings
 net.ipv4.icmp_ignore_bogus_error_responses = 1
 
-# Enable TCP/IP SYN cookies (DDoS protection)
+# TCP/IP parameters
 net.ipv4.tcp_syncookies = 1
 net.ipv4.tcp_max_syn_backlog = 2048
 net.ipv4.tcp_synack_retries = 2
 net.ipv4.tcp_syn_retries = 5
+
+# Redis performance & reliability
+vm.overcommit_memory = 1
 
 # IP forwarding for Docker (required)
 net.ipv4.ip_forward = 1

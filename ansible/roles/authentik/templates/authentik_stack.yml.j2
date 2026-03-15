@@ -14,8 +14,7 @@ services:
       - /app/lifecycle
     environment:
       AUTHENTIK_SECRET_KEY: "file:///run/secrets/authentik_secret_key"
-      # Route to the HAProxy instance deployed by database_ha stack
-      AUTHENTIK_REDIS__HOST: db_ha_pgpool
+      # Version 2025.10+ uses PostgreSQL for caching/tasks, Redis is no longer required.
       AUTHENTIK_POSTGRESQL__HOST: db_ha_pgpool
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
@@ -76,7 +75,6 @@ services:
       - /app/lifecycle
     environment:
       AUTHENTIK_SECRET_KEY: "file:///run/secrets/authentik_secret_key"
-      AUTHENTIK_REDIS__HOST: db_ha_pgpool
       AUTHENTIK_POSTGRESQL__HOST: db_ha_pgpool
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik

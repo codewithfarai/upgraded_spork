@@ -21,6 +21,20 @@ log_fail() {
 echo "Starting Security Verification on $(hostname)..."
 echo "Target Node: $(hostname) ($(hostname -I | awk '{print $1}'))"
 
+# Wait for node initialization to complete
+echo "Waiting for node initialization marker (/tmp/node-init-complete)..."
+timeout=300
+elapsed=0
+while [[ ! -f /tmp/node-init-complete ]] && [[ $elapsed -lt $timeout ]]; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+
+if [[ ! -f /tmp/node-init-complete ]]; then
+    log_fail "Node initialization timed out after 5 minutes."
+    exit 1
+fi
+
 # 1. SSH Configuration
 echo "------------------------------------------------"
 echo "Checking SSH Configuration..."
@@ -85,6 +99,7 @@ check_sysctl "net.ipv4.conf.all.accept_redirects" "0"
 check_sysctl "net.ipv4.conf.all.send_redirects" "0"
 check_sysctl "net.ipv4.icmp_echo_ignore_broadcasts" "1"
 check_sysctl "net.ipv4.tcp_syncookies" "1"
+check_sysctl "vm.overcommit_memory" "1"
 
 # 4. NAT Gateway Connectivity (for internal nodes)
 if [[ "$(hostname)" != *"bastion"* && "$(hostname)" != *"edge"* ]]; then

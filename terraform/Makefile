@@ -112,7 +112,9 @@ ssh_cleanup:
 keyscan:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
-	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | arrays | .[]' | sort -u); \
+	RANGE=$$(terraform output -raw network_ip_range | cut -d'/' -f1 | cut -d'.' -f1,2); \
+	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | arrays? | .[]' | grep "^$$RANGE" | sort -u); \
+	if [ -z "$$INTERNAL_IPS" ]; then echo "⚠️ No internal IPs found to scan."; exit 0; fi; \
 	echo "🔍 Scanning Bastion ($$BASTION_IP)..."; \
 	ssh-keygen -R $$BASTION_IP 2>/dev/null; \
 	ssh-keyscan -H $$BASTION_IP >> ~/.ssh/known_hosts 2>/dev/null; \
@@ -120,11 +122,9 @@ keyscan:
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
-	for ip in $$INTERNAL_IPS; do \
-		echo "  -> Scanning $$ip..."; \
-		ssh-keygen -R $$ip 2>/dev/null; \
-		ssh -i $$RAW_KEY provision@$$BASTION_IP "ssh-keyscan $$ip" 2>/dev/null >> ~/.ssh/known_hosts; \
-	done; \
+	IP_LIST=$$(echo $$INTERNAL_IPS | tr '\n' ' '); \
+	for ip in $$INTERNAL_IPS; do ssh-keygen -R $$ip 2>/dev/null; done; \
+	ssh -i $$RAW_KEY provision@$$BASTION_IP "ssh-keyscan $$IP_LIST" 2>/dev/null >> ~/.ssh/known_hosts; \
 	echo "✅ All host keys updated in ~/.ssh/known_hosts"
 
 init:
