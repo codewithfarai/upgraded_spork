@@ -29,13 +29,14 @@ def build_inventory(data, env, ssh_key_path):
     database = flatten_ips(data, "database")
 
     # Removed StrictHostKeyChecking=no and UserKnownHostsFile=/dev/null
+    # Updated to connect as provision
     proxy_cmd = (
         f"-o ProxyCommand='ssh -W %h:%p -q -i {ssh_key_path} "
-        f"root@{bastion_ip}'"
+        f"provision@{bastion_ip}'"
     )
 
     all_vars = {
-        "ansible_user": "root",
+        "ansible_user": "provision",
         "ansible_ssh_common_args": proxy_cmd,
         "ansible_ssh_private_key_file": ssh_key_path,
         "target_env": env,

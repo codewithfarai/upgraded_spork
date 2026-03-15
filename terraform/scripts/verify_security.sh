@@ -37,7 +37,7 @@ check_ssh_param() {
     fi
 }
 
-check_ssh_param "PermitRootLogin" "prohibit-password"
+check_ssh_param "PermitRootLogin" "no"
 check_ssh_param "PasswordAuthentication" "no"
 check_ssh_param "PubkeyAuthentication" "yes"
 check_ssh_param "PermitEmptyPasswords" "no"
@@ -53,15 +53,21 @@ else
     log_fail "Fail2Ban service is NOT active"
 fi
 
-if fail2ban-client status sshd >/dev/null 2>&1; then
+# Debug info: show active jails
+echo "Active Fail2Ban Jails:"
+sudo fail2ban-client status | grep "Jail list" || echo "No active jails found"
+
+if sudo fail2ban-client status sshd >/dev/null 2>&1; then
     log_pass "Fail2Ban jail 'sshd' is active"
 else
     log_fail "Fail2Ban jail 'sshd' is NOT active"
+    echo "Last logs for fail2ban:"
+    sudo tail -n 20 /var/log/fail2ban.log 2>/dev/null || sudo journalctl -u fail2ban --no-pager -n 20
 fi
 
 # 3. Kernel Hardening
 echo "------------------------------------------------"
-echo "Checking Kernel Hardening Parameters..."
+echo "Checking Kernel Hardening Parameters...."
 
 check_sysctl() {
     param=$1

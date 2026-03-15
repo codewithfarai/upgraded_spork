@@ -147,6 +147,8 @@ make ssh_manager ENV=dev
 make ssh_worker ENV=dev
 ```
 
+> **Security Note**: Direct `root` SSH access is disabled. You connect as the `provision` user, and administrative tasks use `sudo`.
+
 ### 4. Trusting Host Keys (Security)
 For security, this project enforces **Strict Host Key Checking**. You must trust the host keys of your new servers before running any automated tools (like Ansible).
 

@@ -71,10 +71,24 @@ done
 
 # SSH hardening - THIS IS THE CORE SECURITY
 if [[ "$ENABLE_HARDENING" == "true" ]]; then
-    echo "Applying SSH security hardening..."
+    echo "Applying security hardening and provisioning 'provision' user..."
 
-    # SSH configuration - Prevent brute force and unauthorized access
-    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+    # 1. Provision dedicated 'provision' user
+    if ! id "provision" &>/dev/null; then
+        useradd -m -s /bin/bash provision
+        echo "provision ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/provision
+        chmod 0440 /etc/sudoers.d/provision
+
+        # Copy authorized keys from root
+        mkdir -p /home/provision/.ssh
+        cp /root/.ssh/authorized_keys /home/provision/.ssh/
+        chown -R provision:provision /home/provision/.ssh
+        chmod 700 /home/provision/.ssh
+        chmod 600 /home/provision/.ssh/authorized_keys
+    fi
+
+    # 2. SSH Configuration - Prevent brute force and unauthorized access
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
     sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
     sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
     sed -i 's/^#*PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config
@@ -85,48 +99,35 @@ if [[ "$ENABLE_HARDENING" == "true" ]]; then
 
     # Restart SSH to apply changes
     systemctl restart ssh
-    echo "SSH hardening completed successfully"
+    echo "SSH hardening applied successfully"
 
-    # Install and configure fail2ban - FOR SSH PROTECTION ONLY
     echo "Installing fail2ban for SSH protection..."
-    apt-get install -y fail2ban
+    apt-get install -y fail2ban python3-systemd
 
-    # Configure fail2ban with SSH protection only
+    # Configure fail2ban with SSH protection
+    # We use 'backend = auto' to let fail2ban decide between polling and systemd
     cat > /etc/fail2ban/jail.local << EOL
 [DEFAULT]
-# Global fail2ban settings
 bantime = $FAIL2BAN_BANTIME
 findtime = $FAIL2BAN_FINDTIME
 maxretry = $FAIL2BAN_MAXRETRY
-destemail = root@localhost
-action = %(action_mwl)s
+backend = auto
 
 [sshd]
-# SSH protection - this is what we care about
 enabled = true
 port = ssh
-filter = sshd
-logpath = /var/log/auth.log
-maxretry = $FAIL2BAN_SSH_MAXRETRY
-bantime = $FAIL2BAN_BANTIME
-findtime = $FAIL2BAN_FINDTIME
-
-[sshd-ddos]
-# Additional SSH protection against DDoS
-enabled = true
-port = ssh
-filter = sshd-ddos
-logpath = /var/log/auth.log
 maxretry = $FAIL2BAN_SSH_MAXRETRY
 EOL
 
     # Enable and start fail2ban service
+    systemctl daemon-reload
     systemctl enable fail2ban
-    systemctl start fail2ban
+    systemctl restart fail2ban
 
     # Wait for fail2ban to be fully operational
-    sleep 10
-    systemctl daemon-reload
+    echo "Waiting for Fail2Ban to start..."
+    sleep 5
+
 
     # Verify fail2ban is working for SSH
     echo "Fail2Ban SSH protection status:"
