@@ -1,3 +1,9 @@
+## v0.16.2 (2026-03-15)
+
+### refactor
+
+- Enable strict SSH host key checking by removing related overrides and adding a Makefile target for host key management.
+
 ## v0.16.1 (2026-03-15)
 
 ### refactor
