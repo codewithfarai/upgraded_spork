@@ -1,3 +1,9 @@
+## v0.16.1 (2026-03-15)
+
+### refactor
+
+- Remove SUPERUSER privilege for the authentik user and change replication host authentication to md5.
+
 ## v0.16.0 (2026-03-15)
 
 ### feat
