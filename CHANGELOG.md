@@ -1,3 +1,9 @@
+## v0.15.1 (2026-03-15)
+
+### fix
+
+- Configure Authentik to prefer PostgreSQL SSL and enable SSL for the database.
+
 ## v0.15.0 (2026-03-14)
 
 ### feat
