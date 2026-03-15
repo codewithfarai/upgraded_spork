@@ -147,7 +147,19 @@ make ssh_manager ENV=dev
 make ssh_worker ENV=dev
 ```
 
-### 4. DNS Zone Setup (One-Time)
+### 4. Trusting Host Keys (Security)
+For security, this project enforces **Strict Host Key Checking**. You must trust the host keys of your new servers before running any automated tools (like Ansible).
+
+Once your infrastructure is successfully deployed (`make apply`), run:
+```bash
+cd terraform
+make keyscan ENV=dev
+```
+This utility uses the Bastion host to safely grab the fingerprints of all internal nodes and adds them to your local `~/.ssh/known_hosts`.
+
+> **Note**: You only need to run this once per deployment, or after using `make ssh_cleanup`.
+
+### 5. DNS Zone Setup (One-Time)
 
 Before deploying any environment, the DNS zone must exist in Hetzner Cloud. This only needs to be done **once per domain**.
 
@@ -190,7 +202,14 @@ This will automatically:
 2. Push `HCLOUD_TOKEN` to your **Repository Secrets**.
 3. Create `dev`, `stage`, and `prod` **GitHub Environments** and push the isolated `TF_VAR_ssh_key` into each environment securely.
 
-### 6. Clearing Known Hosts
+### 7. Deployment Flow Summary
+For a successful deployment, always follow this order:
+
+1.  **Infrastructure**: `cd terraform && make apply ENV=dev`
+2.  **Host Keys**: `make keyscan ENV=dev` (**Required** for Ansible to connect securely)
+3.  **Bootstrap**: `cd ../ansible && make swarm ENV=dev`
+
+### 8. Clearing Known Hosts
 When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
 
 To surgically remove only the IPs associated with the current project environment:
@@ -205,9 +224,9 @@ To clear **all** host records (start fresh):
 cp ~/.ssh/known_hosts ~/.ssh/known_hosts.bak && > ~/.ssh/known_hosts
 ```
 
-### 7. Docker Swarm Deployment (Ansible)
+### 9. Docker Swarm Deployment (Ansible)
 
-After infrastructure is deployed via `make apply`, bootstrap Docker Swarm:
+After infrastructure is deployed and keys are scanned (`make apply` -> `make keyscan`), bootstrap Docker Swarm:
 
 1. **Ensure dependencies are installed** (Ansible is included in the project's Poetry dependencies):
    ```bash
