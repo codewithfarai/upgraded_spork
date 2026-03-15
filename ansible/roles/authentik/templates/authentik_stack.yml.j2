@@ -20,7 +20,7 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: "file:///run/secrets/authentik_db_password"
-      AUTHENTIK_POSTGRESQL__SSLMODE: disable
+      AUTHENTIK_POSTGRESQL__SSLMODE: prefer
       AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
       # CSRF fix for Hetzner LB SSL termination
@@ -81,7 +81,7 @@ services:
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: "file:///run/secrets/authentik_db_password"
-      AUTHENTIK_POSTGRESQL__SSLMODE: disable
+      AUTHENTIK_POSTGRESQL__SSLMODE: prefer
       AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
     networks:

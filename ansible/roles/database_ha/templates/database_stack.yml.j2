@@ -81,7 +81,7 @@ services:
           use_pg_rewind: true
           parameters:
             listen_addresses: '*'
-            ssl: 'off'
+            ssl: 'on'
           pg_hba:
             - local all all trust
             - host all all 0.0.0.0/0 md5
