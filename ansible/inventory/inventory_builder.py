@@ -28,12 +28,9 @@ def build_inventory(data, env, ssh_key_path):
     edge = flatten_ips(data, "edge")
     database = flatten_ips(data, "database")
 
-    # StrictHostKeyChecking=no on BOTH the outer (target) and inner (bastion) connections
+    # Removed StrictHostKeyChecking=no and UserKnownHostsFile=/dev/null
     proxy_cmd = (
-        "-o StrictHostKeyChecking=no "
-        "-o UserKnownHostsFile=/dev/null "
         f"-o ProxyCommand='ssh -W %h:%p -q -i {ssh_key_path} "
-        f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
         f"root@{bastion_ip}'"
     )
 

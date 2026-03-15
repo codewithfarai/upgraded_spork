@@ -109,6 +109,24 @@ ssh_cleanup:
 	done; \
 	echo "✅ project IPs removed from ~/.ssh/known_hosts"
 
+keyscan:
+	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | arrays | .[]' | sort -u); \
+	echo "🔍 Scanning Bastion ($$BASTION_IP)..."; \
+	ssh-keygen -R $$BASTION_IP 2>/dev/null; \
+	ssh-keyscan -H $$BASTION_IP >> ~/.ssh/known_hosts 2>/dev/null; \
+	echo "🔍 Scanning internal nodes via Bastion..."; \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
+	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
+	RAW_KEY=$$(eval echo $$SSH_KEY); \
+	for ip in $$INTERNAL_IPS; do \
+		echo "  -> Scanning $$ip..."; \
+		ssh-keygen -R $$ip 2>/dev/null; \
+		ssh -i $$RAW_KEY root@$$BASTION_IP "ssh-keyscan $$ip" 2>/dev/null >> ~/.ssh/known_hosts; \
+	done; \
+	echo "✅ All host keys updated in ~/.ssh/known_hosts"
+
 init:
 	terraform init \
 		-reconfigure \
@@ -142,7 +160,7 @@ ssh_bastion:
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	if [ ! -f "$$RAW_KEY" ]; then echo "❌ Error: SSH key $$RAW_KEY not found"; exit 1; fi; \
 	echo "🔌 Connecting to Bastion Host ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$$BASTION_IP
+	ssh -i $$RAW_KEY root@$$BASTION_IP
 
 ssh_manager:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
@@ -152,8 +170,8 @@ ssh_manager:
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	echo "🔌 Connecting to Manager Node ($$MANAGER_IP) [index $(NODE)] via Bastion..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+	ssh -i $$RAW_KEY \
+		-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 		root@$$MANAGER_IP
 
 ssh_worker:
@@ -164,8 +182,8 @@ ssh_worker:
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	echo "🔌 Connecting to Worker Node ($$WORKER_IP) [index $(NODE)] via Bastion..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+	ssh -i $$RAW_KEY \
+		-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 		root@$$WORKER_IP
 
 ssh_db: ssh_database
@@ -177,8 +195,8 @@ ssh_database:
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	echo "🔌 Connecting to Database Node ($$DB_IP) [index $(NODE)] via Bastion..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-		-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+	ssh -i $$RAW_KEY \
+		-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 		root@$$DB_IP
 
 # Verification targets
@@ -191,7 +209,7 @@ verify_bastion:
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	echo "🔍 Verifying Bastion Host ($$BASTION_IP)..."; \
-	ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$$BASTION_IP "bash -s" < scripts/verify_security.sh
+	ssh -i $$RAW_KEY root@$$BASTION_IP "bash -s" < scripts/verify_security.sh
 
 verify_node_manager:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
@@ -203,8 +221,8 @@ verify_node_manager:
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	for ip in $$MANAGER_IPS; do \
 		echo "🔍 Verifying Manager ($$ip) via Bastion..."; \
-		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		ssh -i $$RAW_KEY \
+			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done
 
@@ -218,8 +236,8 @@ verify_node_worker:
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	for ip in $$WORKER_IPS; do \
 		echo "🔍 Verifying Worker ($$ip) via Bastion..."; \
-		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		ssh -i $$RAW_KEY \
+			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done
 
@@ -233,8 +251,8 @@ verify_node_database:
 	RAW_KEY=$$(eval echo $$SSH_KEY); \
 	for ip in $$DB_IPS; do \
 		echo "🔍 Verifying Database Node ($$ip) via Bastion..."; \
-		ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-			-o ProxyCommand="ssh -i $$RAW_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %h:%p root@$$BASTION_IP" \
+		ssh -i $$RAW_KEY \
+			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p root@$$BASTION_IP" \
 			root@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done
 
