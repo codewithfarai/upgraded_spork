@@ -1,3 +1,9 @@
+## v0.17.0 (2026-03-15)
+
+### feat
+
+- Implement a dedicated 'provision' user for SSH access and disable direct root login for enhanced security and privilege escalation.
+
 ## v0.16.3 (2026-03-15)
 
 ### docs
