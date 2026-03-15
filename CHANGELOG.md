@@ -1,3 +1,9 @@
+## v0.16.0 (2026-03-15)
+
+### feat
+
+- Enforce SSL for PostgreSQL connections in Authentik and database HA.
+
 ## v0.15.1 (2026-03-15)
 
 ### fix
