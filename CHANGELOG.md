@@ -1,3 +1,9 @@
+## v0.16.3 (2026-03-15)
+
+### docs
+
+- Add instructions for trusting host keys and a deployment flow summary to CONTRIBUTING.md.
+
 ## v0.16.2 (2026-03-15)
 
 ### refactor
