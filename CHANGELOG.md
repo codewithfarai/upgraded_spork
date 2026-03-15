@@ -1,3 +1,9 @@
+## v0.18.0 (2026-03-15)
+
+### feat
+
+- Remove Authentik's Redis dependency, configure Redis memory limits, and enhance node provisioning with improved hardening and SSH keyscan.
+
 ## v0.17.0 (2026-03-15)
 
 ### feat
