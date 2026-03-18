@@ -15,6 +15,12 @@
         src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
       register: slurped_db_pass
 
+    - name: Slurp Terraform API token
+      slurp:
+        src: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
+      register: slurped_tf_token
+      ignore_errors: true
+
     # NEW: Grab the exact checksum of the file that database_ha created
     - name: Get database password file stats
       stat:
@@ -25,11 +31,13 @@
       set_fact:
         authentik_secret_key_generated: "{{ lookup('password', '/dev/null length=50 chars=ascii_letters,digits') }}"
         authentik_bootstrap_token_generated: "{{ lookup('password', '/dev/null length=40 chars=ascii_letters,digits') }}"
+        authentik_terraform_token_generated: "{{ lookup('password', '/dev/null length=60 chars=ascii_letters,digits') }}"
 
     - name: Set effective secrets
       set_fact:
         effective_secret_key: "{{ authentik_secret_key | default(authentik_secret_key_generated, true) }}"
         effective_bootstrap_token: "{{ authentik_bootstrap_token | default(authentik_bootstrap_token_generated, true) }}"
+        effective_terraform_token: "{{ slurped_tf_token['content'] | b64decode if not slurped_tf_token.failed else authentik_terraform_token_generated }}"
         effective_db_password: "{{ slurped_db_pass['content'] | b64decode }}"
         authentik_full_domain: "{{ authentik_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
         traefik_dashboard_domain: "traefik.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
@@ -44,6 +52,7 @@
         - { name: 'authentik_admin_password', value: '{{ authentik_admin_password }}' }
         - { name: 'authentik_bootstrap_token', value: '{{ effective_bootstrap_token }}' }
         - { name: 'authentik_admin_email', value: '{{ authentik_admin_email }}' }
+        - { name: 'authentik_terraform_token', value: '{{ effective_terraform_token }}' }
       no_log: true
       register: secret_files
 
@@ -65,4 +74,35 @@
     - name: Deploy Authentik stack
       command: docker stack deploy -c /opt/docker/stacks/authentik/docker-compose.yml authentik
 
+    - name: Export Terraform API token locally for terraform consumption
+      local_action:
+        module: blockinfile
+        path: "{{ playbook_dir }}/../../terraform/terraform.tfvars"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - AUTHENTIK SSO"
+        block: |
+          authentik_url = "https://{{ authentik_full_domain }}"
+          authentik_token = "{{ effective_terraform_token }}"
+      become: false
+
   when: "inventory_hostname == groups['managers'][0]"
+
+# ===========================================================================
+# Tasks that run on WORKERS to find the authentik container and inject token
+# ===========================================================================
+- name: Configure Authentik Terraform API token on Workers
+  shell: |
+    CONTAINER_ID=$(docker ps -q -f name=authentik_server | head -n 1)
+    if [ -z "$CONTAINER_ID" ]; then
+      echo "SKIPPED: Container not on this node."
+      exit 0
+    fi
+    docker exec $CONTAINER_ID ak shell -c "from authentik.core.models import User, Token; \
+    user = User.objects.get(username='akadmin'); \
+    Token.objects.update_or_create(user=user, identifier='terraform-token', intent='api', defaults={'key': '{{ hostvars[groups['managers'][0]]['effective_terraform_token'] }}', 'expiring': False});"
+  register: authentik_api_token_raw
+  until: authentik_api_token_raw.rc == 0 or 'SKIPPED' in authentik_api_token_raw.stdout
+  retries: 60
+  delay: 10
+  changed_when: "'SKIPPED' not in authentik_api_token_raw.stdout"
+  when: "inventory_hostname in groups['workers']"
+  no_log: true
