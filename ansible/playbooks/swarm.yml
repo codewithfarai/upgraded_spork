@@ -165,7 +165,7 @@
 # Play 8: Deploy Authentik SSO
 # ==============================================================================
 - name: Deploy Authentik SSO
-  hosts: edge,managers[0]
+  hosts: workers,managers[0]
   become: yes
   tasks:
     - name: Configure Authentik SSO
