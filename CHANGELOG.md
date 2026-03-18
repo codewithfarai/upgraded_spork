@@ -1,3 +1,11 @@
+## v0.19.0 (2026-03-18)
+
+### feat
+
+- Add Authentik provider and resources to integrate with Traefik.
+- Integrate Authentik with Terraform to manage the Traefik application, including API token provisioning via Ansible.
+- Add Authentik Terraform provider and configure its API token and URL via Ansible.
+
 ## v0.18.0 (2026-03-15)
 
 ### feat
