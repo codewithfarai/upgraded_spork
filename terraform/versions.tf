@@ -6,6 +6,10 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = "~> 1.57"
     }
+    authentik = {
+      source  = "goauthentik/authentik"
+      version = "~> 2024.12.0"
+    }
   }
   backend "s3" {
     endpoints = {
