@@ -30,6 +30,7 @@ services:
         - traefik.http.routers.prometheus.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.prometheus.loadbalancer.server.port=9090
         - traefik.swarm.network=traefik-public
+        - prometheus.config.hash={{ prometheus_config_hash }}
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -53,7 +54,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - /opt/docker/stacks/monitoring/grafana/provisioning/dashboard_config.yml:/etc/grafana/provisioning/dashboards/dashboard_config.yml:ro
+      - /opt/docker/stacks/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD={{ monitoring_admin_password | default('admin') }}
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -75,6 +76,7 @@ services:
         - traefik.http.routers.grafana.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.grafana.loadbalancer.server.port=3000
         - traefik.swarm.network=traefik-public
+        - grafana.config.hash={{ grafana_config_hash }}
 
   node-exporter:
     image: prom/node-exporter:latest

@@ -9,6 +9,7 @@
       loop:
         - /opt/docker/stacks/monitoring/prometheus
         - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards
+        - /opt/docker/stacks/monitoring/grafana/provisioning/datasources
         - /opt/docker/stacks/monitoring/secrets
 
     - name: Sync Monitoring configuration templates
@@ -20,12 +21,15 @@
         - { src: 'prometheus.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/prometheus.yml' }
         - { src: 'alert_rules.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/alert_rules.yml' }
         - { src: 'alertmanager.yml.j2', dest: '/opt/docker/stacks/monitoring/secrets/alertmanager.yml', mode: '0600' }
-        - { src: 'grafana_provisioning.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/dashboard_config.yml' }
+        - { src: 'grafana_provisioning.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/dashboard_config.yml' }
+        - { src: 'grafana_datasources.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/datasources/datasource_config.yml' }
       register: monitoring_configs
 
-    - name: Set alertmanager config hash
+    - name: Set config hashes
       set_fact:
         alertmanager_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'alertmanager.yml.j2') | first).checksum | truncate(10, True, '') }}"
+        prometheus_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'prometheus.yml.j2') | first).checksum | truncate(10, True, '') }}"
+        grafana_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'grafana_datasources.yml.j2') | first).checksum | truncate(10, True, '') }}"
 
     - name: Sync automated dashboards
       copy:
