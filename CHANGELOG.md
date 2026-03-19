@@ -1,3 +1,9 @@
+## v0.20.0 (2026-03-19)
+
+### feat
+
+- Extract Authentik Terraform configuration into a dedicated module, refactoring outpost binding to use `null_resource` with API calls.
+
 ## v0.19.0 (2026-03-18)
 
 ### feat
