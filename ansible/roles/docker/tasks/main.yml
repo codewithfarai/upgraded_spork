@@ -39,6 +39,18 @@
     state: present
     update_cache: yes
 
+- name: Configure Docker daemon for log rotation
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+
 - name: Enable and start Docker service
   systemd:
     name: docker
@@ -63,16 +75,3 @@
     month: "*"
     weekday: "0"
     job: "/usr/bin/docker image prune -a -f --filter \"until=168h\""
-
-- name: Configure Docker daemon for log rotation
-  copy:
-    dest: /etc/docker/daemon.json
-    content: |
-      {
-        "log-driver": "json-file",
-        "log-opts": {
-          "max-size": "10m",
-          "max-file": "3"
-        }
-      }
-  notify: Restart Docker
