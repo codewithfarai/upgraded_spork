@@ -1,3 +1,10 @@
+## v0.22.0 (2026-03-19)
+
+### feat
+
+- Add Loki and Promtail for log aggregation and a security overview dashboard to the monitoring stack.
+- Introduce Loki, provision Grafana datasources, and add config hash labels for Prometheus and Grafana services.
+
 ## v0.21.0 (2026-03-19)
 
 ### feat
