@@ -21,18 +21,26 @@ scrape_configs:
       - targets: ['traefik_traefik:80']
 
   - job_name: 'node-exporter'
-    dns_sd_configs:
-    - names:
-      - 'tasks.monitoring_node-exporter'
-      type: 'A'
-      port: 9100
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: nodes
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:9100
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
 
   - job_name: 'cadvisor'
-    dns_sd_configs:
-    - names:
-      - 'tasks.monitoring_cadvisor'
-      type: 'A'
-      port: 8080
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: nodes
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: $1:8080
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
 
   - job_name: 'authentik'
     metrics_path: /metrics

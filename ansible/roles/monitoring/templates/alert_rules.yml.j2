@@ -36,3 +36,20 @@ groups:
     annotations:
       summary: "Disk will fill in 24 hours on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Based on recent usage, disk will be full in 24 hours."
+  - alert: HighContainerRestarts
+    expr: count(changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[15m]) > 2) > 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High container restart rate"
+      description: "One or more containers are restarting frequently in the last 15 minutes."
+
+  - alert: SuspiciousNetworkTraffic
+    expr: sum(rate(node_network_receive_packets_total[5m])) by (instance) > 10000
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Suspicious network traffic spike on {% raw %}{{ $labels.instance }}{% endraw %}"
+      description: "Incoming packet rate is unusually high (> 10k packets/s)."

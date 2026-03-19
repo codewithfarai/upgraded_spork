@@ -16,6 +16,7 @@ services:
       - monitoring
       - traefik-public
       - shared-backend
+      - traefik_socket-proxy
     deploy:
       mode: replicated
       replicas: 1
@@ -78,6 +79,41 @@ services:
         - traefik.swarm.network=traefik-public
         - grafana.config.hash={{ grafana_config_hash }}
 
+  loki:
+    image: grafana/loki:latest
+    user: root
+    configs:
+      - source: loki_config-{{ loki_config_hash }}
+        target: /etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/tmp/loki
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  promtail:
+    image: grafana/promtail:latest
+    user: root
+    configs:
+      - source: promtail_config-{{ promtail_config_hash }}
+        target: /etc/promtail/config.yml
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /run/docker.sock:/run/docker.sock:ro
+    command:
+      - -config.file=/etc/promtail/config.yml
+      - -config.expand-env=true
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+
   node-exporter:
     image: prom/node-exporter:latest
     volumes:
@@ -90,6 +126,10 @@ services:
       - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
       - monitoring
+    ports:
+      - target: 9100
+        published: 9100
+        mode: host
     deploy:
       mode: global
 
@@ -100,14 +140,20 @@ services:
       - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/kmsg:/dev/kmsg:ro
     networks:
       - monitoring
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
     deploy:
       mode: global
 
 volumes:
   prometheus_data:
   grafana_data:
+  loki_data:
 
 networks:
   monitoring:
@@ -118,7 +164,15 @@ networks:
     external: true
   shared-backend:
     external: true
+  traefik_socket-proxy:
+    external: true
 
 secrets:
   alertmanager_config-{{ alertmanager_config_hash }}:
     file: /opt/docker/stacks/monitoring/secrets/alertmanager.yml
+
+configs:
+  loki_config-{{ loki_config_hash }}:
+    file: /opt/docker/stacks/monitoring/configs/loki.yml
+  promtail_config-{{ promtail_config_hash }}:
+    file: /opt/docker/stacks/monitoring/configs/promtail.yml

@@ -226,6 +226,24 @@ resource "hcloud_firewall" "docker_swarm" {
     source_ips  = [var.network_ip_range]
     description = "IPSec ESP for encrypted overlay"
   }
+
+  # Node Exporter
+  rule {
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "9100"
+    source_ips  = [var.network_ip_range]
+    description = "Node Exporter (internal only)"
+  }
+
+  # cAdvisor
+  rule {
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "8080"
+    source_ips  = [var.network_ip_range]
+    description = "cAdvisor (internal only)"
+  }
   # === EGRESS RULES ===
   # Restrict outbound traffic from all Swarm nodes.
   # Without these, compromised nodes could exfiltrate data or establish reverse shells.
