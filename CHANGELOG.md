@@ -1,3 +1,9 @@
+## v0.26.0 (2026-03-19)
+
+### feat
+
+- Add Hetzner MTU and iptables configuration to Docker daemon.
+
 ## v0.25.2 (2026-03-19)
 
 ### fix
