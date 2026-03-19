@@ -1,3 +1,9 @@
+## v0.24.1 (2026-03-19)
+
+### refactor
+
+- Remove Node Exporter and cAdvisor ingress rules from firewall.
+
 ## v0.24.0 (2026-03-19)
 
 ### feat
