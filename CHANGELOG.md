@@ -1,3 +1,13 @@
+## v0.23.0 (2026-03-19)
+
+### feat
+
+- add new security-related Loki panels for login failures, sudo commands, Traefik, and Fail2Ban events to the security overview dashboard.
+
+### fix
+
+- Update Traefik security probe dashboard to use regex service matching and the DownstreamStatus field.
+
 ## v0.22.0 (2026-03-19)
 
 ### feat
