@@ -1,3 +1,9 @@
+## v0.24.0 (2026-03-19)
+
+### feat
+
+- Introduce standalone monitoring for bastion hosts and update the security overview dashboard.
+
 ## v0.23.0 (2026-03-19)
 
 ### feat
