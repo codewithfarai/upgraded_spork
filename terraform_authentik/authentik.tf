@@ -19,11 +19,47 @@ resource "authentik_provider_proxy" "traefik" {
   mode               = "forward_single"
 }
 
+resource "authentik_provider_proxy" "grafana" {
+  name               = "grafana-proxy"
+  external_host      = "https://grafana.${var.environment}.${var.domain_name}"
+  authorization_flow = data.authentik_flow.default_authorization_flow.id
+  invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
+  mode               = "forward_single"
+}
+
+resource "authentik_application" "grafana" {
+  name              = "Grafana"
+  slug              = "grafana"
+  protocol_provider = authentik_provider_proxy.grafana.id
+}
+
+resource "authentik_provider_proxy" "prometheus" {
+  name               = "prometheus-proxy"
+  external_host      = "https://prometheus.${var.environment}.${var.domain_name}"
+  authorization_flow = data.authentik_flow.default_authorization_flow.id
+  invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
+  mode               = "forward_single"
+}
+
+resource "authentik_application" "prometheus" {
+  name              = "Prometheus"
+  slug              = "prometheus"
+  protocol_provider = authentik_provider_proxy.prometheus.id
+}
+
 resource "null_resource" "bind_embedded_outpost" {
-  depends_on = [authentik_provider_proxy.traefik]
+  depends_on = [
+    authentik_provider_proxy.traefik,
+    authentik_provider_proxy.grafana,
+    authentik_provider_proxy.prometheus
+  ]
 
   triggers = {
-    provider_id = authentik_provider_proxy.traefik.id
+    provider_ids = join(",", [
+      authentik_provider_proxy.traefik.id,
+      authentik_provider_proxy.grafana.id,
+      authentik_provider_proxy.prometheus.id
+    ])
   }
 
   provisioner "local-exec" {
@@ -36,7 +72,7 @@ resource "null_resource" "bind_embedded_outpost" {
       curl -sk -X PATCH \
         -H "Authorization: Bearer ${var.authentik_token}" \
         -H "Content-Type: application/json" \
-        -d "{\"providers\": [${self.triggers.provider_id}]}" \
+        -d "{\"providers\": [${self.triggers.provider_ids}]}" \
         "${var.authentik_url}/api/v3/outposts/instances/$OUTPOST_ID/" \
         | jq .
     EOT
