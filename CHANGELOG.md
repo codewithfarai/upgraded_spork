@@ -1,3 +1,9 @@
+## v0.27.1 (2026-03-19)
+
+### fix
+
+- Tune alert thresholds and durations for NodeDown, HostOutOfMemory, and SuspiciousNetworkTraffic alerts, and improve Discord alert message formatting.
+
 ## v0.27.0 (2026-03-19)
 
 ### feat
