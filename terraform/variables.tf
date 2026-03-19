@@ -240,16 +240,3 @@ variable "ssh_keys" {
   type        = map(string)
   default     = {}
 }
-
-variable "authentik_token" {
-  description = "Authentik API Token, populated by Ansible."
-  type        = string
-  sensitive   = true
-  default     = null
-}
-
-variable "authentik_url" {
-  description = "Authentik URL, populated by Ansible."
-  type        = string
-  default     = null
-}

@@ -75,13 +75,13 @@
       command: docker stack deploy -c /opt/docker/stacks/authentik/docker-compose.yml authentik
 
     - name: Export Terraform API token locally for terraform consumption
-      local_action:
-        module: blockinfile
-        path: "{{ playbook_dir }}/../../terraform/terraform.tfvars"
+      blockinfile:
+        path: "{{ playbook_dir }}/../../terraform_authentik/terraform.tfvars"
         marker: "# {mark} ANSIBLE MANAGED BLOCK - AUTHENTIK SSO"
         block: |
           authentik_url = "https://{{ authentik_full_domain }}"
           authentik_token = "{{ effective_terraform_token }}"
+      delegate_to: localhost
       become: false
 
   when: "inventory_hostname == groups['managers'][0]"

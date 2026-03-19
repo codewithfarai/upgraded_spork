@@ -19,18 +19,29 @@ resource "authentik_provider_proxy" "traefik" {
   mode               = "forward_single"
 }
 
-import {
-  to = authentik_outpost.embedded
-  id = "92d23238-c88a-44ce-bf30-314311f61f29"
+resource "null_resource" "bind_embedded_outpost" {
+  depends_on = [authentik_provider_proxy.traefik]
+
+  triggers = {
+    provider_id = authentik_provider_proxy.traefik.id
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+      OUTPOST_ID=$(curl -sk \
+        -H "Authorization: Bearer ${var.authentik_token}" \
+        "${var.authentik_url}/api/v3/outposts/instances/?name=authentik+Embedded+Outpost" \
+        | jq -r '.results[0].pk')
+      echo "Outpost ID: $OUTPOST_ID"
+      curl -sk -X PATCH \
+        -H "Authorization: Bearer ${var.authentik_token}" \
+        -H "Content-Type: application/json" \
+        -d "{\"providers\": [${self.triggers.provider_id}]}" \
+        "${var.authentik_url}/api/v3/outposts/instances/$OUTPOST_ID/" \
+        | jq .
+    EOT
+  }
 }
-
-resource "authentik_outpost" "embedded" {
-  name               = "authentik Embedded Outpost"
-  type               = "proxy"
-  protocol_providers = [authentik_provider_proxy.traefik.id]
-}
-
-
 
 resource "authentik_application" "traefik" {
   name              = "Traefik Dashboard"

@@ -2,12 +2,16 @@ terraform {
   required_version = "~> 1.14.6"
 
   required_providers {
-    hcloud = {
-      source  = "hetznercloud/hcloud"
-      version = "~> 1.57"
+    authentik = {
+      source  = "goauthentik/authentik"
+      version = "~> 2024.12.0"
     }
-
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2.0"
+    }
   }
+
   backend "s3" {
     endpoints = {
       s3 = "https://fsn1.your-objectstorage.com"
