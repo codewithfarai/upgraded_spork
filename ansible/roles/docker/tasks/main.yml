@@ -39,11 +39,13 @@
     state: present
     update_cache: yes
 
-- name: Configure Docker daemon for log rotation
+- name: Configure Docker daemon for log rotation and Hetzner MTU
   copy:
     dest: /etc/docker/daemon.json
     content: |
       {
+        "mtu": 1450,
+        "iptables": true,
         "log-driver": "json-file",
         "log-opts": {
           "max-size": "10m",
