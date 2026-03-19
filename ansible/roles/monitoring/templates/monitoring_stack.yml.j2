@@ -96,6 +96,8 @@ services:
       placement:
         constraints:
           - node.role == manager
+      labels:
+        - loki.config.hash={{ loki_config_hash }}
 
   promtail:
     image: grafana/promtail:latest

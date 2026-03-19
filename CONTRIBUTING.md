@@ -205,11 +205,30 @@ This will automatically:
 3. Create `dev`, `stage`, and `prod` **GitHub Environments** and push the isolated `TF_VAR_ssh_key` into each environment securely.
 
 ### 7. Deployment Flow Summary
-For a successful deployment, always follow this order:
+For a successful deployment, you **must** follow this exact 3-phase sequence to resolve the "Chicken-and-Egg" dependency between the infrastructure, the applications, and the SSO provider (Authentik).
 
-1.  **Infrastructure**: `cd terraform && make apply ENV=dev`
-2.  **Host Keys**: `make keyscan ENV=dev` (**Required** for Ansible to connect securely)
-3.  **Bootstrap**: `cd ../ansible && make swarm ENV=dev`
+1.  **Phase 1: Cloud Infrastructure (Terraform)**
+    ```bash
+    cd terraform
+    make apply ENV=dev
+    make keyscan ENV=dev  # Critical for Ansible to connect
+    ```
+    *Result*: VMs, VPC, and Firewall are provisioned.
+
+2.  **Phase 2: Application Stack (Ansible + Docker Swarm)**
+    ```bash
+    cd ../ansible
+    make swarm ENV=dev
+    ```
+    *Result*: Docker Swarm is initialized and all apps (Traefik, Authentik, Monitoring) are deployed.
+    *Crucial*: This phase generates a random Authentik API token and **automatically copies it back** to `terraform_authentik/terraform.tfvars`.
+
+3.  **Phase 3: SSO Integration (Terraform Authentik)**
+    ```bash
+    cd ../terraform_authentik
+    make apply ENV=dev
+    ```
+    *Result*: This finalized the setup by creating the OIDC Providers, Applications (Grafana, etc.), and Outpost bindings using the token generated in Phase 2.
 
 ### 8. Clearing Known Hosts
 When destroying and recreating infrastructure, your local `~/.ssh/known_hosts` will contain outdated fingerprings for the recycled IPs.
