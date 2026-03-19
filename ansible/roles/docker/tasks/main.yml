@@ -50,6 +50,7 @@
           "max-file": "3"
         }
       }
+  notify: Restart Docker
 
 - name: Enable and start Docker service
   systemd:
