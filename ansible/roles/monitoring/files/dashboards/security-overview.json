@@ -129,8 +129,8 @@
       "title": "Traefik Security Probes (4xx/5xx)",
       "targets": [
         {
-          "expr": "sum(count_over_time({service_name=\"traefik\"} | json | status =~ \"[45].+\" [1m])) by (status)",
-          "legendFormat": "{{status}}",
+          "expr": "sum(count_over_time({service_name=~\"traefik.*\"} | json | DownstreamStatus =~ \"[45].+\" [1m])) by (DownstreamStatus)",
+          "legendFormat": "{{DownstreamStatus}}",
           "refId": "A"
         }
       ],
