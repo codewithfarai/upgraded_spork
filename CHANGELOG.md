@@ -1,3 +1,10 @@
+## v0.21.0 (2026-03-19)
+
+### feat
+
+- Add monitoring stack with Prometheus, Alertmanager, Grafana, and node-exporter dashboard.
+- Implement a Docker Swarm monitoring stack with Prometheus, Grafana, and Alertmanager, managed by Ansible.
+
 ## v0.20.0 (2026-03-19)
 
 ### feat
