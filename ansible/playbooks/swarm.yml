@@ -171,3 +171,14 @@
     - name: Configure Authentik SSO
       include_role:
         name: authentik
+
+# ==============================================================================
+# Play 9: Deploy Monitoring Stack
+# ==============================================================================
+- name: Deploy Monitoring Stack
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Configure Monitoring Stack
+      include_role:
+        name: monitoring

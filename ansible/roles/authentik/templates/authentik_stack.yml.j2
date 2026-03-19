@@ -27,6 +27,7 @@ services:
       AUTHENTIK_BOOTSTRAP_PASSWORD: "file:///run/secrets/authentik_admin_password"
       AUTHENTIK_BOOTSTRAP_TOKEN: "file:///run/secrets/authentik_bootstrap_token"
       AUTHENTIK_BOOTSTRAP_EMAIL: "file:///run/secrets/authentik_admin_email"
+      AUTHENTIK_METRICS__ENABLED: "true"
     networks:
       - traefik-public
       - shared-backend

@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - /opt/docker/stacks/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /opt/docker/stacks/monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - monitoring
+      - traefik-public
+      - shared-backend
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.prometheus.rule=Host(`{{ prometheus_domain }}`)
+        - traefik.http.routers.prometheus.service=prometheus
+        - traefik.http.routers.prometheus.entrypoints=web
+        - traefik.http.routers.prometheus.middlewares=security-headers@file,authentik-forwardauth@file
+        - traefik.http.services.prometheus.loadbalancer.server.port=9090
+        - traefik.swarm.network=traefik-public
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    secrets:
+      - source: alertmanager_config-{{ alertmanager_config_hash }}
+        target: alertmanager.yml
+    command:
+      - '--config.file=/run/secrets/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - /opt/docker/stacks/monitoring/grafana/provisioning/dashboard_config.yml:/etc/grafana/provisioning/dashboards/dashboard_config.yml:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD={{ monitoring_admin_password | default('admin') }}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://{{ grafana_domain }}
+    networks:
+      - monitoring
+      - traefik-public
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.grafana.rule=Host(`{{ grafana_domain }}`)
+        - traefik.http.routers.grafana.service=grafana
+        - traefik.http.routers.grafana.entrypoints=web
+        - traefik.http.routers.grafana.middlewares=security-headers@file,authentik-forwardauth@file
+        - traefik.http.services.grafana.loadbalancer.server.port=3000
+        - traefik.swarm.network=traefik-public
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+    deploy:
+      mode: global
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
+  traefik-public:
+    external: true
+  shared-backend:
+    external: true
+
+secrets:
+  alertmanager_config-{{ alertmanager_config_hash }}:
+    file: /opt/docker/stacks/monitoring/secrets/alertmanager.yml

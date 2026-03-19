@@ -1,0 +1,10 @@
+# Monitoring Stack Configuration
+
+# Domains
+grafana_domain: "grafana.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+prometheus_domain: "prometheus.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+
+# Admin Password
+monitoring_admin_password: "admin"
+# Discord Notification Webhook
+# Inject via MONITORING_DISCORD_WEBHOOK environment variable when running Ansible

@@ -1,0 +1,50 @@
+---
+- name: Run Swarm Manager specific tasks
+  block:
+    - name: Create Monitoring stack directory
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /opt/docker/stacks/monitoring/prometheus
+        - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards
+        - /opt/docker/stacks/monitoring/secrets
+
+    - name: Sync Monitoring configuration templates
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode | default('0644') }}"
+      loop:
+        - { src: 'prometheus.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/prometheus.yml' }
+        - { src: 'alert_rules.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/alert_rules.yml' }
+        - { src: 'alertmanager.yml.j2', dest: '/opt/docker/stacks/monitoring/secrets/alertmanager.yml', mode: '0600' }
+        - { src: 'grafana_provisioning.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/dashboard_config.yml' }
+      register: monitoring_configs
+
+    - name: Set alertmanager config hash
+      set_fact:
+        alertmanager_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'alertmanager.yml.j2') | first).checksum | truncate(10, True, '') }}"
+
+    - name: Sync automated dashboards
+      copy:
+        src: dashboards/
+        dest: /opt/docker/stacks/monitoring/grafana/provisioning/dashboards/
+        mode: '0644'
+
+    - name: Generate Monitoring stack definition
+      template:
+        src: monitoring_stack.yml.j2
+        dest: /opt/docker/stacks/monitoring/docker-compose.yml
+        mode: '0644'
+      vars:
+        grafana_domain: "grafana.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+        prometheus_domain: "prometheus.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+
+    - name: Deploy Monitoring stack
+      command: docker stack deploy -c /opt/docker/stacks/monitoring/docker-compose.yml monitoring
+      register: deploy_result
+      changed_when: "'Creating' in deploy_result.stdout or 'Updating' in deploy_result.stdout"
+
+  when: "inventory_hostname == groups['managers'][0]"
