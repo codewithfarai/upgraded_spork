@@ -1,3 +1,9 @@
+## v0.26.1 (2026-03-19)
+
+### docs
+
+- Update deployment instructions in `CONTRIBUTING.md` to detail a new 3-phase deployment process and add a quick start guide to `README.md`.
+
 ## v0.26.0 (2026-03-19)
 
 ### feat
