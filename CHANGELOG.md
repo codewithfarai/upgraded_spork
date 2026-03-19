@@ -1,3 +1,9 @@
+## v0.25.2 (2026-03-19)
+
+### fix
+
+- Trigger Docker service restart after logging configuration updates.
+
 ## v0.25.1 (2026-03-19)
 
 ### refactor
