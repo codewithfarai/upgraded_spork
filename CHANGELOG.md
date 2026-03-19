@@ -1,3 +1,9 @@
+## v0.25.1 (2026-03-19)
+
+### refactor
+
+- relocate Docker daemon log rotation configuration task to an earlier position in the playbook.
+
 ## v0.25.0 (2026-03-19)
 
 ### feat
