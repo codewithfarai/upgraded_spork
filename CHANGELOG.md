@@ -1,3 +1,9 @@
+## v0.25.0 (2026-03-19)
+
+### feat
+
+- Configure Docker log rotation, Loki log retention and compaction, and Prometheus TSDB retention.
+
 ## v0.24.1 (2026-03-19)
 
 ### refactor
