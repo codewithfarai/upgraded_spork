@@ -37,29 +37,35 @@ def build_inventory(data, env, ssh_key_path):
 
     all_vars = {
         "ansible_user": "provision",
-        "ansible_ssh_common_args": proxy_cmd,
         "ansible_ssh_private_key_file": ssh_key_path,
         "target_env": env,
         "domain_name": data.get("domain_name", {}).get("value", ""),
+        "bastion_internal_ip": data.get("bastion_internal_ip", {}).get("value", "10.0.2.5"),
     }
 
     hostvars = {}
+    for ip in managers + workers + edge + database:
+        hostvars[ip] = {
+            "ansible_ssh_common_args": proxy_cmd
+        }
+
     for ip in managers:
-        hostvars[ip] = {"swarm_role": "manager"}
+        hostvars[ip]["swarm_role"] = "manager"
     for ip in workers:
-        hostvars[ip] = {"swarm_role": "worker"}
+        hostvars[ip]["swarm_role"] = "worker"
     for ip in edge:
-        hostvars[ip] = {"swarm_role": "edge"}
+        hostvars[ip]["swarm_role"] = "edge"
     for ip in database:
-        hostvars[ip] = {"swarm_role": "database"}
+        hostvars[ip]["swarm_role"] = "database"
 
     return {
         "managers": {"hosts": managers},
         "workers": {"hosts": workers},
         "edge": {"hosts": edge},
         "database": {"hosts": database},
+        "bastion": {"hosts": [bastion_ip] if bastion_ip else []},
         "docker_nodes": {
-            "children": ["managers", "workers", "edge", "database"]
+            "children": ["managers", "workers", "edge", "database", "bastion"]
         },
         "all": {"vars": all_vars},
         "_meta": {"hostvars": hostvars},

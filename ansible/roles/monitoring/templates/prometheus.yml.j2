@@ -23,9 +23,13 @@ scrape_configs:
   - job_name: 'node-exporter'
     dockerswarm_sd_configs:
       - host: http://traefik_socket-proxy:2375
-        role: nodes
+        role: tasks
     relabel_configs:
-      - source_labels: [__meta_dockerswarm_node_address]
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: monitoring_node-exporter
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
         target_label: __address__
         replacement: $1:9100
       - source_labels: [__meta_dockerswarm_node_hostname]
@@ -34,13 +38,24 @@ scrape_configs:
   - job_name: 'cadvisor'
     dockerswarm_sd_configs:
       - host: http://traefik_socket-proxy:2375
-        role: nodes
+        role: tasks
     relabel_configs:
-      - source_labels: [__meta_dockerswarm_node_address]
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: monitoring_cadvisor
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
         target_label: __address__
         replacement: $1:8080
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
+
+  - job_name: 'bastion'
+    static_configs:
+      - targets: ['{{ bastion_internal_ip | default("10.0.2.5") }}:9100']
+    relabel_configs:
+      - target_label: instance
+        replacement: 'bastion'
 
   - job_name: 'authentik'
     metrics_path: /metrics

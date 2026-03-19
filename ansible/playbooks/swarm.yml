@@ -173,7 +173,17 @@
         name: authentik
 
 # ==============================================================================
-# Play 9: Deploy Monitoring Stack
+# Play 9: Deploy Standalone Monitoring on Bastion
+# ==============================================================================
+- name: Deploy Standalone Monitoring on Bastion
+  hosts: bastion
+  become: yes
+  tasks:
+    - name: Configure Standalone Monitoring
+      include_tasks: ../roles/monitoring/tasks/standalone.yml
+
+# ==============================================================================
+# Play 10: Deploy Monitoring Stack
 # ==============================================================================
 - name: Deploy Monitoring Stack
   hosts: managers[0]

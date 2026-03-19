@@ -120,6 +120,15 @@ resource "hcloud_firewall" "bastion_ssh" {
     description     = "NTP time synchronization"
   }
 
+  # Node Exporter Scraping (from Managers)
+  rule {
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "9100"
+    source_ips  = [for i in range(var.manager_count) : "10.0.2.${10 + i}/32"]
+    description = "Node Exporter scraping from Managers"
+  }
+
   labels = merge(local.common_labels, {
     purpose = "bastion"
     type    = var.firewall_label_type
@@ -232,8 +241,8 @@ resource "hcloud_firewall" "docker_swarm" {
     direction   = "in"
     protocol    = "tcp"
     port        = "9100"
-    source_ips  = [var.network_ip_range]
-    description = "Node Exporter (internal only)"
+    source_ips  = [for i in range(var.manager_count) : "10.0.2.${10 + i}/32"]
+    description = "Node Exporter (internal only - from Managers)"
   }
 
   # cAdvisor
@@ -241,8 +250,8 @@ resource "hcloud_firewall" "docker_swarm" {
     direction   = "in"
     protocol    = "tcp"
     port        = "8080"
-    source_ips  = [var.network_ip_range]
-    description = "cAdvisor (internal only)"
+    source_ips  = [for i in range(var.manager_count) : "10.0.2.${10 + i}/32"]
+    description = "cAdvisor (internal only - from Managers)"
   }
   # === EGRESS RULES ===
   # Restrict outbound traffic from all Swarm nodes.

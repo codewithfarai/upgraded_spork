@@ -126,10 +126,6 @@ services:
       - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
     networks:
       - monitoring
-    ports:
-      - target: 9100
-        published: 9100
-        mode: host
     deploy:
       mode: global
 
@@ -143,10 +139,6 @@ services:
       - /dev/kmsg:/dev/kmsg:ro
     networks:
       - monitoring
-    ports:
-      - target: 8080
-        published: 8080
-        mode: host
     deploy:
       mode: global
 

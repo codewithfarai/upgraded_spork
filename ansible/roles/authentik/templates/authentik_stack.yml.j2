@@ -31,8 +31,6 @@ services:
     networks:
       - traefik-public
       - shared-backend
-    ports:
-      - "9000:9000"
     secrets:
       - source: authentik_secret_key-{{ authentik_secret_key_hash }}
         target: authentik_secret_key
