@@ -38,4 +38,12 @@ ruler:
 
 limits_config:
   retention_period: 168h # 7 days
+  retention_enabled: true
   allow_structured_metadata: true
+
+compactor:
+  working_directory: /tmp/loki/retention
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
