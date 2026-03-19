@@ -7,7 +7,7 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "Node {% raw %}{{ $labels.instance }}{% endraw %} down"
+      summary: "❌ Node {% raw %}{{ $labels.instance }}{% endraw %} down"
       description: "Node {% raw %}{{ $labels.instance }}{% endraw %} has been down for more than 2 minutes."
 
   - alert: HostHighCpuLoad
@@ -16,7 +16,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "High CPU load on {% raw %}{{ $labels.instance }}{% endraw %}"
+      summary: "🔥 High CPU load on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "CPU load is > 80% for more than 5 minutes."
 
   - alert: HostOutOfMemory
@@ -25,7 +25,7 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "Out of memory on {% raw %}{{ $labels.instance }}{% endraw %}"
+      summary: "💾 Out of memory on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Memory availability is < 10% for more than 2 minutes."
 
   - alert: HostDiskWillFillIn24Hours
@@ -34,16 +34,16 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "Disk will fill in 24 hours on {% raw %}{{ $labels.instance }}{% endraw %}"
+      summary: "📂 Disk will fill in 24 hours on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Based on recent usage, disk will be full in 24 hours."
   - alert: HighContainerRestarts
-    expr: count(changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[15m]) > 2) > 0
+    expr: changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[15m]) > 2
     for: 5m
     labels:
       severity: warning
     annotations:
-      summary: "High container restart rate"
-      description: "One or more containers are restarting frequently in the last 15 minutes."
+      summary: "🚨 High restart rate for {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %}"
+      description: "Service {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %} on node {% raw %}{{ $labels.instance }}{% endraw %} has restarted frequently in the last 15 minutes."
 
   - alert: SuspiciousNetworkTraffic
     expr: sum(rate(node_network_receive_packets_total[5m])) by (instance) > 10000
@@ -51,5 +51,5 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "Suspicious network traffic spike on {% raw %}{{ $labels.instance }}{% endraw %}"
+      summary: "🌐 Suspicious network traffic spike on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Incoming packet rate is unusually high (> 10k packets/s)."

@@ -13,5 +13,5 @@ receivers:
     discord_configs:
       - webhook_url: "{{ lookup('env', 'MONITORING_DISCORD_WEBHOOK') }}"
         send_resolved: true
-        title: '{% raw %}{{ .Status | toUpper }}{% endraw %}: {% raw %}{{ .GroupLabels.alertname }}{% endraw %}'
-        message: '{% raw %}{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}\n{{ end }}{% endraw %}'
+        title: '{% raw %}{{ if eq .Status "firing" }}🚨{% else %}✅{% endraw %} {% raw %}{{ .Status | toUpper }}{% endraw %}: {% raw %}{{ .GroupLabels.alertname }}{% endraw %}'
+        message: '{% raw %}{{ range .Alerts }}**Summary**: {{ .Annotations.summary }}\n**Description**: {{ .Annotations.description }}\n**Severity**: {{ .Labels.severity }}\n\n{{ end }}{% endraw %}'
