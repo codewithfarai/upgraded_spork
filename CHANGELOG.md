@@ -1,3 +1,9 @@
+## v0.27.0 (2026-03-19)
+
+### feat
+
+- Enhance monitoring alert summaries with emojis and improve Discord notification formatting with status indicators and detailed fields.
+
 ## v0.26.1 (2026-03-19)
 
 ### docs
