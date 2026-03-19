@@ -3,12 +3,12 @@ groups:
   rules:
   - alert: NodeDown
     expr: up == 0
-    for: 2m
+    for: 1m
     labels:
       severity: critical
     annotations:
       summary: "❌ Node {% raw %}{{ $labels.instance }}{% endraw %} down"
-      description: "Node {% raw %}{{ $labels.instance }}{% endraw %} has been down for more than 2 minutes."
+      description: "Node {% raw %}{{ $labels.instance }}{% endraw %} has been down for more than 1 minute."
 
   - alert: HostHighCpuLoad
     expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
@@ -21,12 +21,12 @@ groups:
 
   - alert: HostOutOfMemory
     expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
-    for: 2m
+    for: 1m
     labels:
       severity: warning
     annotations:
       summary: "💾 Out of memory on {% raw %}{{ $labels.instance }}{% endraw %}"
-      description: "Memory availability is < 10% for more than 2 minutes."
+      description: "Memory availability is < 10% for more than 1 minute."
 
   - alert: HostDiskWillFillIn24Hours
     expr: predict_linear(node_filesystem_free_bytes{mountpoint="/"}[4h], 24 * 3600) < 0
@@ -36,6 +36,7 @@ groups:
     annotations:
       summary: "📂 Disk will fill in 24 hours on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Based on recent usage, disk will be full in 24 hours."
+
   - alert: HighContainerRestarts
     expr: changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[15m]) > 2
     for: 5m
@@ -46,10 +47,10 @@ groups:
       description: "Service {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %} on node {% raw %}{{ $labels.instance }}{% endraw %} has restarted frequently in the last 15 minutes."
 
   - alert: SuspiciousNetworkTraffic
-    expr: sum(rate(node_network_receive_packets_total[5m])) by (instance) > 10000
-    for: 2m
+    expr: sum(rate(node_network_receive_packets_total[30s])) by (instance) > 1000
+    for: 15s
     labels:
       severity: warning
     annotations:
       summary: "🌐 Suspicious network traffic spike on {% raw %}{{ $labels.instance }}{% endraw %}"
-      description: "Incoming packet rate is unusually high (> 10k packets/s)."
+      description: "Incoming packet rate is unusually high (> 1k packets/s)."
