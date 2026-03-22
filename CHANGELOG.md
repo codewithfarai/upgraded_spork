@@ -1,3 +1,9 @@
+## v0.27.2 (2026-03-22)
+
+### chore
+
+- Reduce default stage instance count and add null provider version constraint.
+
 ## v0.27.1 (2026-03-19)
 
 ### fix
