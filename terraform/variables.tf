@@ -210,7 +210,7 @@ variable "db_count" {
   type        = map(number)
   default = {
     prod  = 2
-    stage = 3
+    stage = 2
     dev   = 2
   }
 
