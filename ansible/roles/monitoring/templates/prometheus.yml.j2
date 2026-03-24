@@ -61,3 +61,43 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ['authentik_server:9300']
+
+  - job_name: 'rabbitmq'
+    metrics_path: /metrics
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: db_ha_rabbitmq-.*
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:15692
+
+  - job_name: 'postgres'
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: db_ha_pg-exporter-.*
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:9187
+
+  - job_name: 'redis'
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: db_ha_redis-exporter-.*
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:9121

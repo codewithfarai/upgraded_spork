@@ -12,6 +12,7 @@
       - lsb-release
     state: present
     update_cache: yes
+    cache_valid_time: 3600
 
 - name: Add Docker GPG key
   shell: |
@@ -38,6 +39,7 @@
       - docker-compose-plugin
     state: present
     update_cache: yes
+    cache_valid_time: 3600
 
 - name: Configure Docker daemon for log rotation and Hetzner MTU
   copy:

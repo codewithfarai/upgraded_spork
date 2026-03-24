@@ -1,0 +1,31 @@
+# RabbitMQ configuration
+# =====================
+
+# Default user and password
+default_user = {{ rabbitmq_user }}
+default_pass = {{ rabbitmq_password }}
+
+# Management UI port
+management.tcp.port = 15672
+
+# Networking
+# Listen on all interfaces
+listeners.tcp.default = 5672
+
+# Erlang cookie is handled by the environment variable still as it's for the VM
+# We specify the cluster nodes for auto-discovery
+{% set node_list = [] %}
+{% for i in range(db_count) %}
+{% set _ = node_list.append("rabbit@rabbitmq-" ~ i) %}
+{% endfor %}
+cluster_formation.peer_discovery_backend = rabbit_peer_discovery_classic_config
+cluster_formation.classic_config.nodes.1 = {{ node_list[0] }}
+{% if db_count > 1 %}
+cluster_formation.classic_config.nodes.2 = {{ node_list[1] }}
+{% endif %}
+{% if db_count > 2 %}
+cluster_formation.classic_config.nodes.3 = {{ node_list[2] }}
+{% endif %}
+
+# Disable deprecated variables warning
+# (This file *is* the modern way)

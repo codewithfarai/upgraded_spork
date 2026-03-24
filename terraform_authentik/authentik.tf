@@ -47,18 +47,34 @@ resource "authentik_application" "prometheus" {
   protocol_provider = authentik_provider_proxy.prometheus.id
 }
 
+resource "authentik_provider_proxy" "rabbitmq" {
+  name               = "rabbitmq-proxy"
+  external_host      = "https://rabbitmq.${var.environment}.${var.domain_name}"
+  authorization_flow = data.authentik_flow.default_authorization_flow.id
+  invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
+  mode               = "forward_single"
+}
+
+resource "authentik_application" "rabbitmq" {
+  name              = "RabbitMQ Management"
+  slug              = "rabbitmq"
+  protocol_provider = authentik_provider_proxy.rabbitmq.id
+}
+
 resource "null_resource" "bind_embedded_outpost" {
   depends_on = [
     authentik_provider_proxy.traefik,
     authentik_provider_proxy.grafana,
-    authentik_provider_proxy.prometheus
+    authentik_provider_proxy.prometheus,
+    authentik_provider_proxy.rabbitmq
   ]
 
   triggers = {
     provider_ids = join(",", [
       authentik_provider_proxy.traefik.id,
       authentik_provider_proxy.grafana.id,
-      authentik_provider_proxy.prometheus.id
+      authentik_provider_proxy.prometheus.id,
+      authentik_provider_proxy.rabbitmq.id
     ])
   }
 

@@ -78,6 +78,12 @@
 
   when: "inventory_hostname == groups['managers'][0]"
 
+- name: Force synchronize Authentik terraform token to all cluster nodes
+  set_fact:
+    effective_terraform_token: "{{ hostvars[groups['managers'][0]]['effective_terraform_token'] | default('') }}"
+  when: "groups['managers'] | length > 0"
+  no_log: true
+
 # ===========================================================================
 # Tasks that run on WORKERS to find the authentik container and inject token
 # ===========================================================================
@@ -90,7 +96,7 @@
     fi
     docker exec $CONTAINER_ID ak shell -c "from authentik.core.models import User, Token; \
     user = User.objects.get(username='akadmin'); \
-    Token.objects.update_or_create(user=user, identifier='terraform-token', intent='api', defaults={'key': '{{ hostvars[groups['managers'][0]]['effective_terraform_token'] }}', 'expiring': False});"
+    Token.objects.update_or_create(user=user, identifier='terraform-token', intent='api', defaults={'key': '{{ effective_terraform_token }}', 'expiring': False});"
   register: authentik_api_token_raw
   until: authentik_api_token_raw.rc == 0 or 'SKIPPED' in authentik_api_token_raw.stdout
   retries: 60
