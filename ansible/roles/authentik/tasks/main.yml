@@ -27,16 +27,14 @@
         path: /opt/docker/stacks/database_ha/secrets/authentik_db_password
       register: db_pass_stat
 
-    - name: Generate Authentik secrets (if not set)
+    - name: Generate Authentik secrets (if not already generated)
       set_fact:
         authentik_secret_key_generated: "{{ lookup('password', '/dev/null length=50 chars=ascii_letters,digits') }}"
-        authentik_bootstrap_token_generated: "{{ lookup('password', '/dev/null length=40 chars=ascii_letters,digits') }}"
         authentik_terraform_token_generated: "{{ lookup('password', '/dev/null length=60 chars=ascii_letters,digits') }}"
 
     - name: Set effective secrets
       set_fact:
         effective_secret_key: "{{ authentik_secret_key | default(authentik_secret_key_generated, true) }}"
-        effective_bootstrap_token: "{{ authentik_bootstrap_token | default(authentik_bootstrap_token_generated, true) }}"
         effective_terraform_token: "{{ slurped_tf_token['content'] | b64decode if not slurped_tf_token.failed else authentik_terraform_token_generated }}"
         effective_db_password: "{{ slurped_db_pass['content'] | b64decode }}"
         authentik_full_domain: "{{ authentik_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
@@ -49,9 +47,6 @@
         mode: '0600'
       loop:
         - { name: 'authentik_secret_key', value: '{{ effective_secret_key }}' }
-        - { name: 'authentik_admin_password', value: '{{ authentik_admin_password }}' }
-        - { name: 'authentik_bootstrap_token', value: '{{ effective_bootstrap_token }}' }
-        - { name: 'authentik_admin_email', value: '{{ authentik_admin_email }}' }
         - { name: 'authentik_terraform_token', value: '{{ effective_terraform_token }}' }
       no_log: true
       register: secret_files
@@ -59,10 +54,7 @@
     - name: Set secret hash facts
       set_fact:
         authentik_secret_key_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_secret_key') | first).checksum | default(effective_secret_key | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
-        authentik_admin_password_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_admin_password') | first).checksum | default(authentik_admin_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
-        authentik_bootstrap_token_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_bootstrap_token') | first).checksum | default(effective_bootstrap_token | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
-        authentik_admin_email_hash: "{{ (secret_files.results | selectattr('item.name', 'equalto', 'authentik_admin_email') | first).checksum | default(authentik_admin_email | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
-        # NEW: Guarantee the DB hash perfectly matches what Swarm has
+        # Guarantee the DB hash perfectly matches what Swarm has
         authentik_db_password_hash: "{{ db_pass_stat.stat.checksum | truncate(10, True, '') }}"
 
     - name: Generate Authentik stack definition

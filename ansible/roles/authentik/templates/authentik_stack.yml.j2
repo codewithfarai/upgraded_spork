@@ -24,9 +24,6 @@ services:
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
       # CSRF fix for Hetzner LB SSL termination
       AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://{{ authentik_full_domain }}"
-      AUTHENTIK_BOOTSTRAP_PASSWORD: "file:///run/secrets/authentik_admin_password"
-      AUTHENTIK_BOOTSTRAP_TOKEN: "file:///run/secrets/authentik_bootstrap_token"
-      AUTHENTIK_BOOTSTRAP_EMAIL: "file:///run/secrets/authentik_admin_email"
       AUTHENTIK_METRICS__ENABLED: "true"
     networks:
       - traefik-public
@@ -34,12 +31,6 @@ services:
     secrets:
       - source: authentik_secret_key-{{ authentik_secret_key_hash }}
         target: authentik_secret_key
-      - source: authentik_admin_password-{{ authentik_admin_password_hash }}
-        target: authentik_admin_password
-      - source: authentik_bootstrap_token-{{ authentik_bootstrap_token_hash }}
-        target: authentik_bootstrap_token
-      - source: authentik_admin_email-{{ authentik_admin_email_hash }}
-        target: authentik_admin_email
       - authentik_db_password
     deploy:
       mode: replicated
@@ -105,14 +96,8 @@ networks:
 secrets:
   authentik_secret_key-{{ authentik_secret_key_hash }}:
     file: /opt/docker/stacks/authentik/secrets/authentik_secret_key
-  authentik_admin_password-{{ authentik_admin_password_hash }}:
-    file: /opt/docker/stacks/authentik/secrets/authentik_admin_password
-  authentik_bootstrap_token-{{ authentik_bootstrap_token_hash }}:
-    file: /opt/docker/stacks/authentik/secrets/authentik_bootstrap_token
-  authentik_admin_email-{{ authentik_admin_email_hash }}:
-    file: /opt/docker/stacks/authentik/secrets/authentik_admin_email
 
   authentik_db_password:
     external: true
-    # FIXED: Swarm prepends the creating stack's name ("db_ha_") to the secret!
+    # Swarm prepends the creating stack's name ("db_ha_") to the secret!
     name: "db_ha_authentik_db_password-{{ authentik_db_password_hash }}"

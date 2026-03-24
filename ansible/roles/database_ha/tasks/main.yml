@@ -30,14 +30,23 @@
         state: directory
         mode: '0755'
 
-    - name: Generate Authentik DB password (if not set)
+    - name: Slurp existing DB password (idempotent — re-uses value on subsequent runs)
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+      register: slurped_existing_db_pass
+      ignore_errors: true
+
+    - name: Generate DB password (first run only — file does not yet exist)
       set_fact:
         authentik_db_password_generated: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-      when: authentik_db_password | default('') == ''
+      when: slurped_existing_db_pass.failed
 
     - name: Set effective DB secret
       set_fact:
-        effective_db_password: "{{ authentik_db_password | default(authentik_db_password_generated, true) }}"
+        # Slurp returns base64; decode it. Fall back to the newly generated value on first run.
+        effective_db_password: "{{ slurped_existing_db_pass['content'] | b64decode if not slurped_existing_db_pass.failed else authentik_db_password_generated }}"
+        # Keep authentik_db_password in scope so the Spilo/Patroni Jinja2 template can reference it
+        authentik_db_password: "{{ slurped_existing_db_pass['content'] | b64decode if not slurped_existing_db_pass.failed else authentik_db_password_generated }}"
 
     - name: Write DB password to secret file
       copy:
