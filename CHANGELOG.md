@@ -1,3 +1,9 @@
+## v0.29.0 (2026-03-24)
+
+### feat
+
+- Implement RabbitMQ in the database HA stack with Prometheus monitoring and Authentik integration, and add PostgreSQL and Redis exporters.
+
 ## v0.28.0 (2026-03-24)
 
 ### feat
