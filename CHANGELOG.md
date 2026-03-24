@@ -1,3 +1,9 @@
+## v0.27.3 (2026-03-24)
+
+### refactor
+
+- remove Authentik bootstrap and admin secret management from Ansible and persist the database password idempotently.
+
 ## v0.27.2 (2026-03-22)
 
 ### chore
