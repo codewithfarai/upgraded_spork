@@ -1,3 +1,9 @@
+## v0.28.0 (2026-03-24)
+
+### feat
+
+- Add Redis Sentinel for high availability and secure Redis communication with password management.
+
 ## v0.27.3 (2026-03-24)
 
 ### refactor
