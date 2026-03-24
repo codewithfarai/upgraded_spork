@@ -102,11 +102,14 @@ services:
 
   redis-{{ loop.index0 }}:
     image: redis:7-alpine
-    command: sh -c 'redis-server {% if loop.index0 > 0 %}--replicaof db_ha_redis-0 6379 {% endif %}--save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru'
+    command: sh -c 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --masterauth "$$(cat /run/secrets/redis_password)" --replica-announce-ip redis-{{ loop.index0 }} {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru'
     volumes:
       - redis-{{ loop.index0 }}:/data
     networks:
       - shared-backend
+    secrets:
+      - source: redis_password-{{ redis_password_hash }}
+        target: redis_password
     deploy:
       replicas: 1
       placement:
@@ -156,6 +159,8 @@ services:
         listen redis
           bind *:6379
           option tcp-check
+          tcp-check send AUTH\ {{ effective_redis_password }}\r\n
+          tcp-check expect string +OK
           tcp-check send PING\r\n
           tcp-check expect string +PONG
           tcp-check send info\ replication\r\n
@@ -175,6 +180,32 @@ services:
       placement:
         constraints:
           - node.labels.role == database
+
+  redis-sentinel:
+    image: redis:7-alpine
+    command: >
+      sh -c '
+      echo "bind 0.0.0.0" > /tmp/sentinel.conf &&
+      echo "port 26379" >> /tmp/sentinel.conf &&
+      echo "sentinel resolve-hostnames yes" >> /tmp/sentinel.conf &&
+      echo "sentinel announce-hostnames yes" >> /tmp/sentinel.conf &&
+      echo "sentinel monitor mymaster redis-0 6379 2" >> /tmp/sentinel.conf &&
+      echo "sentinel auth-pass mymaster $$(cat /run/secrets/redis_password)" >> /tmp/sentinel.conf &&
+      echo "sentinel down-after-milliseconds mymaster 5000" >> /tmp/sentinel.conf &&
+      echo "sentinel failover-timeout mymaster 10000" >> /tmp/sentinel.conf &&
+      echo "sentinel parallel-syncs mymaster 1" >> /tmp/sentinel.conf &&
+      exec redis-server /tmp/sentinel.conf --sentinel
+      '
+    networks:
+      - shared-backend
+    secrets:
+      - source: redis_password-{{ redis_password_hash }}
+        target: redis_password
+    deploy:
+      replicas: 3
+      placement:
+        preferences:
+          - spread: node.id
 
 volumes:
 {% for host in db_nodes %}
@@ -199,3 +230,6 @@ networks:
 secrets:
   authentik_db_password-{{ authentik_db_password_hash }}:
     file: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+
+  redis_password-{{ redis_password_hash }}:
+    file: /opt/docker/stacks/database_ha/secrets/redis_password

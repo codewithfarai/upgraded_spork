@@ -30,23 +30,36 @@
         state: directory
         mode: '0755'
 
-    - name: Slurp existing DB password (idempotent — re-uses value on subsequent runs)
+    - name: Check if DB password exists
+      stat:
+        path: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+      register: db_pass_stat
+
+    - name: Check if Redis password exists
+      stat:
+        path: /opt/docker/stacks/database_ha/secrets/redis_password
+      register: redis_pass_stat
+
+    - name: Slurp existing DB password
       slurp:
         src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
-      register: slurped_existing_db_pass
-      ignore_errors: true
+      register: slurped_db_pass
+      when: db_pass_stat.stat.exists
 
-    - name: Generate DB password (first run only — file does not yet exist)
-      set_fact:
-        authentik_db_password_generated: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-      when: slurped_existing_db_pass.failed
+    - name: Slurp existing Redis password
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/redis_password
+      register: slurped_redis_pass
+      when: redis_pass_stat.stat.exists
 
-    - name: Set effective DB secret
+    - name: Set effective DB secret (re-use existing or generate)
       set_fact:
-        # Slurp returns base64; decode it. Fall back to the newly generated value on first run.
-        effective_db_password: "{{ slurped_existing_db_pass['content'] | b64decode if not slurped_existing_db_pass.failed else authentik_db_password_generated }}"
-        # Keep authentik_db_password in scope so the Spilo/Patroni Jinja2 template can reference it
-        authentik_db_password: "{{ slurped_existing_db_pass['content'] | b64decode if not slurped_existing_db_pass.failed else authentik_db_password_generated }}"
+        effective_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        authentik_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+
+    - name: Set effective Redis secret (re-use existing or generate)
+      set_fact:
+        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
 
     - name: Write DB password to secret file
       copy:
@@ -55,9 +68,17 @@
         mode: '0600'
       register: db_secret_file
 
+    - name: Write Redis password to secret file
+      copy:
+        content: "{{ effective_redis_password }}"
+        dest: "/opt/docker/stacks/database_ha/secrets/redis_password"
+        mode: '0600'
+      register: redis_secret_file
+
     - name: Set secret hash fact
       set_fact:
         authentik_db_password_hash: "{{ db_secret_file.checksum | default(effective_db_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
+        redis_password_hash: "{{ redis_secret_file.checksum | default(effective_redis_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
 
     - name: Create shared backend overlay network
       shell: |
