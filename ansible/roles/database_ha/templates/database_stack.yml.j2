@@ -102,7 +102,7 @@ services:
 
   redis-{{ loop.index0 }}:
     image: redis:7-alpine
-    command: sh -c 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --masterauth "$$(cat /run/secrets/redis_password)" --replica-announce-ip redis-{{ loop.index0 }} {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru'
+    command: sh -c 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --masterauth "$$(cat /run/secrets/redis_password)" --replica-announce-ip redis-{{ loop.index0 }} {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel debug --maxmemory 512mb --maxmemory-policy allkeys-lru'
     volumes:
       - redis-{{ loop.index0 }}:/data
     networks:
