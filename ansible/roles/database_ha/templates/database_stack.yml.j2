@@ -205,16 +205,18 @@ services:
           bind *:5672
           mode tcp
           balance leastconn
+          default-server inter 5s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:5672 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:5672 check resolvers docker resolve-prefer ipv4
           {% endfor %}
 
         listen rabbitmq-mqtt
           bind *:1883
           mode tcp
           balance leastconn
+          default-server inter 5s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:1883 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:1883 check resolvers docker resolve-prefer ipv4
           {% endfor %}
     # We use $$ to escape the variable so Compose passes it directly to the container's shell
     command: sh -c 'echo "$$HAPROXY_CFG" > /tmp/haproxy.cfg && exec haproxy -W -db -f /tmp/haproxy.cfg'
