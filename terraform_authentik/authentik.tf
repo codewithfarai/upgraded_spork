@@ -3,6 +3,10 @@ provider "authentik" {
   token = var.authentik_token
 }
 
+locals {
+  env_subdomain = var.environment == "prod" ? "" : "${var.environment}."
+}
+
 data "authentik_flow" "default_authorization_flow" {
   slug = "default-provider-authorization-explicit-consent"
 }
@@ -13,7 +17,7 @@ data "authentik_flow" "default_invalidation_flow" {
 
 resource "authentik_provider_proxy" "traefik" {
   name               = "traefik-proxy"
-  external_host      = "https://traefik.${var.environment}.${var.domain_name}"
+  external_host      = "https://traefik.${local.env_subdomain}${var.domain_name}"
   authorization_flow = data.authentik_flow.default_authorization_flow.id
   invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
   mode               = "forward_single"
@@ -21,7 +25,7 @@ resource "authentik_provider_proxy" "traefik" {
 
 resource "authentik_provider_proxy" "grafana" {
   name               = "grafana-proxy"
-  external_host      = "https://grafana.${var.environment}.${var.domain_name}"
+  external_host      = "https://grafana.${local.env_subdomain}${var.domain_name}"
   authorization_flow = data.authentik_flow.default_authorization_flow.id
   invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
   mode               = "forward_single"
@@ -35,7 +39,7 @@ resource "authentik_application" "grafana" {
 
 resource "authentik_provider_proxy" "prometheus" {
   name               = "prometheus-proxy"
-  external_host      = "https://prometheus.${var.environment}.${var.domain_name}"
+  external_host      = "https://prometheus.${local.env_subdomain}${var.domain_name}"
   authorization_flow = data.authentik_flow.default_authorization_flow.id
   invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
   mode               = "forward_single"

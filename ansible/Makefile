@@ -14,8 +14,11 @@ generate_secrets:
 
 swarm:
 	@echo "🐝 Bootstrapping Docker Swarm ($(ENV))..."
-	ANSIBLE_CONFIG=ansible.cfg ENV=$(ENV) poetry run ansible-playbook -i inventory/terraform_inventory.sh playbooks/swarm.yml
+	@echo "🔑 Refreshing SSH host keys for $(ENV)..."
+	@$(MAKE) -C ../terraform keyscan ENV=$(ENV) 2>/dev/null || true
+	ANSIBLE_CONFIG=ansible.cfg ENV=$(ENV) ANSIBLE_SSH_ARGS="-o ControlMaster=auto -o ControlPersist=60s -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV)" poetry run ansible-playbook -i inventory/terraform_inventory.sh playbooks/swarm.yml
 
 swarm_check:
 	@echo "🔍 Dry-run Docker Swarm bootstrap ($(ENV))..."
-	ANSIBLE_CONFIG=ansible.cfg ENV=$(ENV) poetry run ansible-playbook -i inventory/terraform_inventory.sh playbooks/swarm.yml --check --diff
+	@$(MAKE) -C ../terraform keyscan ENV=$(ENV) 2>/dev/null || true
+	ANSIBLE_CONFIG=ansible.cfg ENV=$(ENV) ANSIBLE_SSH_ARGS="-o ControlMaster=auto -o ControlPersist=60s -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV)" poetry run ansible-playbook -i inventory/terraform_inventory.sh playbooks/swarm.yml --check --diff
