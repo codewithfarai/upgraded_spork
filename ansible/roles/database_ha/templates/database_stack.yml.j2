@@ -145,7 +145,7 @@ services:
         - traefik.http.services.rabbitmq-svc.loadbalancer.server.port=15672
         - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie=true
         - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie.name=rabbitmq-sess
-        - traefik.docker.network=traefik-public
+        - traefik.swarm.network=traefik-public
 {% endfor %}
   # ==========================================================================
   # Dynamic Routing & Monitors

@@ -31,7 +31,7 @@ services:
         - traefik.http.routers.prometheus.entrypoints=web
         - traefik.http.routers.prometheus.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.prometheus.loadbalancer.server.port=9090
-        - traefik.docker.network=traefik-public
+        - traefik.swarm.network=traefik-public
         - prometheus.config.hash={{ prometheus_config_hash }}
 
   alertmanager:
@@ -77,7 +77,7 @@ services:
         - traefik.http.routers.grafana.entrypoints=web
         - traefik.http.routers.grafana.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.grafana.loadbalancer.server.port=3000
-        - traefik.docker.network=traefik-public
+        - traefik.swarm.network=traefik-public
         - grafana.config.hash={{ grafana_config_hash }}
 
   loki:
