@@ -21,6 +21,15 @@
     mode: '0777'
   when: "'database' in group_names"
 
+- name: Create RabbitMQ directory for this node
+  file:
+    path: "/opt/docker/stacks/database_ha/rabbitmq-{{ node_index }}"
+    state: directory
+    owner: '999'
+    group: '999'
+    mode: '0700'
+  when: "'database' in group_names"
+
 # Execute Swarm deployment on the Manager
 - name: Run Swarm Manager specific tasks
   block:
@@ -40,6 +49,11 @@
         path: /opt/docker/stacks/database_ha/secrets/redis_password
       register: redis_pass_stat
 
+    - name: Check if RabbitMQ password exists
+      stat:
+        path: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
+      register: rabbitmq_pass_stat
+
     - name: Slurp existing DB password
       slurp:
         src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
@@ -51,6 +65,12 @@
         src: /opt/docker/stacks/database_ha/secrets/redis_password
       register: slurped_redis_pass
       when: redis_pass_stat.stat.exists
+
+    - name: Slurp existing RabbitMQ password
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
+      register: slurped_rabbitmq_pass
+      when: rabbitmq_pass_stat.stat.exists
 
     - name: Generate new passwords if missing
       set_fact:
@@ -67,6 +87,10 @@
       set_fact:
         effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else new_redis_password }}"
 
+    - name: Set effective RabbitMQ secret (re-use existing or generate)
+      set_fact:
+        effective_rabbitmq_password: "{{ slurped_rabbitmq_pass['content'] | b64decode if rabbitmq_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+
     - name: Write DB password to secret file
       copy:
         content: "{{ effective_db_password }}"
@@ -81,10 +105,18 @@
         mode: '0600'
       register: redis_secret_file
 
+    - name: Write RabbitMQ password to secret file
+      copy:
+        content: "{{ effective_rabbitmq_password }}"
+        dest: "/opt/docker/stacks/database_ha/secrets/rabbitmq_password"
+        mode: '0600'
+      register: rabbitmq_secret_file
+
     - name: Set secret hash fact
       set_fact:
         authentik_db_password_hash: "{{ db_secret_file.checksum | default(effective_db_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
         redis_password_hash: "{{ redis_secret_file.checksum | default(effective_redis_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
+        rabbitmq_password_hash: "{{ rabbitmq_secret_file.checksum | default(effective_rabbitmq_password | hash('sha1')) | list | join('') | truncate(10, True, '') }}"
 
     - name: Create shared backend overlay network
       shell: |
@@ -128,3 +160,26 @@
 
 
   when: "inventory_hostname == groups['managers'][0]"
+
+- name: Synchronize RabbitMQ secrets to database nodes
+  set_fact:
+    effective_rabbitmq_password: "{{ hostvars[groups['managers'][0]]['effective_rabbitmq_password'] | default(omit) }}"
+    effective_rabbitmq_user: "admin"
+  when: "'database' in group_names"
+  no_log: true
+
+- name: Sync RabbitMQ configuration to database nodes
+  template:
+    src: "{{ item.src }}"
+    dest: "/opt/docker/stacks/database_ha/rabbitmq-{{ node_index }}/{{ item.dest }}"
+    owner: '999'
+    group: '999'
+    mode: '0600'
+  loop:
+    - { src: rabbitmq.conf.j2, dest: rabbitmq.conf }
+    - { src: enabled_plugins.j2, dest: enabled_plugins }
+  vars:
+    rabbitmq_user: "{{ effective_rabbitmq_user }}"
+    rabbitmq_password: "{{ effective_rabbitmq_password }}"
+    db_count: "{{ groups['database'] | length }}"
+  when: "'database' in group_names"

@@ -116,8 +116,37 @@ services:
         constraints:
           - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
 
+  rabbitmq-{{ loop.index0 }}:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_NODENAME: rabbit@rabbitmq-{{ loop.index0 }}
+      RABBITMQ_ERLANG_COOKIE: "ZPBCHXWQQNFXIKYXWJLZ"
+    volumes:
+      - rabbitmq-{{ loop.index0 }}:/var/lib/rabbitmq
+      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    networks:
+      - shared-backend
+      - traefik-public
+    secrets:
+      - source: rabbitmq_password-{{ rabbitmq_password_hash }}
+        target: rabbitmq_password
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)
+        - traefik.http.routers.rabbitmq.entrypoints=web
+        - traefik.http.routers.rabbitmq.service=rabbitmq-svc
+        - traefik.http.routers.rabbitmq.middlewares=authentik-forwardauth@file
+        - traefik.http.services.rabbitmq-svc.loadbalancer.server.port=15672
+        - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie=true
+        - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie.name=rabbitmq-sess
+        - traefik.docker.network=traefik-public
 {% endfor %}
-
   # ==========================================================================
   # Dynamic Routing & Monitors
   # ==========================================================================
@@ -171,10 +200,27 @@ services:
           {% for host in db_nodes %}
           server redis-{{ loop.index0 }} redis-{{ loop.index0 }}:6379 check
           {% endfor %}
+
+        listen rabbitmq-amqp
+          bind *:5672
+          mode tcp
+          balance leastconn
+          {% for host in db_nodes %}
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:5672 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          {% endfor %}
+
+        listen rabbitmq-mqtt
+          bind *:1883
+          mode tcp
+          balance leastconn
+          {% for host in db_nodes %}
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:1883 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          {% endfor %}
     # We use $$ to escape the variable so Compose passes it directly to the container's shell
     command: sh -c 'echo "$$HAPROXY_CFG" > /tmp/haproxy.cfg && exec haproxy -W -db -f /tmp/haproxy.cfg'
     networks:
       - shared-backend
+      - traefik-public
     deploy:
       replicas: 2
       placement:
@@ -221,10 +267,18 @@ volumes:
       type: none
       o: bind
       device: /opt/docker/stacks/database_ha/redis-{{ loop.index0 }}
+  rabbitmq-{{ loop.index0 }}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}
 {% endfor %}
 
 networks:
   shared-backend:
+    external: true
+  traefik-public:
     external: true
 
 secrets:
@@ -233,3 +287,6 @@ secrets:
 
   redis_password-{{ redis_password_hash }}:
     file: /opt/docker/stacks/database_ha/secrets/redis_password
+
+  rabbitmq_password-{{ rabbitmq_password_hash }}:
+    file: /opt/docker/stacks/database_ha/secrets/rabbitmq_password

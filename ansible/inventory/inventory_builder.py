@@ -28,10 +28,11 @@ def build_inventory(data, env, ssh_key_path):
     edge = flatten_ips(data, "edge")
     database = flatten_ips(data, "database")
 
-    # Removed StrictHostKeyChecking=no and UserKnownHostsFile=/dev/null
-    # Updated to connect as provision
+    # Use environment-specific known_hosts to ensure isolation
+    known_hosts_path = f"~/.ssh/known_hosts_{env}"
     proxy_cmd = (
         f"-o ProxyCommand='ssh -W %h:%p -q -i {ssh_key_path} "
+        f"-o UserKnownHostsFile={known_hosts_path} "
         f"provision@{bastion_ip}'"
     )
 
