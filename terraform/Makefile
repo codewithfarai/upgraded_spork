@@ -222,6 +222,7 @@ verify_node_manager:
 	for ip in $$MANAGER_IPS; do \
 		echo "🔍 Verifying Manager ($$ip) via Bastion..."; \
 		ssh -i $$RAW_KEY \
+			-o StrictHostKeyChecking=accept-new \
 			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p provision@$$BASTION_IP" \
 			provision@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done
@@ -237,6 +238,7 @@ verify_node_worker:
 	for ip in $$WORKER_IPS; do \
 		echo "🔍 Verifying Worker ($$ip) via Bastion..."; \
 		ssh -i $$RAW_KEY \
+			-o StrictHostKeyChecking=accept-new \
 			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p provision@$$BASTION_IP" \
 			provision@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done
@@ -252,6 +254,7 @@ verify_node_database:
 	for ip in $$DB_IPS; do \
 		echo "🔍 Verifying Database Node ($$ip) via Bastion..."; \
 		ssh -i $$RAW_KEY \
+			-o StrictHostKeyChecking=accept-new \
 			-o ProxyCommand="ssh -i $$RAW_KEY -W %h:%p provision@$$BASTION_IP" \
 			provision@$$ip "bash -s $$EDGE_IPS" < scripts/verify_security.sh; \
 	done

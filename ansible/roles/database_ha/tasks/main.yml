@@ -52,14 +52,20 @@
       register: slurped_redis_pass
       when: redis_pass_stat.stat.exists
 
+    - name: Generate new passwords if missing
+      set_fact:
+        new_db_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        new_redis_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      when: not db_pass_stat.stat.exists or not redis_pass_stat.stat.exists
+
     - name: Set effective DB secret (re-use existing or generate)
       set_fact:
-        effective_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-        authentik_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        effective_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else new_db_password }}"
+        authentik_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else new_db_password }}"
 
     - name: Set effective Redis secret (re-use existing or generate)
       set_fact:
-        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else new_redis_password }}"
 
     - name: Write DB password to secret file
       copy:
@@ -100,7 +106,7 @@
         docker run --rm --network shared-backend
         -e PGPASSWORD="{{ effective_db_password }}"
         postgres:16-alpine
-        pg_isready -h db_ha_pgpool -U authentik -d postgres -t 10
+        pg_isready -h db_ha_pgpool -U postgres -d postgres -t 10
       register: pg_ready
       until: pg_ready.rc == 0
       retries: 15
@@ -109,8 +115,9 @@
 
     - name: Ensure Authentik database exists idempotently
       shell: |
-        cat << 'EOF' | docker run -i --rm --network shared-backend -e PGPASSWORD="{{ effective_db_password }}" postgres:16-alpine sh
+        cat << 'EOF' | docker run -i --rm --network shared-backend -e PGPASSWORD="{{ effective_db_password }}" -e PGSSLMODE=require postgres:16-alpine sh
         set -e
+        # Note: We connect as authentik because Spilo secures the postgres user with a randomly generated root password
         EXISTS=$(psql -h db_ha_pgpool -U authentik -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='authentik'")
         if [ "$EXISTS" != "1" ]; then
           psql -h db_ha_pgpool -U authentik -d postgres -c "CREATE DATABASE authentik OWNER authentik;"

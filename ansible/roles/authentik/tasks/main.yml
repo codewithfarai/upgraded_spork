@@ -81,6 +81,12 @@
 # ===========================================================================
 # Tasks that run on WORKERS to find the authentik container and inject token
 # ===========================================================================
+- name: Synchronize Terraform API token back to all workers
+  set_fact:
+    effective_terraform_token: "{{ hostvars[groups['managers'][0]]['effective_terraform_token'] | default('') }}"
+  when: "inventory_hostname in groups['workers']"
+  no_log: true
+
 - name: Configure Authentik Terraform API token on Workers
   shell: |
     CONTAINER_ID=$(docker ps -q -f name=authentik_server | head -n 1)
@@ -90,11 +96,11 @@
     fi
     docker exec $CONTAINER_ID ak shell -c "from authentik.core.models import User, Token; \
     user = User.objects.get(username='akadmin'); \
-    Token.objects.update_or_create(user=user, identifier='terraform-token', intent='api', defaults={'key': '{{ hostvars[groups['managers'][0]]['effective_terraform_token'] }}', 'expiring': False});"
+    Token.objects.update_or_create(user=user, identifier='terraform-token', intent='api', defaults={'key': '{{ effective_terraform_token }}', 'expiring': False});"
   register: authentik_api_token_raw
   until: authentik_api_token_raw.rc == 0 or 'SKIPPED' in authentik_api_token_raw.stdout
   retries: 60
   delay: 10
   changed_when: "'SKIPPED' not in authentik_api_token_raw.stdout"
-  when: "inventory_hostname in groups['workers']"
+  when: "inventory_hostname in groups['workers'] and effective_terraform_token != ''"
   no_log: true
