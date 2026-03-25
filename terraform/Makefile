@@ -113,7 +113,7 @@ keyscan:
 	@$(MAKE) init ENV=$(ENV) >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	RANGE=$$(terraform output -raw network_ip_range | cut -d'/' -f1 | cut -d'.' -f1,2); \
-	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | arrays? | .[]' | grep "^$$RANGE" | sort -u); \
+	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | strings' | grep "^$$RANGE" | sort -u); \
 	if [ -z "$$INTERNAL_IPS" ]; then echo "⚠️ No internal IPs found to scan."; exit 0; fi; \
 	echo "🔍 Scanning Bastion ($$BASTION_IP)..."; \
 	ssh-keygen -f ~/.ssh/known_hosts_$(ENV) -R $$BASTION_IP 2>/dev/null; \

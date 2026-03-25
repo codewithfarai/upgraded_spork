@@ -111,6 +111,7 @@ services:
         - traefik.http.routers.api.entrypoints=web
         - traefik.http.routers.api.middlewares=security-headers@file,authentik-forwardauth@file
         - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
+        - traefik.swarm.network=traefik-public
 
 volumes:
   traefik-data:
