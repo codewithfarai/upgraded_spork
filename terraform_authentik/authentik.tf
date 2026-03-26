@@ -15,6 +15,10 @@ data "authentik_flow" "default_invalidation_flow" {
   slug = "default-provider-invalidation-flow"
 }
 
+data "authentik_flow" "default_authentication_flow" {
+  slug = "default-authentication-flow"
+}
+
 resource "authentik_provider_proxy" "traefik" {
   name               = "traefik-proxy"
   external_host      = "https://traefik.${local.env_subdomain}${var.domain_name}"
@@ -65,6 +69,21 @@ resource "authentik_application" "rabbitmq" {
   protocol_provider = authentik_provider_proxy.rabbitmq.id
 }
 
+# --- RIDEBASE APP ---
+resource "authentik_provider_proxy" "ridebase" {
+  name               = "ridebase-proxy"
+  external_host      = "https://ridebase.${local.env_subdomain}${var.domain_name}"
+  authorization_flow = data.authentik_flow.default_authentication_flow.id # Use standard auth flow
+  invalidation_flow  = data.authentik_flow.default_invalidation_flow.id
+  mode               = "forward_single"
+}
+
+resource "authentik_application" "ridebase" {
+  name              = "Ridebase"
+  slug              = "ridebase"
+  protocol_provider = authentik_provider_proxy.ridebase.id
+}
+
 resource "null_resource" "bind_embedded_outpost" {
   depends_on = [
     authentik_provider_proxy.traefik,
@@ -78,7 +97,8 @@ resource "null_resource" "bind_embedded_outpost" {
       authentik_provider_proxy.traefik.id,
       authentik_provider_proxy.grafana.id,
       authentik_provider_proxy.prometheus.id,
-      authentik_provider_proxy.rabbitmq.id
+      authentik_provider_proxy.rabbitmq.id,
+      authentik_provider_proxy.ridebase.id
     ])
   }
 
