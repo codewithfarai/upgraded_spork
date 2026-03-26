@@ -38,8 +38,8 @@ groups:
       description: "Based on recent usage, disk will be full in 24 hours."
 
   - alert: HighContainerRestarts
-    expr: changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[15m]) > 2
-    for: 5m
+    expr: changes(container_last_seen{container_label_com_docker_swarm_service_name!=""}[5m]) > 2
+    for: 1m
     labels:
       severity: warning
     annotations:
