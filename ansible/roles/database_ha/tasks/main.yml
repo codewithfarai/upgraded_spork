@@ -144,6 +144,7 @@
       retries: 15
       delay: 10
       changed_when: false
+      no_log: true
 
     - name: Ensure Authentik database exists idempotently
       shell: |
@@ -156,7 +157,11 @@
         fi
         EOF
       register: db_create_result
+      until: db_create_result.rc == 0
+      retries: 10
+      delay: 10
       changed_when: "'CREATE DATABASE' in db_create_result.stdout"
+      no_log: true
 
 
   when: "inventory_hostname == groups['managers'][0]"
