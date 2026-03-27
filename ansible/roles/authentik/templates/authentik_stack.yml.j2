@@ -24,6 +24,8 @@ services:
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
       # CSRF fix for Hetzner LB SSL termination
       AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://{{ authentik_full_domain }}"
+      AUTHENTIK_LISTEN__HTTP: 0.0.0.0:9000
+      AUTHENTIK_LISTEN__TRUSTED_PROXY_IPS: "127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
       AUTHENTIK_METRICS__ENABLED: "true"
     networks:
       - traefik-public

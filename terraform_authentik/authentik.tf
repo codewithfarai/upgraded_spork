@@ -112,7 +112,7 @@ resource "null_resource" "bind_embedded_outpost" {
       curl -sk -X PATCH \
         -H "Authorization: Bearer ${var.authentik_token}" \
         -H "Content-Type: application/json" \
-        -d "{\"providers\": [${self.triggers.provider_ids}]}" \
+        -d "{\"providers\": [${self.triggers.provider_ids}], \"config\": {\"authentik_host\": \"${var.authentik_url}\"}}" \
         "${var.authentik_url}/api/v3/outposts/instances/$OUTPOST_ID/" \
         | jq .
     EOT
