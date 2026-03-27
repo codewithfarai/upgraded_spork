@@ -44,7 +44,7 @@ groups:
       severity: warning
     annotations:
       summary: "🚨 High restart rate for {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %}"
-      description: "Service {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %} on node {% raw %}{{ $labels.instance }}{% endraw %} has restarted frequently in the last 15 minutes."
+      description: "Service {% raw %}{{ $labels.container_label_com_docker_swarm_service_name }}{% endraw %} on node {% raw %}{{ $labels.instance }}{% endraw %} has restarted frequently in the last 5 minutes."
 
   - alert: SuspiciousNetworkTraffic
     expr: sum(rate(node_network_receive_packets_total[30s])) by (instance) > 1000
