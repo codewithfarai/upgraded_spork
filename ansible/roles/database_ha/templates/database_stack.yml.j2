@@ -151,7 +151,7 @@ services:
   postgres-exporter-{{ loop.index0 }}:
     image: prometheuscommunity/postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://authentik:{{ authentik_db_password | urlencode }}@pg-{{ loop.index0 }}:5432/postgres?sslmode=require"
+      DATA_SOURCE_NAME: "postgresql://authentik:{{ authentik_db_password | urlencode }}@pg-{{ loop.index0 }}:5432/authentik?sslmode=require"
     networks:
       - shared-backend
     deploy:
