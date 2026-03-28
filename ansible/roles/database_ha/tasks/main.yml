@@ -124,6 +124,31 @@
       register: network_create
       changed_when: "'created' in network_create.stdout|lower"
 
+    - name: Ensure Database HA configs directory exists
+      file:
+        path: /opt/docker/stacks/database_ha/configs
+        state: directory
+        mode: '0755'
+
+    - name: Generate RabbitMQ configurations
+      template:
+        src: "{{ item.src }}"
+        dest: "/opt/docker/stacks/database_ha/configs/{{ item.dest }}"
+        mode: '0644'
+      loop:
+        - { src: rabbitmq.conf.j2, dest: rabbitmq.conf }
+        - { src: enabled_plugins.j2, dest: enabled_plugins }
+      vars:
+        rabbitmq_user: "admin"
+        rabbitmq_password: "{{ effective_rabbitmq_password }}"
+        db_count: "{{ groups['database'] | length }}"
+      register: rabbitmq_configs
+
+    - name: Set RabbitMQ config hash facts
+      set_fact:
+        rabbitmq_config_hash: "{{ (rabbitmq_configs.results | selectattr('item.src', 'equalto', 'rabbitmq.conf.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
+        rabbitmq_plugins_hash: "{{ (rabbitmq_configs.results | selectattr('item.src', 'equalto', 'enabled_plugins.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
+
     - name: Generate Database HA stack definition
       template:
         src: database_stack.yml.j2
@@ -131,7 +156,7 @@
         mode: '0644'
 
     - name: Deploy Database HA stack
-      command: docker stack deploy -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
 
     - name: Wait for PostgreSQL Master to be ready via pgpool
       command: >
@@ -177,26 +202,3 @@
     fi
   when: "'database' in group_names"
   changed_when: false
-
-- name: Synchronize RabbitMQ secrets to database nodes
-  set_fact:
-    effective_rabbitmq_password: "{{ hostvars[groups['managers'][0]]['effective_rabbitmq_password'] | default(omit) }}"
-    effective_rabbitmq_user: "admin"
-  when: "'database' in group_names"
-  no_log: true
-
-- name: Sync RabbitMQ configuration to database nodes
-  template:
-    src: "{{ item.src }}"
-    dest: "/opt/docker/stacks/database_ha/rabbitmq-{{ node_index }}/{{ item.dest }}"
-    owner: '999'
-    group: '999'
-    mode: '0600'
-  loop:
-    - { src: rabbitmq.conf.j2, dest: rabbitmq.conf }
-    - { src: enabled_plugins.j2, dest: enabled_plugins }
-  vars:
-    rabbitmq_user: "{{ effective_rabbitmq_user }}"
-    rabbitmq_password: "{{ effective_rabbitmq_password }}"
-    db_count: "{{ groups['database'] | length }}"
-  when: "'database' in group_names"

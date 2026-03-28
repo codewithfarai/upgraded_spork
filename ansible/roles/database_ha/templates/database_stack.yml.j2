@@ -124,8 +124,11 @@ services:
       RABBITMQ_ERLANG_COOKIE: "ZPBCHXWQQNFXIKYXWJLZ"
     volumes:
       - rabbitmq-{{ loop.index0 }}:/var/lib/rabbitmq
-      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    configs:
+      - source: rabbitmq_config-{{ rabbitmq_config_hash }}
+        target: /etc/rabbitmq/rabbitmq.conf
+      - source: rabbitmq_plugins-{{ rabbitmq_plugins_hash }}
+        target: /etc/rabbitmq/enabled_plugins
     networks:
       - shared-backend
       - traefik-public
@@ -326,3 +329,9 @@ secrets:
 
   rabbitmq_password-{{ rabbitmq_password_hash }}:
     file: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
+
+configs:
+  rabbitmq_config-{{ rabbitmq_config_hash }}:
+    file: /opt/docker/stacks/database_ha/configs/rabbitmq.conf
+  rabbitmq_plugins-{{ rabbitmq_plugins_hash }}:
+    file: /opt/docker/stacks/database_ha/configs/enabled_plugins

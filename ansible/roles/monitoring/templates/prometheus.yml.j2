@@ -18,7 +18,7 @@ scrape_configs:
 
   - job_name: 'traefik'
     static_configs:
-      - targets: ['traefik_traefik:80']
+      - targets: ['traefik_traefik:8082']
 
   - job_name: 'node-exporter'
     dockerswarm_sd_configs:

@@ -71,9 +71,13 @@ services:
         mode: host
     environment:
       - DOCKER_API_VERSION=1.44
-      - "CONFIG_HASH={{ static_sync_result.checksum | default('initial') }}"
+      - "CONFIG_HASH={{ traefik_dynamic_config_hash }}-{{ traefik_static_config_hash }}"
+    configs:
+      - source: traefik_static-{{ traefik_static_config_hash }}
+        target: /etc/traefik/traefik.yml
+      - source: traefik_dynamic-{{ traefik_dynamic_config_hash }}
+        target: /etc/traefik/dynamic/dynamic.yml
     volumes:
-      - traefik-data:/etc/traefik:rw
       - traefik-logs:/var/log/traefik:rw
     networks:
       - traefik-public
@@ -114,12 +118,6 @@ services:
         - traefik.swarm.network=traefik-public
 
 volumes:
-  traefik-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/docker/stacks/traefik/data
   traefik-logs:
     driver: local
     driver_opts:
@@ -135,3 +133,9 @@ networks:
     internal: true
     driver_opts:
       encrypted: "true"
+
+configs:
+  traefik_static-{{ traefik_static_config_hash }}:
+    file: /opt/docker/stacks/traefik/traefik.yml
+  traefik_dynamic-{{ traefik_dynamic_config_hash }}:
+    file: /opt/docker/stacks/traefik/dynamic.yml

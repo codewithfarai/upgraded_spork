@@ -19,21 +19,7 @@
     - /opt/docker/stacks/traefik/logs
   when: "'edge' in group_names"
 
-- name: Sync dynamic routing configuration
-  template:
-    src: traefik_dynamic.yml.j2
-    dest: /opt/docker/stacks/traefik/data/dynamic/dynamic.yml
-    mode: '0644'
-  register: dynamic_sync_result
-  when: "'edge' in group_names"
 
-- name: Sync main Traefik static configuration
-  template:
-    src: traefik_static.yml.j2
-    dest: /opt/docker/stacks/traefik/data/traefik.yml
-    mode: '0644'
-  register: static_sync_result
-  when: "'edge' in group_names"
 
 # ACME file creation removed - handled by LB
 
@@ -53,6 +39,25 @@
       set_fact:
         traefik_domain: "traefik.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
 
+    - name: Sync dynamic routing configuration
+      template:
+        src: traefik_dynamic.yml.j2
+        dest: /opt/docker/stacks/traefik/dynamic.yml
+        mode: '0644'
+      register: dynamic_sync_result
+
+    - name: Sync main Traefik static configuration
+      template:
+        src: traefik_static.yml.j2
+        dest: /opt/docker/stacks/traefik/traefik.yml
+        mode: '0644'
+      register: static_sync_result
+
+    - name: Set config hashes
+      set_fact:
+        traefik_dynamic_config_hash: "{{ dynamic_sync_result.checksum | default('0') | truncate(10, True, '') }}"
+        traefik_static_config_hash: "{{ static_sync_result.checksum | default('0') | truncate(10, True, '') }}"
+
     - name: Generate Traefik stack definition
       template:
         src: traefik_stack.yml.j2
@@ -67,6 +72,6 @@
       changed_when: "'created' in network_create_result.stdout|lower"
 
     - name: Deploy Traefik and Socket Proxy stack
-      command: docker stack deploy -c /opt/docker/stacks/traefik/docker-compose.yml traefik
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/traefik/docker-compose.yml traefik
 
   when: "inventory_hostname == groups['managers'][0]"

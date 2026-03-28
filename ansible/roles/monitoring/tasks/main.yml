@@ -66,7 +66,7 @@
         prometheus_domain: "prometheus.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
 
     - name: Deploy Monitoring stack
-      command: docker stack deploy -c /opt/docker/stacks/monitoring/docker-compose.yml monitoring
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/monitoring/docker-compose.yml monitoring
       register: deploy_result
       changed_when: "'Creating' in deploy_result.stdout or 'Updating' in deploy_result.stdout"
 
