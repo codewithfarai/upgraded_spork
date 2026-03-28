@@ -163,8 +163,20 @@
       changed_when: "'CREATE DATABASE' in db_create_result.stdout"
       no_log: true
 
-
   when: "inventory_hostname == groups['managers'][0]"
+
+- name: Grant Postgres monitoring permissions to Authentik user
+  shell: |
+    CONTAINER_ID=$(docker ps --filter name=db_ha_pg -q | head -n1)
+    if [ ! -z "$CONTAINER_ID" ]; then
+      # Only run on the master node (where pg_is_in_recovery is false)
+      IS_RECOVERY=$(docker exec $CONTAINER_ID psql -U postgres -tAc "SELECT pg_is_in_recovery()")
+      if [ "$IS_RECOVERY" = "f" ]; then
+        docker exec $CONTAINER_ID psql -U postgres -c "GRANT pg_monitor TO authentik;"
+      fi
+    fi
+  when: "'database' in group_names"
+  changed_when: false
 
 - name: Synchronize RabbitMQ secrets to database nodes
   set_fact:

@@ -54,3 +54,106 @@ groups:
     annotations:
       summary: "🌐 Suspicious network traffic spike on {% raw %}{{ $labels.instance }}{% endraw %}"
       description: "Incoming packet rate is unusually high (> 1k packets/s)."
+
+- name: database_alerts
+  rules:
+  - alert: PostgresNoMaster
+    expr: count(pg_static_replication_is_replica == 0) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "💾 Postgres Master Missing!"
+      description: "No Postgres node is reporting as Master. Cluster might be in read-only mode or failing over."
+
+  - alert: RedisNoMaster
+    expr: count(redis_instance_info{role="master"}) == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "🔴 Redis Master Missing!"
+      description: "No Redis node is reporting as Master. Sentinel might be performing a failover."
+
+  - alert: RedisHighMemoryUsage
+    expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "💾 Redis High Memory Usage ({% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Redis is using > 90% of its maxmemory. OOM risk imminent."
+
+  - alert: EtcdLeaderChanges
+    expr: rate(etcd_server_leader_changes_seen_total[5m]) > 1
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "⚡ Etcd Leader Instability"
+      description: "Etcd is experiencing frequent leader changes. Check network latency between DB nodes."
+
+  - alert: PgPoolBackendDown
+    expr: haproxy_backend_check_status{proxy="postgres"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "❌ PgPool Backend Down"
+      description: "PgPool has lost a Postgres backend. Check node health."
+
+- name: ingress_alerts
+  rules:
+  - alert: TraefikHighErrorRate
+    expr: sum(rate(traefik_service_requests_total{code=~"5.*"}[5m])) / sum(rate(traefik_service_requests_total[5m])) * 100 > 10
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "🌐 Traefik High 5xx Error Rate"
+      description: "More than 10% of requests are failing with 5xx. Possible backend crash."
+
+  - alert: AuthentikHighLoginFailures
+    expr: rate(authentik_providers_proxy_auth_failures_total[5m]) > 10
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "🔐 Authentik High Login Failures"
+      description: "Unusually high rate of authentication failures detected. Possible brute-force or IDP issue."
+
+  - alert: PostgresHighReplicationLag
+    expr: pg_replication_lag_seconds > 30
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "⏳ Postgres Replication Lag ({% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Postgres replica is > 30s behind master."
+
+  - alert: PostgresConnectionsCritical
+    expr: sum(pg_stat_activity_count) by (instance) / sum(pg_settings_max_connections) by (instance) * 100 > 90
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "🔌 Postgres Connections Critical ({% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Postgres is at > 90% of max_connections."
+
+  - alert: RedisReplicationDelay
+    expr: redis_master_last_io_seconds_ago > 10
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "⏳ Redis Replication Delay ({% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Redis replica has not heard from master in > 10s."
+
+  - alert: RedisHighEvictionRate
+    expr: rate(redis_evicted_keys_total[5m]) > 10
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "🧹 Redis High Eviction Rate ({% raw %}{{ $labels.instance }}{% endraw %})"
+      description: "Redis is evicting keys frequently. Consider increasing maxmemory."

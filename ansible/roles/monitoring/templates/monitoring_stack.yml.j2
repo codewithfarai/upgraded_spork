@@ -3,9 +3,12 @@ version: '3.8'
 services:
   prometheus:
     image: prom/prometheus:latest
+    configs:
+      - source: prometheus_config-{{ prometheus_config_hash }}
+        target: /etc/prometheus/prometheus.yml
+      - source: prometheus_rules-{{ alert_rules_config_hash | default('initial') }}
+        target: /etc/prometheus/alert_rules.yml
     volumes:
-      - /opt/docker/stacks/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /opt/docker/stacks/monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -17,7 +20,7 @@ services:
       - monitoring
       - traefik-public
       - shared-backend
-      - traefik_socket-proxy
+      - swarm_socket_proxy
     deploy:
       mode: replicated
       replicas: 1
@@ -159,14 +162,19 @@ networks:
     external: true
   shared-backend:
     external: true
-  traefik_socket-proxy:
+  swarm_socket_proxy:
     external: true
+    name: traefik_socket-proxy
 
 secrets:
   alertmanager_config-{{ alertmanager_config_hash }}:
     file: /opt/docker/stacks/monitoring/secrets/alertmanager.yml
 
 configs:
+  prometheus_config-{{ prometheus_config_hash }}:
+    file: /opt/docker/stacks/monitoring/prometheus/prometheus.yml
+  prometheus_rules-{{ alert_rules_config_hash | default('initial') }}:
+    file: /opt/docker/stacks/monitoring/prometheus/alert_rules.yml
   loki_config-{{ loki_config_hash }}:
     file: /opt/docker/stacks/monitoring/configs/loki.yml
   promtail_config-{{ promtail_config_hash }}:

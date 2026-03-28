@@ -34,6 +34,7 @@ services:
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: pg-ha-cluster
       ETCD_ENABLE_V2: "true"
+      ETCD_LISTEN_METRICS_URLS: http://0.0.0.0:2381
     networks:
       - shared-backend
     deploy:
@@ -146,6 +147,31 @@ services:
         - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie=true
         - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie.name=rabbitmq-sess
         - traefik.swarm.network=traefik-public
+
+  postgres-exporter-{{ loop.index0 }}:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://authentik:{{ authentik_db_password | urlencode }}@pg-{{ loop.index0 }}:5432/postgres?sslmode=require"
+    networks:
+      - shared-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
+
+  redis-exporter-{{ loop.index0 }}:
+    image: oliver006/redis_exporter
+    environment:
+      REDIS_ADDR: "redis-{{ loop.index0 }}:6379"
+      REDIS_PASSWORD: "{{ effective_redis_password }}"
+    networks:
+      - shared-backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
 {% endfor %}
   # ==========================================================================
   # Dynamic Routing & Monitors
@@ -164,6 +190,14 @@ services:
           timeout resolve 1s
           timeout retry   1s
           hold valid      10s
+
+        frontend stats
+          bind *:8404
+          mode http
+          http-request use-service prometheus-exporter if { path /metrics }
+          stats enable
+          stats uri /stats
+          stats refresh 10s
 
         defaults
           log global
