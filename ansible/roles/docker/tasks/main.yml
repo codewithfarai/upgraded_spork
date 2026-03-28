@@ -78,3 +78,13 @@
     month: "*"
     weekday: "0"
     job: "/usr/bin/docker image prune -a -f --filter \"until=168h\""
+
+- name: Log in to Docker Hub to avoid pull rate limits
+  community.docker.docker_login:
+    username: "{{ lookup('env', 'DOCKERHUB_USERNAME') }}"
+    password: "{{ lookup('env', 'DOCKERHUB_TOKEN') }}"
+    registry_url: "https://index.docker.io/v1/"
+  when:
+    - lookup('env', 'DOCKERHUB_USERNAME') != ''
+    - lookup('env', 'DOCKERHUB_TOKEN') != ''
+  no_log: true
