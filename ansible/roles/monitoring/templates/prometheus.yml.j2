@@ -106,6 +106,10 @@ scrape_configs:
         replacement: $1:15692
       - target_label: kubernetes_namespace
         replacement: database
+      - target_label: namespace
+        replacement: database
+      - target_label: rabbitmq_cluster
+        replacement: db_ha
       - source_labels: [__meta_dockerswarm_service_name]
         target_label: release
 

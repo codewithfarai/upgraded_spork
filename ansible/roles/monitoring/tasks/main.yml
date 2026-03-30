@@ -55,6 +55,7 @@
         - { name: 'pgpool', url: 'https://grafana.com/api/dashboards/12693/revisions/1/download' }
         - { name: 'traefik', url: 'https://grafana.com/api/dashboards/17346/revisions/latest/download' }
         - { name: 'authentik', url: 'https://grafana.com/api/dashboards/13838/revisions/1/download' }
+        - { name: 'rabbitmq', url: 'https://grafana.com/api/dashboards/10991/revisions/latest/download' }
 
     - name: Patch dynamic datasource variables in downloaded dashboards
       replace:
@@ -68,6 +69,7 @@
         - { name: 'pgpool' }
         - { name: 'traefik' }
         - { name: 'authentik' }
+        - { name: 'rabbitmq' }
       ignore_errors: true
 
     - name: Generate Monitoring stack definition
