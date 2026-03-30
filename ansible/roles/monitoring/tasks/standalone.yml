@@ -5,27 +5,18 @@
     state: directory
     mode: '0755'
 
-- name: Create standalone Docker Compose file
-  copy:
-    dest: /opt/docker/monitoring-standalone/docker-compose.yml
-    content: |
-      services:
-        node-exporter:
-          image: prom/node-exporter:latest
-          container_name: node-exporter
-          volumes:
-            - /proc:/host/proc:ro
-            - /sys:/host/sys:ro
-            - /:/rootfs:ro
-          command:
-            - '--path.procfs=/host/proc'
-            - '--path.sysfs=/host/sys'
-            - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
-          ports:
-            - "9100:9100"
-          restart: unless-stopped
-
-- name: Deploy standalone monitoring containers
-  community.docker.docker_compose_v2:
-    project_src: /opt/docker/monitoring-standalone
-    state: present
+- name: Deploy node-exporter container
+  community.docker.docker_container:
+    name: node-exporter
+    image: prom/node-exporter:latest
+    restart_policy: unless-stopped
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'

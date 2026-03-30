@@ -50,11 +50,25 @@
         mode: '0644'
       loop:
         - { name: 'postgres', url: 'https://grafana.com/api/dashboards/9628/revisions/1/download' }
-        - { name: 'redis', url: 'https://grafana.com/api/dashboards/11831/revisions/1/download' }
+        - { name: 'redis', url: 'https://grafana.com/api/dashboards/763/revisions/6/download' }
         - { name: 'etcd', url: 'https://grafana.com/api/dashboards/3070/revisions/1/download' }
         - { name: 'pgpool', url: 'https://grafana.com/api/dashboards/12693/revisions/1/download' }
-        - { name: 'traefik', url: 'https://grafana.com/api/dashboards/11462/revisions/1/download' }
+        - { name: 'traefik', url: 'https://grafana.com/api/dashboards/17346/revisions/latest/download' }
         - { name: 'authentik', url: 'https://grafana.com/api/dashboards/13838/revisions/1/download' }
+
+    - name: Patch dynamic datasource variables in downloaded dashboards
+      replace:
+        path: "/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/{{ item.name }}.json"
+        regexp: '\$\{DS_[A-Z0-9_]+\}'
+        replace: 'prometheus'
+      loop:
+        - { name: 'postgres' }
+        - { name: 'redis' }
+        - { name: 'etcd' }
+        - { name: 'pgpool' }
+        - { name: 'traefik' }
+        - { name: 'authentik' }
+      ignore_errors: true
 
     - name: Generate Monitoring stack definition
       template:

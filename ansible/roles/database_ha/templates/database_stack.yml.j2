@@ -35,6 +35,9 @@ services:
       ETCD_INITIAL_CLUSTER_TOKEN: pg-ha-cluster
       ETCD_ENABLE_V2: "true"
       ETCD_LISTEN_METRICS_URLS: http://0.0.0.0:2381
+      ETCD_DATA_DIR: /etcd-data
+    volumes:
+      - etcd-{{ loop.index0 }}:/etcd-data
     networks:
       - shared-backend
     deploy:
@@ -312,6 +315,12 @@ volumes:
       type: none
       o: bind
       device: /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}
+  etcd-{{ loop.index0 }}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/stacks/database_ha/etcd-{{ loop.index0 }}
 {% endfor %}
 
 networks:

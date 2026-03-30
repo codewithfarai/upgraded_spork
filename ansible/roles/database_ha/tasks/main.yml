@@ -30,6 +30,13 @@
     mode: '0700'
   when: "'database' in group_names"
 
+- name: Create etcd directory for this node
+  file:
+    path: "/opt/docker/stacks/database_ha/etcd-{{ node_index }}"
+    state: directory
+    mode: '0700'
+  when: "'database' in group_names"
+
 # Execute Swarm deployment on the Manager
 - name: Run Swarm Manager specific tasks
   block:
