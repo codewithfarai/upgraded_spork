@@ -5,7 +5,7 @@ variable "environment" {
 }
 
 variable "domain_name" {
-  description = "The root domain name (e.g. uzuri.co.uk)"
+  description = "The root domain name (e.g. ridebase.tech)"
   type        = string
 }
 
@@ -18,4 +18,15 @@ variable "authentik_token" {
 variable "authentik_url" {
   description = "Authentik URL, populated by Ansible."
   type        = string
+}
+
+variable "google_client_id" {
+  description = "Google OAuth Client ID for social login."
+  type        = string
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth Client Secret for social login."
+  type        = string
+  sensitive   = true
 }

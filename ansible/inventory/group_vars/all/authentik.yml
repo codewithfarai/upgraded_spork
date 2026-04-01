@@ -3,7 +3,7 @@
 # Authentik version (pinned for reproducibility)
 authentik_version: "2026.2.1"
 
-# Domain prefix — results in auth.dev.uzuri.co.uk (dev) or auth.uzuri.co.uk (prod)
+# Domain prefix — results in auth.dev.ridebase.tech (dev) or auth.ridebase.tech (prod)
 authentik_domain: "auth"
 
 # Runtime secrets — loaded from ansible/.env via the Makefile (make swarm).

@@ -5,7 +5,7 @@ variable "hcloud_token" {
 }
 
 variable "domain_name" {
-  description = "The root domain name (e.g. uzuri.co.uk)"
+  description = "The root domain name (e.g. ridebase.tech)"
   type        = string
 }
 
