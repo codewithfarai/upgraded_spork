@@ -63,8 +63,25 @@
         dest: /opt/docker/stacks/authentik/docker-compose.yml
         mode: '0644'
 
-    - name: Deploy Authentik stack
-      command: docker stack deploy -c /opt/docker/stacks/authentik/docker-compose.yml authentik
+    - name: Deploy Authentik (Bootstrap Phase)
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/authentik/docker-compose.yml authentik
+      environment:
+        AUTHENTIK_BOOTSTRAP_REPLICAS: "1"
+      when: "(authentik_force_bootstrap | default(false)) or (inventory_hostname == groups['managers'][0])" # Simplified logic: will always try to scale up if already running
+
+    - name: Wait for Authentik bootstrap to finish
+      shell: |
+        docker service logs authentik_server 2>&1 | grep "Finished authentik bootstrap"
+      register: bootstrap_log
+      until: bootstrap_log.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      when: authentik_force_bootstrap | default(false)
+
+    - name: Deploy Authentik (Full Scale)
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/authentik/docker-compose.yml authentik
+      # This run will NOT have the AUTHENTIK_BOOTSTRAP_REPLICAS env var, so it will use the template defaults
 
     - name: Export Terraform API token locally for terraform consumption
       blockinfile:
@@ -87,6 +104,12 @@
 # ===========================================================================
 # Tasks that run on WORKERS to find the authentik container and inject token
 # ===========================================================================
+- name: Synchronize Terraform API token back to all workers
+  set_fact:
+    effective_terraform_token: "{{ hostvars[groups['managers'][0]]['effective_terraform_token'] | default('') }}"
+  when: "inventory_hostname in groups['workers']"
+  no_log: true
+
 - name: Configure Authentik Terraform API token on Workers
   shell: |
     CONTAINER_ID=$(docker ps -q -f name=authentik_server | head -n 1)
@@ -102,5 +125,5 @@
   retries: 60
   delay: 10
   changed_when: "'SKIPPED' not in authentik_api_token_raw.stdout"
-  when: "inventory_hostname in groups['workers']"
+  when: "inventory_hostname in groups['workers'] and effective_terraform_token != ''"
   no_log: true

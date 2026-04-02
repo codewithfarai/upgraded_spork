@@ -10,12 +10,12 @@ init:
 
 plan:
 	$(MAKE) init ENV=$(ENV)
-	terraform plan -var="environment=$(ENV)"
+	terraform plan -var="environment=$(ENV)" $(ARGS)
 
 apply:
 	$(MAKE) init ENV=$(ENV)
-	terraform apply -var="environment=$(ENV)"
+	terraform apply -var="environment=$(ENV)" $(ARGS)
 
 destroy:
 	$(MAKE) init ENV=$(ENV)
-	terraform destroy -var="environment=$(ENV)"
+	terraform destroy -var="environment=$(ENV)" $(ARGS)

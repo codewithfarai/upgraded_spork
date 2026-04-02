@@ -9,4 +9,7 @@ resource "hcloud_managed_certificate" "wildcard" {
     "*.${var.domain_name}"
   ]
   labels = local.common_labels
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 }

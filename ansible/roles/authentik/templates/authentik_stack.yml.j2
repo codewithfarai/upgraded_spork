@@ -24,6 +24,7 @@ services:
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
       # CSRF fix for Hetzner LB SSL termination
       AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://{{ authentik_full_domain }}"
+      AUTHENTIK_LISTEN__HTTP: 0.0.0.0:9000
       AUTHENTIK_METRICS__ENABLED: "true"
     networks:
       - traefik-public
@@ -34,7 +35,7 @@ services:
       - authentik_db_password
     deploy:
       mode: replicated
-      replicas: {{ authentik_server_replicas | default(2) }}
+      replicas: {{ lookup('env', 'AUTHENTIK_BOOTSTRAP_REPLICAS') | default(authentik_server_replicas | default(2), true) }}
       placement:
         constraints:
           - node.labels.role == worker
@@ -80,7 +81,7 @@ services:
       - authentik_db_password
     deploy:
       mode: replicated
-      replicas: {{ authentik_worker_replicas | default(2) }}
+      replicas: {{ lookup('env', 'AUTHENTIK_BOOTSTRAP_REPLICAS') | default(authentik_worker_replicas | default(2), true) }}
       placement:
         constraints:
           - node.labels.role == worker

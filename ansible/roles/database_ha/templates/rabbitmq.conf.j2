@@ -11,21 +11,18 @@ management.tcp.port = 15672
 # Networking
 # Listen on all interfaces
 listeners.tcp.default = 5672
+mqtt.listeners.tcp.default = 1883
 
-# Erlang cookie is handled by the environment variable still as it's for the VM
-# We specify the cluster nodes for auto-discovery
+# Cluster formation via classic config (static peer discovery)
 {% set node_list = [] %}
-{% for i in range(db_count) %}
+{% for i in range(db_count | int) %}
 {% set _ = node_list.append("rabbit@rabbitmq-" ~ i) %}
 {% endfor %}
 cluster_formation.peer_discovery_backend = rabbit_peer_discovery_classic_config
 cluster_formation.classic_config.nodes.1 = {{ node_list[0] }}
-{% if db_count > 1 %}
+{% if db_count | int > 1 %}
 cluster_formation.classic_config.nodes.2 = {{ node_list[1] }}
 {% endif %}
-{% if db_count > 2 %}
+{% if db_count | int > 2 %}
 cluster_formation.classic_config.nodes.3 = {{ node_list[2] }}
 {% endif %}
-
-# Disable deprecated variables warning
-# (This file *is* the modern way)

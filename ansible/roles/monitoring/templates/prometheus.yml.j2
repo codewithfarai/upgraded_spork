@@ -17,8 +17,25 @@ scrape_configs:
       - targets: ['localhost:9090']
 
   - job_name: 'traefik'
-    static_configs:
-      - targets: ['traefik_traefik:80']
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: traefik_traefik
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:8082
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: traefik-public
+        action: keep
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
 
   - job_name: 'node-exporter'
     dockerswarm_sd_configs:
@@ -27,6 +44,9 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__meta_dockerswarm_service_name]
         regex: monitoring_node-exporter
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
         action: keep
       - source_labels: [__address__]
         regex: (.*):.*
@@ -42,6 +62,9 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__meta_dockerswarm_service_name]
         regex: monitoring_cadvisor
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
         action: keep
       - source_labels: [__address__]
         regex: (.*):.*
@@ -68,28 +91,54 @@ scrape_configs:
       - host: http://traefik_socket-proxy:2375
         role: tasks
     relabel_configs:
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
       - source_labels: [__meta_dockerswarm_service_name]
         regex: db_ha_rabbitmq-.*
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: shared-backend
         action: keep
       - source_labels: [__address__]
         regex: (.*):.*
         target_label: __address__
         replacement: $1:15692
+      - target_label: kubernetes_namespace
+        replacement: database
+      - target_label: namespace
+        replacement: database
+      - target_label: rabbitmq_cluster
+        replacement: db_ha
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: release
 
-  - job_name: 'postgres'
+  - job_name: 'postgres-exporter'
     dockerswarm_sd_configs:
       - host: http://traefik_socket-proxy:2375
         role: tasks
     relabel_configs:
       - source_labels: [__meta_dockerswarm_service_name]
-        regex: db_ha_pg-exporter-.*
+        regex: db_ha_postgres-exporter-.*
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: shared-backend
         action: keep
       - source_labels: [__address__]
         regex: (.*):.*
         target_label: __address__
         replacement: $1:9187
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      - target_label: kubernetes_namespace
+        replacement: database
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: release
 
-  - job_name: 'redis'
+  - job_name: 'redis-exporter'
     dockerswarm_sd_configs:
       - host: http://traefik_socket-proxy:2375
         role: tasks
@@ -97,7 +146,74 @@ scrape_configs:
       - source_labels: [__meta_dockerswarm_service_name]
         regex: db_ha_redis-exporter-.*
         action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: shared-backend
+        action: keep
       - source_labels: [__address__]
         regex: (.*):.*
         target_label: __address__
         replacement: $1:9121
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      - target_label: kubernetes_namespace
+        replacement: database
+      - target_label: namespace
+        replacement: database
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: release
+
+  - job_name: 'etcd'
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: db_ha_etcd-.*
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: shared-backend
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:2381
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      - target_label: kubernetes_namespace
+        replacement: database
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: release
+
+  - job_name: 'pgpool'
+    dockerswarm_sd_configs:
+      - host: http://traefik_socket-proxy:2375
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_service_name]
+        regex: db_ha_pgpool
+        action: keep
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_network_name]
+        regex: shared-backend
+        action: keep
+      - source_labels: [__address__]
+        regex: (.*):.*
+        target_label: __address__
+        replacement: $1:8404
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+        replacement: ${1}:8404
+      - target_label: job
+        replacement: haproxy
+      - target_label: kubernetes_namespace
+        replacement: database
+      - target_label: release
+        replacement: db_ha_pgpool

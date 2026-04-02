@@ -29,8 +29,8 @@ generate_secret "AUTHENTIK_BOOTSTRAP_TOKEN" 40
 generate_secret "AUTHENTIK_ADMIN_PASSWORD" 24
 
 if ! grep -q "^AUTHENTIK_ADMIN_EMAIL=" "$ENV_FILE" 2>/dev/null; then
-    echo "AUTHENTIK_ADMIN_EMAIL=admin@uzuri.co.uk" >> "$ENV_FILE"
-    echo "  📧 AUTHENTIK_ADMIN_EMAIL set to default (admin@uzuri.co.uk)"
+    echo "AUTHENTIK_ADMIN_EMAIL=admin@ridebase.tech" >> "$ENV_FILE"
+    echo "  📧 AUTHENTIK_ADMIN_EMAIL set to default (admin@ridebase.tech)"
 else
     echo "  ✅ AUTHENTIK_ADMIN_EMAIL already set"
 fi

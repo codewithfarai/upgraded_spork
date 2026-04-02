@@ -9,13 +9,15 @@ api:
 entryPoints:
   web:
     address: ":80"
+    forwardedHeaders:
+      trustedIPs:
+        - "10.0.1.5/32"  # Trust Hetzner Load Balancer
     http:
       middlewares:
         - global-ratelimit@file
         - security-headers@file
-    forwardedHeaders:
-      trustedIPs:
-        - "10.0.1.5/32"  # Only trust headers from the Hetzner Load Balancer
+  metrics:
+    address: ":8082"
 
 providers:
   swarm:
@@ -23,7 +25,7 @@ providers:
     exposedByDefault: false
     watch: true
   file:
-    directory: /etc/traefik/dynamic
+    filename: "/etc/traefik/dynamic/dynamic.yml"
     watch: true
 
 # ACME is now handled by the Hetzner Load Balancer
@@ -33,7 +35,7 @@ metrics:
   prometheus:
     addEntryPointsLabels: true
     addServicesLabels: true
-    entryPoint: web
+    entryPoint: metrics
 
 log:
   level: INFO

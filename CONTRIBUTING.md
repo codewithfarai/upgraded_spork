@@ -167,7 +167,7 @@ Before deploying any environment, the DNS zone must exist in Hetzner Cloud. This
 
 1. **Ensure `domain_name` is set** in `terraform/terraform.tfvars`:
    ```hcl
-   domain_name = "uzuri.co.uk"
+   domain_name = "ridebase.tech"
    ```
 
 2. **Create the zone**:
@@ -184,9 +184,9 @@ Before deploying any environment, the DNS zone must exist in Hetzner Cloud. This
    ```
 
 > **How it works**: Each `make apply ENV=<name>` automatically creates an A record pointing to that environment's Load Balancer:
-> - `make apply ENV=dev` → `dev.uzuri.co.uk`
-> - `make apply ENV=stage` → `stage.uzuri.co.uk`
-> - `make apply ENV=prod` → `uzuri.co.uk` (root domain)
+> - `make apply ENV=dev` → `dev.ridebase.tech`
+> - `make apply ENV=stage` → `stage.ridebase.tech`
+> - `make apply ENV=prod` → `ridebase.tech` (root domain)
 
 ### 5. GitHub Actions CI Secrets
 The GitHub Actions workflow requires your local environment variables and Hetzner Token to function. You can automate syncing these secrets to your repository using the GitHub CLI (`gh`):

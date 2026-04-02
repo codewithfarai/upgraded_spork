@@ -34,6 +34,10 @@ services:
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_INITIAL_CLUSTER_TOKEN: pg-ha-cluster
       ETCD_ENABLE_V2: "true"
+      ETCD_LISTEN_METRICS_URLS: http://0.0.0.0:2381
+      ETCD_DATA_DIR: /etcd-data
+    volumes:
+      - etcd-{{ loop.index0 }}:/etcd-data
     networks:
       - shared-backend
     deploy:
@@ -102,7 +106,7 @@ services:
 
   redis-{{ loop.index0 }}:
     image: redis:7-alpine
-    command: sh -c 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --masterauth "$$(cat /run/secrets/redis_password)" --replica-announce-ip redis-{{ loop.index0 }} {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru'
+    command: sh -c 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --masterauth "$$(cat /run/secrets/redis_password)" --replica-announce-ip redis-{{ loop.index0 }} {% if loop.index0 > 0 %}--replicaof redis-0 6379 {% endif %}--save 60 1 --loglevel debug --maxmemory 512mb --maxmemory-policy allkeys-lru'
     volumes:
       - redis-{{ loop.index0 }}:/data
     networks:
@@ -117,14 +121,17 @@ services:
           - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
 
   rabbitmq-{{ loop.index0 }}:
-    image: rabbitmq:4.2.5-management
+    image: rabbitmq:4.1-management
     environment:
       RABBITMQ_NODENAME: rabbit@rabbitmq-{{ loop.index0 }}
       RABBITMQ_ERLANG_COOKIE: "ZPBCHXWQQNFXIKYXWJLZ"
     volumes:
       - rabbitmq-{{ loop.index0 }}:/var/lib/rabbitmq
-      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    configs:
+      - source: rabbitmq_config-{{ rabbitmq_config_hash }}
+        target: /etc/rabbitmq/rabbitmq.conf
+      - source: rabbitmq_plugins-{{ rabbitmq_plugins_hash }}
+        target: /etc/rabbitmq/enabled_plugins
     networks:
       - shared-backend
       - traefik-public
@@ -136,7 +143,6 @@ services:
       placement:
         constraints:
           - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
-      # Direct Traefik routing for Management UI (fixes 4.x session 500 errors)
       labels:
         - traefik.enable=true
         - traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)
@@ -148,10 +154,10 @@ services:
         - traefik.http.services.rabbitmq-svc.loadbalancer.sticky.cookie.name=rabbitmq-sess
         - traefik.swarm.network=traefik-public
 
-  pg-exporter-{{ loop.index0 }}:
-    image: prometheuscommunity/postgres-exporter:latest
+  postgres-exporter-{{ loop.index0 }}:
+    image: prometheuscommunity/postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:{{ authentik_db_password }}@pg-{{ loop.index0 }}:5432/postgres?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://authentik:{{ authentik_db_password | urlencode }}@pg-{{ loop.index0 }}:5432/authentik?sslmode=require"
     networks:
       - shared-backend
     deploy:
@@ -161,9 +167,9 @@ services:
           - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
 
   redis-exporter-{{ loop.index0 }}:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter
     environment:
-      REDIS_ADDR: "redis://redis-{{ loop.index0 }}:6379"
+      REDIS_ADDR: "redis-{{ loop.index0 }}:6379"
       REDIS_PASSWORD: "{{ effective_redis_password }}"
     networks:
       - shared-backend
@@ -172,9 +178,7 @@ services:
       placement:
         constraints:
           - node.hostname == upgraded-spork-db-{{ target_env }}-{{ loop.index0 + 1 }}
-
 {% endfor %}
-
   # ==========================================================================
   # Dynamic Routing & Monitors
   # ==========================================================================
@@ -192,6 +196,14 @@ services:
           timeout resolve 1s
           timeout retry   1s
           hold valid      10s
+
+        frontend stats
+          bind *:8404
+          mode http
+          http-request use-service prometheus-exporter if { path /metrics }
+          stats enable
+          stats uri /stats
+          stats refresh 10s
 
         defaults
           log global
@@ -229,31 +241,22 @@ services:
           server redis-{{ loop.index0 }} redis-{{ loop.index0 }}:6379 check
           {% endfor %}
 
-        listen rabbitmq-mgmt
-          bind *:15672
-          mode tcp
-          # Roundrobin distribution for Management UI sessions
-          balance roundrobin
-          {% for host in db_nodes %}
-          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:15672 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
-          {% endfor %}
-
         listen rabbitmq-amqp
           bind *:5672
           mode tcp
-          # Least connections for application messaging traffic
           balance leastconn
+          default-server inter 5s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:5672 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:5672 check resolvers docker resolve-prefer ipv4
           {% endfor %}
 
         listen rabbitmq-mqtt
           bind *:1883
           mode tcp
-          # Least connections for MQTT IoT traffic
           balance leastconn
+          default-server inter 5s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:1883 check inter 5s fall 3 rise 2 resolvers docker resolve-prefer ipv4
+          server rabbitmq-{{ loop.index0 }} rabbitmq-{{ loop.index0 }}:1883 check resolvers docker resolve-prefer ipv4
           {% endfor %}
     # We use $$ to escape the variable so Compose passes it directly to the container's shell
     command: sh -c 'echo "$$HAPROXY_CFG" > /tmp/haproxy.cfg && exec haproxy -W -db -f /tmp/haproxy.cfg'
@@ -312,6 +315,12 @@ volumes:
       type: none
       o: bind
       device: /opt/docker/stacks/database_ha/rabbitmq-{{ loop.index0 }}
+  etcd-{{ loop.index0 }}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/docker/stacks/database_ha/etcd-{{ loop.index0 }}
 {% endfor %}
 
 networks:
@@ -329,3 +338,9 @@ secrets:
 
   rabbitmq_password-{{ rabbitmq_password_hash }}:
     file: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
+
+configs:
+  rabbitmq_config-{{ rabbitmq_config_hash }}:
+    file: /opt/docker/stacks/database_ha/configs/rabbitmq.conf
+  rabbitmq_plugins-{{ rabbitmq_plugins_hash }}:
+    file: /opt/docker/stacks/database_ha/configs/enabled_plugins

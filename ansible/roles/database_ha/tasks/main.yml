@@ -25,8 +25,15 @@
   file:
     path: "/opt/docker/stacks/database_ha/rabbitmq-{{ node_index }}"
     state: directory
-    owner: '999' # rabbitmq user in official image
+    owner: '999'
     group: '999'
+    mode: '0700'
+  when: "'database' in group_names"
+
+- name: Create etcd directory for this node
+  file:
+    path: "/opt/docker/stacks/database_ha/etcd-{{ node_index }}"
+    state: directory
     mode: '0700'
   when: "'database' in group_names"
 
@@ -72,14 +79,24 @@
       register: slurped_rabbitmq_pass
       when: rabbitmq_pass_stat.stat.exists
 
+    - name: Generate new passwords if missing
+      set_fact:
+        new_db_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        new_redis_password: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+      when: not db_pass_stat.stat.exists or not redis_pass_stat.stat.exists
+
     - name: Set effective DB secret (re-use existing or generate)
       set_fact:
-        effective_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
-        authentik_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        effective_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else new_db_password }}"
+        authentik_db_password: "{{ slurped_db_pass['content'] | b64decode if db_pass_stat.stat.exists else new_db_password }}"
 
     - name: Set effective Redis secret (re-use existing or generate)
       set_fact:
-        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode if redis_pass_stat.stat.exists else new_redis_password }}"
+
+    - name: Set effective RabbitMQ secret (re-use existing or generate)
+      set_fact:
+        effective_rabbitmq_password: "{{ slurped_rabbitmq_pass['content'] | b64decode if rabbitmq_pass_stat.stat.exists else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
 
     - name: Set effective RabbitMQ secret (re-use existing or generate)
       set_fact:
@@ -118,6 +135,31 @@
       register: network_create
       changed_when: "'created' in network_create.stdout|lower"
 
+    - name: Ensure Database HA configs directory exists
+      file:
+        path: /opt/docker/stacks/database_ha/configs
+        state: directory
+        mode: '0755'
+
+    - name: Generate RabbitMQ configurations
+      template:
+        src: "{{ item.src }}"
+        dest: "/opt/docker/stacks/database_ha/configs/{{ item.dest }}"
+        mode: '0644'
+      loop:
+        - { src: rabbitmq.conf.j2, dest: rabbitmq.conf }
+        - { src: enabled_plugins.j2, dest: enabled_plugins }
+      vars:
+        rabbitmq_user: "admin"
+        rabbitmq_password: "{{ effective_rabbitmq_password }}"
+        db_count: "{{ groups['database'] | length }}"
+      register: rabbitmq_configs
+
+    - name: Set RabbitMQ config hash facts
+      set_fact:
+        rabbitmq_config_hash: "{{ (rabbitmq_configs.results | selectattr('item.src', 'equalto', 'rabbitmq.conf.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
+        rabbitmq_plugins_hash: "{{ (rabbitmq_configs.results | selectattr('item.src', 'equalto', 'enabled_plugins.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
+
     - name: Generate Database HA stack definition
       template:
         src: database_stack.yml.j2
@@ -125,54 +167,49 @@
         mode: '0644'
 
     - name: Deploy Database HA stack
-      command: docker stack deploy -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
 
     - name: Wait for PostgreSQL Master to be ready via pgpool
       command: >
         docker run --rm --network shared-backend
         -e PGPASSWORD="{{ effective_db_password }}"
         postgres:16-alpine
-        pg_isready -h db_ha_pgpool -U authentik -d postgres -t 10
+        pg_isready -h db_ha_pgpool -U postgres -d postgres -t 10
       register: pg_ready
       until: pg_ready.rc == 0
       retries: 15
       delay: 10
       changed_when: false
+      no_log: true
 
     - name: Ensure Authentik database exists idempotently
       shell: |
-        cat << 'EOF' | docker run -i --rm --network shared-backend -e PGPASSWORD="{{ effective_db_password }}" postgres:16-alpine sh
+        cat << 'EOF' | docker run -i --rm --network shared-backend -e PGPASSWORD="{{ effective_db_password }}" -e PGSSLMODE=require postgres:16-alpine sh
         set -e
+        # Note: We connect as authentik because Spilo secures the postgres user with a randomly generated root password
         EXISTS=$(psql -h db_ha_pgpool -U authentik -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='authentik'")
         if [ "$EXISTS" != "1" ]; then
           psql -h db_ha_pgpool -U authentik -d postgres -c "CREATE DATABASE authentik OWNER authentik;"
         fi
         EOF
       register: db_create_result
+      until: db_create_result.rc == 0
+      retries: 10
+      delay: 10
       changed_when: "'CREATE DATABASE' in db_create_result.stdout"
-
+      no_log: true
 
   when: "inventory_hostname == groups['managers'][0]"
 
-- name: Synchronize RabbitMQ secrets to database nodes
-  set_fact:
-    effective_rabbitmq_password: "{{ hostvars[groups['managers'][0]]['effective_rabbitmq_password'] | default(omit) }}"
-    effective_rabbitmq_user: "admin"
+- name: Grant Postgres monitoring permissions to Authentik user
+  shell: |
+    CONTAINER_ID=$(docker ps --filter name=db_ha_pg -q | head -n1)
+    if [ ! -z "$CONTAINER_ID" ]; then
+      # Only run on the master node (where pg_is_in_recovery is false)
+      IS_RECOVERY=$(docker exec $CONTAINER_ID psql -U postgres -tAc "SELECT pg_is_in_recovery()")
+      if [ "$IS_RECOVERY" = "f" ]; then
+        docker exec $CONTAINER_ID psql -U postgres -c "GRANT pg_monitor TO authentik;"
+      fi
+    fi
   when: "'database' in group_names"
-  no_log: true
-
-- name: Sync RabbitMQ configuration to database nodes
-  template:
-    src: "{{ item.src }}"
-    dest: "/opt/docker/stacks/database_ha/rabbitmq-{{ node_index }}/{{ item.dest }}"
-    owner: '999'
-    group: '999'
-    mode: '0600'
-  loop:
-    - { src: rabbitmq.conf.j2, dest: rabbitmq.conf }
-    - { src: enabled_plugins.j2, dest: enabled_plugins }
-  vars:
-    rabbitmq_user: "{{ effective_rabbitmq_user }}"
-    rabbitmq_password: "{{ effective_rabbitmq_password }}"
-    db_count: "{{ groups['database'] | length }}"
-  when: "'database' in group_names"
+  changed_when: false
