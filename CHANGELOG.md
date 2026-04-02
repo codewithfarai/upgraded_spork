@@ -1,3 +1,9 @@
+## v0.31.0 (2026-04-02)
+
+### feat
+
+- configure Authentik SMTP, restrict proxy access to admins, and implement custom Google/email enrollment flows
+
 ## v0.30.1 (2026-04-02)
 
 ### chore
