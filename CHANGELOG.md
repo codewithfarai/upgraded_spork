@@ -1,3 +1,9 @@
+## v0.30.1 (2026-04-02)
+
+### chore
+
+- remove commented-out lifecycle block from certificate resource
+
 ## v0.30.0 (2026-04-02)
 
 ### feat
