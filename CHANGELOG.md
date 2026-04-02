@@ -1,3 +1,43 @@
+## v0.30.0 (2026-04-02)
+
+### feat
+
+- migrate RideBase to OAuth2 provider, add Google social login, and update domain references to ridebase.tech
+- add RabbitMQ monitoring dashboard and scrape configuration to the monitoring stack
+- add etcd persistence, update monitoring dashboards, and migrate prometheus to dynamic swarm service discovery
+- add Docker Hub authentication to mitigate pull rate limits
+- Implement comprehensive monitoring for the database stack, including Prometheus scrape jobs, database exporters, Grafana dashboards, and alert rules.
+- Configure Authentik HTTP listen address and trusted proxies, and include the host URL in outpost updates.
+- Adjust HighContainerRestarts alert to trigger faster by reducing its evaluation window and duration.
+- Introduce a comprehensive bootstrap script for environment setup, integrate the Ridebase application into Authentik, and enhance deployment Makefiles with argument passing and a new Ansible cleanup target.
+- add Docker Swarm task desired state and network filtering to Prometheus scrape configurations.
+- Add rabbitmq_auth_backend_oauth2 to enabled plugins.
+- configure rabbitmq haproxy and mqtt listener
+- Add RabbitMQ service to the database stack, including HAProxy, Traefik, Prometheus, and Authentik integration, and update SSH proxy command to use environment-specific known hosts.
+
+### fix
+
+- update prometheus relabeling for shared-backend network and correct postgres-exporter database connection string
+- Update jq filter to robustly extract internal IP addresses from Terraform output using `select(type=="string")`.
+- Update Traefik network labels from `docker` to `swarm` in database and monitoring stacks.
+- monitoring stack to use traefik.docker instead of swarm
+
+### refactor
+
+- migrate stack configurations to Docker configs, update deployment commands, and optimize replica scaling and monitoring metrics.
+- disable certificate destroy prevention and refine internal IP parsing in Makefile.
+- Refactor Ansible password generation and Terraform token synchronization, update database connection parameters, and add `StrictHostKeyChecking=accept-new` to Makefile SSH commands.
+
+### chore
+
+- remove deprecated trusted proxy configuration variables from authentik stack template
+- Add retry logic and suppress logs for database readiness and creation tasks.
+- Refine internal IP extraction logic, prevent ACM certificate destruction, and explicitly connect Traefik to the public network.
+
+### docs
+
+- Update 'High restart rate' alert description duration from 15 minutes to 5 minutes.
+
 ## v0.29.0 (2026-03-24)
 
 ### feat
