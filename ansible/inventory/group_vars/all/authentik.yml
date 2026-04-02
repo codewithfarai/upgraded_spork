@@ -13,7 +13,7 @@ authentik_domain: "auth"
 # by the database_ha role and persisted to disk. The authentik role then slurps
 # it from /opt/docker/stacks/database_ha/secrets/authentik_db_password.
 authentik_secret_key: "{{ lookup('env', 'AUTHENTIK_SECRET_KEY') }}"
-
+resend_api_key: "{{ lookup('env', 'RESEND_API_KEY') }}"
 # HA Configuration — number of replicas for server and worker
 authentik_server_replicas: 2
 authentik_worker_replicas: 2

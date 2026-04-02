@@ -22,10 +22,18 @@ services:
       AUTHENTIK_POSTGRESQL__SSLMODE: require
       AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
-      # CSRF fix for Hetzner LB SSL termination
       AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://{{ authentik_full_domain }}"
       AUTHENTIK_LISTEN__HTTP: 0.0.0.0:9000
       AUTHENTIK_METRICS__ENABLED: "true"
+      # SMTP Configuration for OTP Emails
+      AUTHENTIK_EMAIL__HOST: "smtp.resend.com"
+      AUTHENTIK_EMAIL__PORT: "587"
+      AUTHENTIK_EMAIL__USERNAME: "resend"
+      AUTHENTIK_EMAIL__PASSWORD: "{{ resend_api_key }}"
+      AUTHENTIK_EMAIL__USE_TLS: "true"
+      AUTHENTIK_EMAIL__USE_SSL: "false"
+      AUTHENTIK_EMAIL__TIMEOUT: 10
+      AUTHENTIK_EMAIL__FROM: "noreply@ridebase.tech"
     networks:
       - traefik-public
       - shared-backend
@@ -73,6 +81,15 @@ services:
       AUTHENTIK_POSTGRESQL__SSLMODE: require
       AUTHENTIK_POSTGRESQL__CONN_MAX_AGE: 0
       AUTHENTIK_POSTGRESQL__DISABLE_SERVER_SIDE_CURSORS: "true"
+      # SMTP Configuration for OTP Emails
+      AUTHENTIK_EMAIL__HOST: "smtp.resend.com"
+      AUTHENTIK_EMAIL__PORT: "587"
+      AUTHENTIK_EMAIL__USERNAME: "resend"
+      AUTHENTIK_EMAIL__PASSWORD: "{{ resend_api_key }}"
+      AUTHENTIK_EMAIL__USE_TLS: "true"
+      AUTHENTIK_EMAIL__USE_SSL: "false"
+      AUTHENTIK_EMAIL__TIMEOUT: 10
+      AUTHENTIK_EMAIL__FROM: "noreply@ridebase.tech"
     networks:
       - shared-backend
     secrets:

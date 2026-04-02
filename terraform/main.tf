@@ -303,6 +303,24 @@ resource "hcloud_firewall" "docker_swarm" {
     description     = "HTTPS outbound (Docker pulls, APT updates)"
   }
 
+  # SMTP SSL (port 465) - Authentik email via Resend
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "465"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "SMTP SSL outbound (Resend email)"
+  }
+
+  # SMTP STARTTLS (port 587) - fallback SMTP
+  rule {
+    direction       = "out"
+    protocol        = "tcp"
+    port            = "587"
+    destination_ips = ["0.0.0.0/0", "::/0"]
+    description     = "SMTP STARTTLS outbound (email fallback)"
+  }
+
   # NTP - time synchronization
   rule {
     direction       = "out"

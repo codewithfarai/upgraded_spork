@@ -29,6 +29,10 @@
   args:
     creates: /etc/apt/sources.list.d/docker.list
 
+- name: Refresh apt cache (ensures Docker repo is indexed)
+  apt:
+    update_cache: yes
+
 - name: Install Docker CE
   apt:
     name:
@@ -38,8 +42,6 @@
       - docker-buildx-plugin
       - docker-compose-plugin
     state: present
-    update_cache: yes
-    cache_valid_time: 3600
 
 - name: Configure Docker daemon for log rotation and Hetzner MTU
   copy:
