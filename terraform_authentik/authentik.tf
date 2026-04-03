@@ -15,6 +15,10 @@ data "authentik_flow" "default_invalidation_flow" {
   slug = "default-provider-invalidation-flow"
 }
 
+data "authentik_certificate_key_pair" "default" {
+  name = "authentik Self-signed Certificate"
+}
+
 
 
 # ==============================================================================
@@ -390,6 +394,10 @@ data "authentik_property_mapping_provider_scope" "email" {
   managed = "goauthentik.io/providers/oauth2/scope-email"
 }
 
+data "authentik_property_mapping_provider_scope" "offline_access" {
+  managed = "goauthentik.io/providers/oauth2/scope-offline_access"
+}
+
 # Create a custom scope to inject the user's groups into the JWT
 resource "authentik_property_mapping_provider_scope" "groups" {
   name        = "ridebase-scope-groups"
@@ -409,6 +417,7 @@ resource "authentik_provider_oauth2" "ridebase" {
   invalidation_flow   = data.authentik_flow.default_invalidation_flow.id
   authentication_flow = authentik_flow.ridebase_authentication.uuid
   client_type         = "public"
+  signing_key         = data.authentik_certificate_key_pair.default.id
   allowed_redirect_uris = [
     { matching_mode = "strict", url = "ridebase://callback" }
   ]
@@ -416,6 +425,7 @@ resource "authentik_provider_oauth2" "ridebase" {
     data.authentik_property_mapping_provider_scope.openid.id,
     data.authentik_property_mapping_provider_scope.profile.id,
     data.authentik_property_mapping_provider_scope.email.id,
+    data.authentik_property_mapping_provider_scope.offline_access.id,
     authentik_property_mapping_provider_scope.groups.id, # Added groups injection!
   ]
 }
