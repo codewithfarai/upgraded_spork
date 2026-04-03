@@ -1,3 +1,9 @@
+## v0.32.0 (2026-04-03)
+
+### feat
+
+- add default self-signed certificate key pair to OIDC provider configuration
+
 ## v0.31.0 (2026-04-02)
 
 ### feat
