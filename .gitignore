@@ -45,9 +45,6 @@ upgraded_spork/auth.py
 # macOS Finder metadata
 .DS_Store
 
-# Python compiled artifacts for main modules
-main.cpython*
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

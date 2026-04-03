@@ -410,6 +410,32 @@ return {
 EOF
 }
 
+# Custom scope to inject the user's numeric PK into the JWT
+# Piggybacks on the "profile" scope so no client changes are needed
+resource "authentik_property_mapping_provider_scope" "user_pk" {
+  name        = "ridebase-scope-user-pk"
+  scope_name  = "profile"
+  description = "Injects user numeric PK into the JWT for API calls"
+  expression  = <<EOF
+return {
+    "authentik_pk": request.user.pk
+}
+EOF
+}
+
+# Custom scope to inject is_subscribed boolean into the JWT
+# This attribute is set by the payment service via the Authentik API
+resource "authentik_property_mapping_provider_scope" "subscription" {
+  name        = "ridebase-scope-subscription"
+  scope_name  = "profile"
+  description = "Injects driver subscription status (is_subscribed) into the JWT"
+  expression  = <<EOF
+return {
+    "is_subscribed": request.user.attributes.get("is_subscribed", False)
+}
+EOF
+}
+
 resource "authentik_provider_oauth2" "ridebase" {
   name                = "RideBase Provider"
   client_id           = "ridebase"
@@ -426,7 +452,9 @@ resource "authentik_provider_oauth2" "ridebase" {
     data.authentik_property_mapping_provider_scope.profile.id,
     data.authentik_property_mapping_provider_scope.email.id,
     data.authentik_property_mapping_provider_scope.offline_access.id,
-    authentik_property_mapping_provider_scope.groups.id, # Added groups injection!
+    authentik_property_mapping_provider_scope.groups.id,
+    authentik_property_mapping_provider_scope.subscription.id,
+    authentik_property_mapping_provider_scope.user_pk.id,
   ]
 }
 

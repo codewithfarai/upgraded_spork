@@ -1,0 +1,171 @@
+"""Stripe webhook handler.
+
+This endpoint does NOT require JWT auth — Stripe authenticates
+via webhook signature verification instead.
+
+On subscription state changes, syncs `is_subscribed` boolean
+back to the driver's Authentik user profile.
+
+Handles these Stripe events:
+  - checkout.session.completed   → new subscription created → is_subscribed=True
+  - customer.subscription.updated → status change (renewal, past_due, etc.)
+  - customer.subscription.deleted → subscription ended → is_subscribed=False
+  - invoice.payment_succeeded    → payment confirmed
+  - invoice.payment_failed       → payment failed
+"""
+
+import asyncio
+import logging
+
+from fastapi import APIRouter, Header, HTTPException, Request, status
+
+from app.services.authentik import get_authentik_user_id_from_customer, set_subscription_status
+from app.services.rabbitmq import publisher
+from app.services.stripe import verify_webhook
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+
+@router.post("/stripe")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: str = Header(alias="Stripe-Signature"),
+):
+    """Receive and process Stripe webhook events."""
+    payload = await request.body()
+
+    if not stripe_signature:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing Stripe-Signature header",
+        )
+
+    event = verify_webhook(payload, stripe_signature)
+    event_type = event["type"]
+    data = event["data"]["object"]
+
+    logger.info("Received Stripe webhook: %s", event_type)
+
+    if event_type == "checkout.session.completed":
+        await _handle_checkout_completed(data)
+    elif event_type == "customer.subscription.updated":
+        await _handle_subscription_updated(data)
+    elif event_type == "customer.subscription.deleted":
+        await _handle_subscription_deleted(data)
+    elif event_type == "invoice.payment_succeeded":
+        await _handle_payment_succeeded(data)
+    elif event_type == "invoice.payment_failed":
+        await _handle_payment_failed(data)
+    else:
+        logger.debug("Unhandled Stripe event type: %s", event_type)
+
+    return {"status": "ok"}
+
+
+# ── Helpers ────────────────────────────────────────────────────
+
+
+async def _sync_authentik(customer_id: str, is_subscribed: bool) -> None:
+    """Resolve the Authentik user from Stripe customer and sync is_subscribed."""
+    user_id = await get_authentik_user_id_from_customer(customer_id)
+    if user_id:
+        await set_subscription_status(user_id, is_subscribed)
+    else:
+        logger.warning("Could not resolve Authentik user for Stripe customer %s", customer_id)
+
+
+# ── Event handlers ─────────────────────────────────────────────
+
+
+async def _handle_checkout_completed(data) -> None:
+    """A checkout session completed — driver subscribed."""
+    customer_id = getattr(data, "customer", "")
+    subscription_id = getattr(data, "subscription", "")
+
+    # Sync is_subscribed=True to Authentik
+    await _sync_authentik(customer_id, is_subscribed=True)
+
+    await publisher.publish(
+        routing_key="subscription.created",
+        message={
+            "event_type": "subscription.created",
+            "customer_id": customer_id,
+            "subscription_id": subscription_id,
+            "is_subscribed": True,
+        },
+    )
+    logger.info("Driver subscription created: %s", subscription_id)
+
+
+async def _handle_subscription_updated(data) -> None:
+    """A subscription was updated (renewal, past_due, etc.)."""
+    sub_status = getattr(data, "status", "")
+    customer_id = getattr(data, "customer", "")
+    is_subscribed = sub_status in ("active", "trialing")
+
+    # Sync to Authentik on every status change
+    await _sync_authentik(customer_id, is_subscribed=is_subscribed)
+
+    await publisher.publish(
+        routing_key="subscription.updated",
+        message={
+            "event_type": "subscription.updated",
+            "subscription_id": getattr(data, "id", ""),
+            "customer_id": customer_id,
+            "status": sub_status,
+            "is_subscribed": is_subscribed,
+            "cancel_at_period_end": getattr(data, "cancel_at_period_end", False),
+        },
+    )
+
+
+async def _handle_subscription_deleted(data) -> None:
+    """A subscription was fully canceled/deleted — driver no longer subscribed."""
+    customer_id = getattr(data, "customer", "")
+
+    # Sync is_subscribed=False to Authentik
+    await _sync_authentik(customer_id, is_subscribed=False)
+
+    await publisher.publish(
+        routing_key="subscription.deleted",
+        message={
+            "event_type": "subscription.deleted",
+            "subscription_id": getattr(data, "id", ""),
+            "customer_id": customer_id,
+            "is_subscribed": False,
+        },
+    )
+    logger.info("Driver subscription deleted: %s", getattr(data, "id", ""))
+
+
+async def _handle_payment_succeeded(data) -> None:
+    """An invoice payment succeeded."""
+    await publisher.publish(
+        routing_key="payment.succeeded",
+        message={
+            "event_type": "payment.succeeded",
+            "invoice_id": getattr(data, "id", ""),
+            "customer_id": getattr(data, "customer", ""),
+            "subscription_id": getattr(data, "subscription", ""),
+            "amount_paid": getattr(data, "amount_paid", 0),
+            "currency": getattr(data, "currency", "usd"),
+        },
+    )
+
+
+async def _handle_payment_failed(data) -> None:
+    """An invoice payment failed."""
+    await publisher.publish(
+        routing_key="payment.failed",
+        message={
+            "event_type": "payment.failed",
+            "invoice_id": getattr(data, "id", ""),
+            "customer_id": getattr(data, "customer", ""),
+            "subscription_id": getattr(data, "subscription", ""),
+            "amount_due": getattr(data, "amount_due", 0),
+            "currency": getattr(data, "currency", "usd"),
+        },
+    )
+    logger.warning("Payment failed for invoice %s", getattr(data, "id", ""))

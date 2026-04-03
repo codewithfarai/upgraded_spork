@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  payment-service:
+    image: {{ payment_service_image }}:{{ payment_service_version }}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      # Authentik OIDC (JWT validation)
+      AUTHENTIK_JWKS_URL: "https://{{ authentik_full_domain }}/application/o/ridebase/jwks/"
+      AUTHENTIK_ISSUER: "https://{{ authentik_full_domain }}/application/o/ridebase/"
+      AUTHENTIK_AUDIENCE: "ridebase"
+      # RabbitMQ (via shared-backend overlay)
+      RABBITMQ_URL: "amqp://admin:{{ effective_rabbitmq_password }}@db_ha_rabbitmq-0:5672/"
+      RABBITMQ_EXCHANGE: "ridebase.events"
+      # Stripe price (non-secret config)
+      STRIPE_PRICE_ID_DRIVER: "{{ stripe_price_id_driver }}"
+      # Authentik API (sync is_subscribed)
+      AUTHENTIK_API_URL: "https://{{ authentik_full_domain }}"
+      # Frontend redirect URLs
+      FRONTEND_SUCCESS_URL: "https://{{ domain_name }}/subscription/success"
+      FRONTEND_CANCEL_URL: "https://{{ domain_name }}/subscription/cancel"
+      # Secrets are read automatically by pydantic-settings from /run/secrets/
+    networks:
+      - traefik-public
+      - shared-backend
+    secrets:
+      - source: stripe_secret_key-{{ stripe_secret_key_hash }}
+        target: stripe_secret_key
+      - source: stripe_webhook_secret-{{ stripe_webhook_secret_hash }}
+        target: stripe_webhook_secret
+      - source: authentik_api_token-{{ authentik_api_token_hash }}
+        target: authentik_api_token
+    deploy:
+      mode: replicated
+      replicas: {{ payment_service_replicas | default(2) }}
+      placement:
+        constraints:
+          - node.labels.role == worker
+        preferences:
+          - spread: node.id
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.payment.rule=Host(`{{ payment_service_full_domain }}`)
+        - traefik.http.routers.payment.entrypoints=web
+        - traefik.http.routers.payment.service=payment-svc
+        - traefik.http.routers.payment.middlewares=security-headers@file,global-ratelimit@file
+        - traefik.http.services.payment-svc.loadbalancer.server.port=8000
+        - traefik.swarm.network=traefik-public
+      update_config:
+        parallelism: 1
+        delay: 30s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+networks:
+  traefik-public:
+    external: true
+  shared-backend:
+    external: true
+
+secrets:
+  stripe_secret_key-{{ stripe_secret_key_hash }}:
+    file: /opt/docker/stacks/payment_service/secrets/stripe_secret_key
+
+  stripe_webhook_secret-{{ stripe_webhook_secret_hash }}:
+    file: /opt/docker/stacks/payment_service/secrets/stripe_webhook_secret
+
+  authentik_api_token-{{ authentik_api_token_hash }}:
+    file: /opt/docker/stacks/payment_service/secrets/authentik_api_token

@@ -1,0 +1,21 @@
+# Payment Service Configuration
+
+# Docker image — push to Docker Hub under your account
+# e.g. docker build -t fwande/ridebase-payment-service:0.1.0 .
+payment_service_image: "{{ lookup('env', 'PAYMENT_SERVICE_IMAGE') | default('fwande/ridebase-payment-service', true) }}"
+payment_service_version: "{{ lookup('env', 'PAYMENT_SERVICE_VERSION') | default('latest', true) }}"
+
+# Domain prefix — results in pay.dev.ridebase.tech (dev) or pay.ridebase.tech (prod)
+payment_service_domain: "pay"
+
+# Replicas
+payment_service_replicas: 2
+
+# Stripe (loaded from environment / ansible/.env via Makefile)
+stripe_secret_key: "{{ lookup('env', 'STRIPE_SECRET_KEY') }}"
+stripe_webhook_secret: "{{ lookup('env', 'STRIPE_WEBHOOK_SECRET') }}"
+stripe_price_id_driver: "{{ lookup('env', 'STRIPE_PRICE_ID_DRIVER') }}"
+
+# Authentik API token for syncing is_subscribed attribute
+# This can be the same token Terraform uses, or a dedicated one
+payment_service_authentik_api_token: "{{ lookup('env', 'PAYMENT_SERVICE_AUTHENTIK_API_TOKEN') }}"
