@@ -1,3 +1,14 @@
+## v0.33.0 (2026-04-03)
+
+### feat
+
+- Add payment service API documentation and implement subscription management features
+
+### chore
+
+- Subscription and Payment Service for RideBase  Setup
+- updated gitignore
+
 ## v0.32.0 (2026-04-03)
 
 ### feat
