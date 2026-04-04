@@ -1,3 +1,9 @@
+## v0.37.0 (2026-04-04)
+
+### docs
+
+- add onboarding migrations guidelines for deployment-driven updates
+
 ## v0.36.2 (2026-04-04)
 
 ### docs
