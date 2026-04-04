@@ -1,9 +1,9 @@
 from logging.config import fileConfig
+import asyncio
 import os
 
-from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
@@ -24,71 +24,26 @@ if config.config_file_name is not None:
 # Use onboarding application's metadata for autogenerate support.
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+
+def _get_url() -> str:
+    return (
+        os.getenv("DATABASE_URL")
+        or settings.DATABASE_URL
+        or config.get_main_option("sqlalchemy.url")
+        or ""
+    )
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
-    url = os.getenv("DATABASE_URL") or settings.DATABASE_URL or config.get_main_option("sqlalchemy.url")
+    """Run migrations in 'offline' mode."""
     context.configure(
-        url=url,
+        url=_get_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
-
-
-def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    section = config.get_section(config.config_ini_section, {})
-    effective_url = os.getenv("DATABASE_URL") or settings.DATABASE_URL or section.get("sqlalchemy.url")
-    if effective_url:
-        section["sqlalchemy.url"] = effective_url
-
-    # Handle async URLs (e.g. postgresql+asyncpg) used by the service.
-    if section.get("sqlalchemy.url", "").startswith("postgresql+asyncpg"):
-        connectable = async_engine_from_config(
-            section,
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
-
-        async def run_async_migrations() -> None:
-            async with connectable.connect() as connection:
-                await connection.run_sync(do_run_migrations)
-
-        import asyncio
-        asyncio.run(run_async_migrations())
-    else:
-        connectable = engine_from_config(
-            section,
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
-
-        with connectable.connect() as connection:
-            do_run_migrations(connection)
 
 
 def do_run_migrations(connection) -> None:
@@ -97,7 +52,15 @@ def do_run_migrations(connection) -> None:
         context.run_migrations()
 
 
+async def run_migrations_online() -> None:
+    """Run migrations in 'online' mode using an async engine."""
+    connectable = create_async_engine(_get_url(), poolclass=pool.NullPool)
+    async with connectable.connect() as connection:
+        await connection.run_sync(do_run_migrations)
+    await connectable.dispose()
+
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    asyncio.run(run_migrations_online())

@@ -22,6 +22,7 @@ httpx = "^0.28.1"
 aio-pika = "^9.6.2"
 pydantic-settings = "^2.7.1"
 pydantic = "^2.0.0"
+greenlet = "^3.3.2"
 
 [tool.poetry.group.dev.dependencies]
 commitizen = "^4.8.3"

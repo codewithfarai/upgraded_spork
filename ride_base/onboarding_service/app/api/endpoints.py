@@ -100,6 +100,7 @@ async def setup_driver(
     car_model: str = Form(...),
     year: int = Form(...),
     license_plate: str = Form(...),
+    national_id: str = Form(...),
     driver_license_number: str = Form(...),
     is_available_now: bool = Form(False),
     license_photo: UploadFile = File(...),
@@ -139,6 +140,7 @@ async def setup_driver(
         car_model=car_model,
         year=year,
         license_plate=license_plate,
+        national_id=national_id,
         driver_license_number=driver_license_number,
         driver_license_photo_url=photo_url,
         is_available_now=is_available_now

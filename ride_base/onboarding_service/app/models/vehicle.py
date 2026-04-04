@@ -13,8 +13,9 @@ class DriverDetails(Base):
     car_make = Column(String, nullable=False)
     car_model = Column(String, nullable=False)
     year = Column(Integer, nullable=False)
-    license_plate = Column(String, nullable=False)
-    driver_license_number = Column(String, nullable=False)
+    license_plate = Column(String, nullable=False, unique=True)
+    national_id = Column(String, nullable=False, unique=True)
+    driver_license_number = Column(String, nullable=False, unique=True)
     driver_license_photo_url = Column(String, nullable=False)
 
     is_available_now = Column(Boolean, default=False, nullable=False)
