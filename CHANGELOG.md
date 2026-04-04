@@ -1,3 +1,9 @@
+## v0.36.1 (2026-04-04)
+
+### chore
+
+- fix service bump sync and document versioning model
+
 ## v0.36.0 (2026-04-04)
 
 ### feat
