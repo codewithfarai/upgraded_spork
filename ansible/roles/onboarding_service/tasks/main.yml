@@ -163,13 +163,26 @@
     # -----------------------------------------------------------------------
     # Run Alembic migrations
     # -----------------------------------------------------------------------
+    - name: Ensure lock directory exists for migration serialization
+      file:
+        path: /var/lock
+        state: directory
+        mode: '0755'
+
     - name: Run Onboarding Service database migrations
-      command: >
-        docker run --rm --network shared-backend --entrypoint alembic
-        -e DATABASE_URL="postgresql+asyncpg://onboarding:{{ effective_onboarding_db_password }}@db_ha_pgpool:5432/onboarding?ssl=require"
-        {{ onboarding_service_image }}:{{ onboarding_service_version }}
-        upgrade head
+      shell: |
+        set -euo pipefail
+
+        # Serialize migrations on the manager host to avoid overlapping runs.
+        flock -w 300 /var/lock/onboarding_migrations.lock \
+          docker run --rm --network shared-backend --entrypoint alembic \
+          -e DATABASE_URL="postgresql+asyncpg://onboarding:{{ effective_onboarding_db_password }}@db_ha_pgpool:5432/onboarding?ssl=require" \
+          {{ onboarding_service_image }}:{{ onboarding_service_version }} \
+          upgrade head
       register: migration_result
+      until: migration_result.rc == 0
+      retries: 5
+      delay: 15
       changed_when: "'Running upgrade' in migration_result.stdout"
 
     - name: Wait for onboarding service to be healthy
