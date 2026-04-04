@@ -1,3 +1,9 @@
+## onboarding_service-v0.5.0 (2026-04-04)
+
+### feat
+
+- enhance onboarding service with new migration command and update database schema
+
 ## onboarding_service-v0.4.0 (2026-04-04)
 
 ### feat
