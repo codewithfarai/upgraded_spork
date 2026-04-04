@@ -14,7 +14,7 @@ ENABLE_HARDENING="${enable_hardening}"
 # This ensures we can always SSH in to debug even if internet/NAT is not up yet.
 if [[ "$ENABLE_HARDENING" == "true" ]]; then
     if ! id "provision" &>/dev/null; then
-        echo "Creating 'provision' user and preparing SSH access.........."
+        echo "Creating 'provision' user and preparing SSH access."
         useradd -m -s /bin/bash provision
         echo "provision ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/provision
         chmod 0440 /etc/sudoers.d/provision
