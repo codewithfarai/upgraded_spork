@@ -29,7 +29,7 @@ if [ -f .env ]; then
 fi
 
 # Re-initialize Terraform for the correct environment
-if make init ENV="$ENV" > /dev/null 2>&1; then
+if make init ENV="$ENV" LOCK=false > /dev/null 2>&1; then
     echo "✅ Terraform initialized for $ENV" >&2
 else
     echo "❌ Terraform init failed for $ENV" >&2

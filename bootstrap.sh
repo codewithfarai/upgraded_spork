@@ -23,7 +23,17 @@ echo "🚀 Starting Full $(echo $ENV | tr '[:lower:]' '[:upper:]') Deployment...
 ROOT_DIR=$(pwd)
 
 # ------------------------------------------------------------------------------
-# Step 1: Terraform Infrastructure
+# Step 1: Build & Push Service Images
+# ------------------------------------------------------------------------------
+echo "🔨 Building and pushing service images..."
+cd "$ROOT_DIR/ride_base/payment_service"
+make build && make push
+
+cd "$ROOT_DIR/ride_base/onboarding_service"
+make build && make push
+
+# ------------------------------------------------------------------------------
+# Step 2: Terraform Infrastructure
 # ------------------------------------------------------------------------------
 echo "🔨 Deploying Terraform Infrastructure ($ENV)..."
 cd "$ROOT_DIR/terraform"
@@ -33,39 +43,47 @@ echo "⏳ Sleeping 10m for SSH and cloud-init to finish..."
 sleep 600
 
 # ------------------------------------------------------------------------------
-# Step 2: SSH Keyscan
+# Step 3: SSH Keyscan
 # ------------------------------------------------------------------------------
 echo "🔑 Running keyscan..."
 make keyscan ENV=$ENV
 sleep 300
 
 # ------------------------------------------------------------------------------
-# Step 3: Verify Nodes
+# Step 4: Verify Nodes
 # ------------------------------------------------------------------------------
 echo "🔍 Verifying node health..."
 make verify ENV=$ENV
 sleep 300
 
 # ------------------------------------------------------------------------------
-# Step 4: Ansible Initial Deploy
+# Step 5: Ansible Initial Deploy (without services — Authentik not ready yet)
 # ------------------------------------------------------------------------------
-echo "🐝 Deploying Swarm (Pass 1 - Bootstrap)..."
+echo "🐝 Deploying Swarm (Pass 1 - Bootstrap, services disabled)..."
 cd "$ROOT_DIR/ansible"
-make swarm ENV=$ENV
+make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false"
 sleep 300
 
 # ------------------------------------------------------------------------------
-# Step 5: Ansible Second Deploy
+# Step 6: Ansible Second Deploy (still without services — stabilization)
 # ------------------------------------------------------------------------------
-echo "🔁 Redeploying Swarm (Pass 2 - Stabilization)..."
-make swarm ENV=$ENV
+echo "🔁 Redeploying Swarm (Pass 2 - Stabilization, services disabled)..."
+make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false"
 sleep 300
 
 # ------------------------------------------------------------------------------
-# Step 6: Authentik Setup
+# Step 7: Authentik Setup
 # ------------------------------------------------------------------------------
 echo "🔐 Deploying Authentik Configuration..."
 cd "$ROOT_DIR/terraform_authentik"
 make apply ENV=$ENV ARGS="-auto-approve"
+sleep 60
+
+# ------------------------------------------------------------------------------
+# Step 8: Ansible Third Deploy (with services — Authentik token now exists)
+# ------------------------------------------------------------------------------
+echo "🚀 Deploying Swarm (Pass 3 - Full deploy with services)..."
+cd "$ROOT_DIR/ansible"
+make swarm ENV=$ENV
 
 echo "✨ $(echo $ENV | tr '[:lower:]' '[:upper:]') ENVIRONMENT READY! ✨"

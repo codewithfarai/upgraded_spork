@@ -182,6 +182,7 @@
     - name: Configure Payment Service
       include_role:
         name: payment_service
+      when: payment_service_enabled | default(true) | bool
 
 # ==============================================================================
 # Play 10: Deploy Onboarding Service
@@ -193,6 +194,7 @@
     - name: Configure Onboarding Service
       include_role:
         name: onboarding_service
+      when: onboarding_service_enabled | default(true) | bool
 
 # ==============================================================================
 # Play 11: Deploy Standalone Monitoring on Bastion

@@ -1,5 +1,8 @@
 # Payment Service Configuration
 
+# Set to false to skip deployment (e.g. fresh cluster before Authentik token exists)
+payment_service_enabled: true
+
 # Docker image — push to Docker Hub under your account
 # e.g. docker build -t fwande/ridebase-payment-service:0.1.0 .
 payment_service_image: "{{ lookup('env', 'PAYMENT_SERVICE_IMAGE') | default('fwande/ridebase_payment_service', true) }}"

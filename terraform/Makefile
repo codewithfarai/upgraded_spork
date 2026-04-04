@@ -2,6 +2,9 @@
 ENV ?= dev
 # Default node index for SSH (0-indexed)
 NODE ?= 0
+# Set LOCK=false to skip state locking (e.g. when lock is stuck)
+LOCK ?= true
+LOCK_FLAG = $(if $(filter false,$(LOCK)),-lock=false,)
 
 # Load environment variables from .env file if it exists
 ifneq (,$(wildcard ./.env))
@@ -110,7 +113,7 @@ ssh_cleanup:
 	echo "✅ project IPs removed from ~/.ssh/known_hosts_$(ENV)"
 
 keyscan:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	RANGE=$$(terraform output -raw network_ip_range | cut -d'/' -f1 | cut -d'.' -f1,2); \
 	INTERNAL_IPS=$$(terraform output -json internal_ips | jq -r '.. | select(type=="string")' | grep "^$$RANGE" | sort -u); \
@@ -130,20 +133,21 @@ keyscan:
 init:
 	terraform init \
 		-reconfigure \
+		$(LOCK_FLAG) \
 		-backend-config="bucket=$(TF_STATE_BUCKET)" \
 		-backend-config="key=$(TF_STATE_KEY)-$(ENV)"
 
 plan:
-	$(MAKE) init ENV=$(ENV)
-	terraform plan -var="environment=$(ENV)" $(ARGS)
+	$(MAKE) init ENV=$(ENV) LOCK=$(LOCK)
+	terraform plan -var="environment=$(ENV)" $(LOCK_FLAG) $(ARGS)
 
 apply:
-	$(MAKE) init ENV=$(ENV)
-	terraform apply -var="environment=$(ENV)" $(ARGS)
+	$(MAKE) init ENV=$(ENV) LOCK=$(LOCK)
+	terraform apply -var="environment=$(ENV)" $(LOCK_FLAG) $(ARGS)
 
 destroy:
-	$(MAKE) init ENV=$(ENV)
-	terraform destroy -var="environment=$(ENV)" $(ARGS)
+	$(MAKE) init ENV=$(ENV) LOCK=$(LOCK)
+	terraform destroy -var="environment=$(ENV)" $(LOCK_FLAG) $(ARGS)
 
 destroy_all:
 	@echo "Destroying all environments (dev, stage, prod)..."
@@ -153,7 +157,7 @@ destroy_all:
 
 # Common logic for SSH connectivity
 ssh_bastion:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
@@ -163,7 +167,7 @@ ssh_bastion:
 	ssh -i $$RAW_KEY -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV) provision@$$BASTION_IP
 
 ssh_manager:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	MANAGER_IP=$$(terraform output -json internal_ips | jq -r ".managers[$(NODE)][0]"); \
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
@@ -176,7 +180,7 @@ ssh_manager:
 		provision@$$MANAGER_IP
 
 ssh_worker:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	WORKER_IP=$$(terraform output -json internal_ips | jq -r ".workers[$(NODE)][0]"); \
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
@@ -190,7 +194,7 @@ ssh_worker:
 
 ssh_db: ssh_database
 ssh_database:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	DB_IP=$$(terraform output -json internal_ips | jq -r ".database[$(NODE)][0]"); \
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
@@ -206,7 +210,7 @@ ssh_database:
 verify: verify_bastion verify_node_manager verify_node_worker verify_node_database
 
 verify_bastion:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
 	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
@@ -215,7 +219,7 @@ verify_bastion:
 	ssh -i $$RAW_KEY -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV) provision@$$BASTION_IP "bash -s" < scripts/verify_security.sh
 
 verify_node_manager:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
 	MANAGER_IPS=$$(terraform output -json internal_ips | jq -r '.managers[] | .[]'); \
@@ -232,7 +236,7 @@ verify_node_manager:
 	done
 
 verify_node_worker:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
 	WORKER_IPS=$$(terraform output -json internal_ips | jq -r '.workers[] | .[]'); \
@@ -249,7 +253,7 @@ verify_node_worker:
 	done
 
 verify_node_database:
-	@$(MAKE) init ENV=$(ENV) >/dev/null; \
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
 	EDGE_IPS=$$(terraform output -json edge_public_ips | jq -r '. | join(" ")'); \
 	DB_IPS=$$(terraform output -json internal_ips | jq -r '.database[] | .[]'); \
