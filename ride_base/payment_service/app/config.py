@@ -38,9 +38,13 @@ class Settings(BaseSettings):
     AUTHENTIK_API_TOKEN: str = ""
 
     # Service
-    SERVICE_NAME: str = "payment-service"
+    SERVICE_NAME: str = "payment_service"
     FRONTEND_SUCCESS_URL: str = ""
     FRONTEND_CANCEL_URL: str = ""
+
+
+    # Email
+    RESEND_API_KEY: str = ""
 
     @model_validator(mode="before")
     @classmethod

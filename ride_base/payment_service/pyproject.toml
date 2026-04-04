@@ -26,7 +26,7 @@ pre-commit = "^4.5.1"
 [tool.commitizen]
 name = "cz_customize"
 # Use a specific tag format for this service in the monorepo
-tag_format = "payment-service-v$version"
+tag_format = "payment_service-v$version"
 version_scheme = "semver2"
 version = "0.1.0"
 version_files = [
