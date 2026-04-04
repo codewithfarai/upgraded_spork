@@ -23,7 +23,7 @@ pre-commit = "^4.5.1"
 name = "cz_customize"
 tag_format = "v$version"
 version_scheme = "semver2"
-version = "0.35.1"
+version = "0.35.2"
 version_files = [
     "pyproject.toml:version",
     "ride_base/__init__.py:__version__"

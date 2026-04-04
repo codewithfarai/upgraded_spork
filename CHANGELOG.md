@@ -1,3 +1,9 @@
+## v0.35.2 (2026-04-04)
+
+### chore
+
+- add dev dependencies and documentation to onboarding service and update node init script
+
 ## v0.35.1 (2026-04-04)
 
 ### chore
