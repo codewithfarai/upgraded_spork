@@ -1,3 +1,9 @@
+## v0.39.0 (2026-04-04)
+
+### refactor
+
+- remove unused custom scope for user groups in JWT
+
 ## v0.38.0 (2026-04-04)
 
 ### refactor
