@@ -179,6 +179,8 @@
           -e DATABASE_URL="postgresql+asyncpg://onboarding:{{ effective_onboarding_db_password }}@db_ha_pgpool:5432/onboarding?ssl=require" \
           {{ onboarding_service_image }}:{{ onboarding_service_version }} \
           upgrade head
+      args:
+        executable: /bin/bash
       register: migration_result
       until: migration_result.rc == 0
       retries: 5
@@ -187,7 +189,7 @@
 
     - name: Wait for onboarding service to be healthy
       shell: |
-        docker service ls --filter name=onboarding_onboarding-service --format '{{ "{{" }}.Replicas{{ "}}" }}'
+        docker service ls --filter name=onboarding_onboarding_service --format '{{ "{{" }}.Replicas{{ "}}" }}'
       register: service_status
       until: "service_status.stdout.split('/')[0] | int >= 1"
       retries: 30
