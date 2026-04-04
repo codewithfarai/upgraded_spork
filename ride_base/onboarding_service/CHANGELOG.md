@@ -1,3 +1,9 @@
+## onboarding_service-v0.6.1 (2026-04-04)
+
+### refactor
+
+- enhance build and push targets for multi-platform support
+
 ## onboarding_service-v0.6.0 (2026-04-04)
 
 ### feat
