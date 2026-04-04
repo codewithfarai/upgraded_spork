@@ -287,6 +287,13 @@ All commits are checked by [pre-commit](https://pre-commit.com/). Hooks run auto
 poetry run pre-commit run --all-files
 ```
 
+To test commit scope validation locally with a custom commit message:
+
+```bash
+# Stage files first, then run:
+make test-commit-scope MSG='feat(payment): add webhook idempotency guard'
+```
+
 | Hook | What it does |
 |---|---|
 | `trailing-whitespace` | Strips trailing whitespace |
@@ -306,3 +313,21 @@ poetry run pre-commit run --all-files
 This project follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 Valid types: `feat` · `fix` · `perf` · `build` · `refactor` · `test` · `style` · `chore` · `docs` · `ci`
+
+For service changes, use scoped commit tags so version bumps and changelogs are routed correctly:
+
+- Payment service: `type(payment): message`
+- Onboarding service: `type(onboarding): message`
+- Root/shared infra changes: `type(infra): message` (or `type(root): message`)
+
+Scope enforcement is path-aware during `commit-msg`:
+
+- Changes only under `ride_base/payment_service/` require `(payment)`
+- Changes only under `ride_base/onboarding_service/` require `(onboarding)`
+- Changes touching both services in one commit require `(infra)` or `(root)`
+
+Examples:
+
+- `feat(payment): add webhook idempotency guard`
+- `fix(onboarding): validate OIDC subject mapping`
+- `chore(infra): align shared event contracts`

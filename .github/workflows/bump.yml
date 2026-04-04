@@ -38,15 +38,45 @@ jobs:
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
 
+    - name: Detect changed paths
+      id: changes
+      run: |
+        set -euo pipefail
+
+        CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+
+        ROOT_CHANGED=false
+        ONBOARDING_CHANGED=false
+        PAYMENT_CHANGED=false
+
+        if echo "$CHANGED_FILES" | grep -qE '^ride_base/onboarding_service/'; then
+          ONBOARDING_CHANGED=true
+        fi
+
+        if echo "$CHANGED_FILES" | grep -qE '^ride_base/payment_service/'; then
+          PAYMENT_CHANGED=true
+        fi
+
+        if echo "$CHANGED_FILES" | grep -qEv '^(ride_base/onboarding_service/|ride_base/payment_service/)'; then
+          ROOT_CHANGED=true
+        fi
+
+        echo "root_changed=$ROOT_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "onboarding_changed=$ONBOARDING_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "payment_changed=$PAYMENT_CHANGED" >> "$GITHUB_OUTPUT"
+
     - name: Bump root version
+      if: steps.changes.outputs.root_changed == 'true'
       run: |
         poetry run cz bump --changelog --yes || echo "Root: Nothing to bump"
 
     - name: Bump onboarding_service
+      if: steps.changes.outputs.onboarding_changed == 'true'
       run: |
         poetry run cz --config ride_base/onboarding_service/pyproject.toml bump --changelog --yes || echo "Onboarding Service: Nothing to bump"
 
     - name: Bump payment_service
+      if: steps.changes.outputs.payment_changed == 'true'
       run: |
         poetry run cz --config ride_base/payment_service/pyproject.toml bump --changelog --yes || echo "Payment Service: Nothing to bump"
 

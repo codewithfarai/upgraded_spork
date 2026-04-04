@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ride_base"
-version = "0.0.0"
+version = "0.35.3"
 description = "IAC & Ansible Automation for the Cloud Hetzner Deployment of High Availability Docker Swarm with Traefik as a Reverse Proxy & Authentik as an Authentication Provider"
 authors = ["Farai Wande <faraiwande@gmail.com>"]
 license = "MIT"
@@ -29,12 +29,11 @@ version_files = [
     "ride_base/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
-change_type_path = ":!ride_base/onboarding_service :!ride_base/payment_service"
 
 [tool.commitizen.customize]
-schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
-changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
-commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):\\s(?P<message>.*)?"
+schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|infra|root)\\))?:\\s.*"
+changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((infra|root)\\))?:\\s.*"
+commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|infra|root)\\))?:\\s(?P<message>.*)?"
 change_type_order = ["feat", "fix", "perf", "build", "refactor", "test", "style", "chore", "docs", "ci"]
 
 [tool.commitizen.customize.bump_map]

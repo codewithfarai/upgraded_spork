@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ridebase_onboarding_service"
-version = "0.0.0"
+version = "0.2.0"
 description = "Onboarding Service for RideBase"
 authors = ["Farai Wande <faraiwande@ridebase.tech>"]
 license = "MIT"
@@ -38,14 +38,13 @@ version_files = [
     "app/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
-change_type_path = "ride_base/onboarding_service"
 # Ensure changelog is specific to this service
 changelog_file = "CHANGELOG.md"
 
 [tool.commitizen.customize]
-schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
-changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"
-commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):\\s(?P<message>.*)?"
+schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(onboarding\\):\\s.*"
+changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(onboarding\\):\\s.*"
+commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(onboarding\\):\\s(?P<message>.*)?"
 change_type_order = ["feat", "fix", "perf", "build", "refactor", "test", "style", "chore", "docs", "ci"]
 
 [tool.commitizen.customize.bump_map]
