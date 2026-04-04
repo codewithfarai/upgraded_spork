@@ -1,3 +1,13 @@
+## onboarding_service-v0.7.0 (2026-04-04)
+
+### feat
+
+- add endpoints to update and delete user profiles and driver details
+
+### fix
+
+- update S3 region name to 'eu-central'
+
 ## onboarding_service-v0.6.2 (2026-04-04)
 
 ### refactor
