@@ -1,3 +1,9 @@
+## v0.36.0 (2026-04-04)
+
+### feat
+
+- implement commit scope validation and version bumping for services
+
 ## v0.35.3 (2026-04-04)
 
 ### refactor
