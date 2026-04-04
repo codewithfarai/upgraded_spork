@@ -41,6 +41,7 @@ async def get_current_user(
       - sub: user ID
       - email: user email
       - preferred_username: display name
+      - authentik_pk: numeric PK for API calls
     """
     token = credentials.credentials
     try:

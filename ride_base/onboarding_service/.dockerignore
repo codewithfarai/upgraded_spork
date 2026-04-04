@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.env
+.git/
+.gitignore
+*.md
+poetry.toml
+Dockerfile
+.dockerignore
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

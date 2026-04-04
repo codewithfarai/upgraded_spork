@@ -1,0 +1,184 @@
+---
+# ===========================================================================
+# Onboarding Service Ansible Role
+# Runs on managers[0] — deploys the onboarding service stack to Swarm
+# ===========================================================================
+- name: Run Onboarding Service deployment tasks
+  block:
+    - name: Create onboarding service stack directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - /opt/docker/stacks/onboarding_service
+        - /opt/docker/stacks/onboarding_service/secrets
+
+    # -----------------------------------------------------------------------
+    # Secrets: Authentik API token + S3 Secret Key
+    # -----------------------------------------------------------------------
+    - name: Check for existing Authentik API token
+      stat:
+        path: /opt/docker/stacks/onboarding_service/secrets/authentik_api_token
+      register: authentik_token_stat
+
+    - name: Check for existing S3 secret key
+      stat:
+        path: /opt/docker/stacks/onboarding_service/secrets/s3_secret_key
+      register: s3_secret_key_stat
+
+    - name: Check for existing Onboarding DB password
+      stat:
+        path: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
+      register: onboarding_db_pass_stat
+
+    - name: Check for existing Authentik Terraform token
+      stat:
+        path: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
+      register: authentik_tf_stat
+
+    - name: Slurp Authentik Terraform token if available
+      slurp:
+        src: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
+      register: slurped_authentik_tf
+      when: authentik_tf_stat.stat.exists
+
+    - name: Set final Authentik API token
+      set_fact:
+        effective_authentik_api_token: "{{ onboarding_service_authentik_api_token | default(slurped_authentik_tf['content'] | b64decode if not slurped_authentik_tf.skipped | default(false) else '', true) }}"
+
+    - name: Write Authentik API token
+      copy:
+        content: "{{ effective_authentik_api_token }}"
+        dest: /opt/docker/stacks/onboarding_service/secrets/authentik_api_token
+        mode: '0600'
+      when: (effective_authentik_api_token != '') and (not authentik_token_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool))
+      no_log: true
+      register: authentik_token_file
+
+    - name: Write S3 secret key
+      copy:
+        content: "{{ onboarding_service_s3_secret_key | default('mock-secret') }}"
+        dest: /opt/docker/stacks/onboarding_service/secrets/s3_secret_key
+        mode: '0600'
+      when: not s3_secret_key_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool)
+      no_log: true
+      register: s3_secret_key_file
+
+    - name: Write Onboarding DB password
+      copy:
+        content: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') if not onboarding_db_pass_stat.stat.exists else lookup('file', '/opt/docker/stacks/onboarding_service/secrets/onboarding_db_password') }}"
+        dest: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
+        mode: '0600'
+      when: not onboarding_db_pass_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool)
+      no_log: true
+      register: onboarding_db_pass_file
+
+    # -----------------------------------------------------------------------
+    # Read back secrets for hash computation
+    # -----------------------------------------------------------------------
+    - name: Get secret file stats
+      stat:
+        path: "/opt/docker/stacks/onboarding_service/secrets/{{ item }}"
+      loop:
+        - authentik_api_token
+        - s3_secret_key
+        - onboarding_db_password
+      register: secret_stats
+
+    - name: Set secret hash facts
+      set_fact:
+        authentik_api_token_hash: "{{ secret_stats.results[0].stat.checksum | truncate(10, True, '') }}"
+        s3_secret_key_hash: "{{ secret_stats.results[1].stat.checksum | truncate(10, True, '') }}"
+        onboarding_db_password_hash: "{{ secret_stats.results[2].stat.checksum | truncate(10, True, '') }}"
+
+    # -----------------------------------------------------------------------
+    # Resolve shared variables from other roles
+    # -----------------------------------------------------------------------
+    - name: Slurp RabbitMQ password from database_ha
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
+      register: slurped_rabbitmq_pass
+
+    - name: Slurp PostgreSQL password from database_ha
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/authentik_db_password
+      register: slurped_postgres_pass
+
+    - name: Slurp Onboarding DB password
+      slurp:
+        src: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
+      register: slurped_onboarding_db_pass
+
+    - name: Set effective variables
+      set_fact:
+        effective_rabbitmq_password: "{{ slurped_rabbitmq_pass['content'] | b64decode }}"
+        effective_postgres_password: "{{ slurped_postgres_pass['content'] | b64decode }}"
+        effective_onboarding_db_password: "{{ slurped_onboarding_db_pass['content'] | b64decode }}"
+        authentik_full_domain: "{{ authentik_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+        onboarding_service_full_domain: "{{ onboarding_service_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+
+    # -----------------------------------------------------------------------
+    # Database and User creation (Idempotent)
+    # -----------------------------------------------------------------------
+    - name: Ensure Onboarding database and user exist
+      shell: |
+        cat << 'EOF' | docker run -i --rm --network shared-backend -e PGPASSWORD="{{ effective_postgres_password }}" -e PGSSLMODE=require postgres:16-alpine sh
+        set -e
+        # 1. Create onboarding user if not exists
+        USER_EXISTS=$(psql -h db_ha_pgpool -U authentik -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='onboarding'")
+        if [ "$USER_EXISTS" != "1" ]; then
+          psql -h db_ha_pgpool -U authentik -d postgres -c "CREATE USER onboarding WITH PASSWORD '{{ effective_onboarding_db_password }}';"
+        fi
+
+        # 2. Key Step: Grant the new role to the 'authentik' manager user
+        # This allows 'authentik' to set 'onboarding' as the owner of the new database
+        psql -h db_ha_pgpool -U authentik -d postgres -c "GRANT onboarding TO authentik;"
+
+        # 3. Create database if not exists
+        DB_EXISTS=$(psql -h db_ha_pgpool -U authentik -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='onboarding'")
+        if [ "$DB_EXISTS" != "1" ]; then
+          psql -h db_ha_pgpool -U authentik -d postgres -c "CREATE DATABASE onboarding OWNER onboarding;"
+        fi
+        EOF
+      register: db_create_result
+      until: db_create_result.rc == 0
+      retries: 5
+      delay: 10
+      changed_when: "'CREATE' in db_create_result.stdout"
+
+    # -----------------------------------------------------------------------
+    # Generate and deploy stack
+    # -----------------------------------------------------------------------
+    - name: Generate onboarding service stack definition
+      template:
+        src: onboarding_service_stack.yml.j2
+        dest: /opt/docker/stacks/onboarding_service/docker-compose.yml
+        mode: '0644'
+
+    - name: Deploy onboarding service stack
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/onboarding_service/docker-compose.yml onboarding
+      register: deploy_result
+
+    # -----------------------------------------------------------------------
+    # Run Alembic migrations
+    # -----------------------------------------------------------------------
+    - name: Run Onboarding Service database migrations
+      command: >
+        docker run --rm --network shared-backend --entrypoint alembic
+        -e DATABASE_URL="postgresql+asyncpg://onboarding:{{ effective_onboarding_db_password }}@db_ha_pgpool:5432/onboarding?ssl=require"
+        {{ onboarding_service_image }}:{{ onboarding_service_version }}
+        upgrade head
+      register: migration_result
+      changed_when: "'Running upgrade' in migration_result.stdout"
+
+    - name: Wait for onboarding service to be healthy
+      shell: |
+        docker service ls --filter name=onboarding_onboarding-service --format '{{ "{{" }}.Replicas{{ "}}" }}'
+      register: service_status
+      until: "service_status.stdout.split('/')[0] | int >= 1"
+      retries: 30
+      delay: 10
+      changed_when: false
+
+  when: "inventory_hostname == groups['managers'][0]"

@@ -184,7 +184,18 @@
         name: payment_service
 
 # ==============================================================================
-# Play 10: Deploy Standalone Monitoring on Bastion
+# Play 10: Deploy Onboarding Service
+# ==============================================================================
+- name: Deploy Onboarding Service
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Configure Onboarding Service
+      include_role:
+        name: onboarding_service
+
+# ==============================================================================
+# Play 11: Deploy Standalone Monitoring on Bastion
 # ==============================================================================
 - name: Deploy Standalone Monitoring on Bastion
   hosts: bastion
@@ -194,7 +205,7 @@
       include_tasks: ../roles/monitoring/tasks/standalone.yml
 
 # ==============================================================================
-# Play 11: Deploy Monitoring Stack
+# Play 12: Deploy Monitoring Stack
 # ==============================================================================
 - name: Deploy Monitoring Stack
   hosts: managers[0]
