@@ -1,3 +1,9 @@
+## v0.36.2 (2026-04-04)
+
+### docs
+
+- update contribution guidelines for CI bump requirements
+
 ## v0.36.1 (2026-04-04)
 
 ### chore
