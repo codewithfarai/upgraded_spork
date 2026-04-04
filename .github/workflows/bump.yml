@@ -38,16 +38,21 @@ jobs:
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
 
-    - name: Detect changed paths
+    - name: Detect bump targets
       id: changes
       run: |
         set -euo pipefail
 
         CHANGED_FILES="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+        COMMIT_MESSAGES="$(git log --format=%s "${{ github.event.before }}..${{ github.sha }}")"
 
         ROOT_CHANGED=false
         ONBOARDING_CHANGED=false
         PAYMENT_CHANGED=false
+
+        ROOT_HAS_BUMP_MSG=false
+        ONBOARDING_HAS_BUMP_MSG=false
+        PAYMENT_HAS_BUMP_MSG=false
 
         if echo "$CHANGED_FILES" | grep -qE '^ride_base/onboarding_service/'; then
           ONBOARDING_CHANGED=true
@@ -61,31 +66,62 @@ jobs:
           ROOT_CHANGED=true
         fi
 
+        if echo "$COMMIT_MESSAGES" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\((infra|root)\):\s'; then
+          ROOT_HAS_BUMP_MSG=true
+        fi
+
+        if echo "$COMMIT_MESSAGES" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\(onboarding\):\s'; then
+          ONBOARDING_HAS_BUMP_MSG=true
+        fi
+
+        if echo "$COMMIT_MESSAGES" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\(payment\):\s'; then
+          PAYMENT_HAS_BUMP_MSG=true
+        fi
+
+        ROOT_SHOULD_BUMP=false
+        ONBOARDING_SHOULD_BUMP=false
+        PAYMENT_SHOULD_BUMP=false
+
+        if [[ "$ROOT_CHANGED" == true && "$ROOT_HAS_BUMP_MSG" == true ]]; then
+          ROOT_SHOULD_BUMP=true
+        fi
+
+        if [[ "$ONBOARDING_CHANGED" == true && "$ONBOARDING_HAS_BUMP_MSG" == true ]]; then
+          ONBOARDING_SHOULD_BUMP=true
+        fi
+
+        if [[ "$PAYMENT_CHANGED" == true && "$PAYMENT_HAS_BUMP_MSG" == true ]]; then
+          PAYMENT_SHOULD_BUMP=true
+        fi
+
         echo "root_changed=$ROOT_CHANGED" >> "$GITHUB_OUTPUT"
         echo "onboarding_changed=$ONBOARDING_CHANGED" >> "$GITHUB_OUTPUT"
         echo "payment_changed=$PAYMENT_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "root_should_bump=$ROOT_SHOULD_BUMP" >> "$GITHUB_OUTPUT"
+        echo "onboarding_should_bump=$ONBOARDING_SHOULD_BUMP" >> "$GITHUB_OUTPUT"
+        echo "payment_should_bump=$PAYMENT_SHOULD_BUMP" >> "$GITHUB_OUTPUT"
 
     - name: Install onboarding_service dependencies
-      if: steps.changes.outputs.onboarding_changed == 'true'
+      if: steps.changes.outputs.onboarding_should_bump == 'true'
       run: poetry -C ride_base/onboarding_service install --only dev
 
     - name: Install payment_service dependencies
-      if: steps.changes.outputs.payment_changed == 'true'
+      if: steps.changes.outputs.payment_should_bump == 'true'
       run: poetry -C ride_base/payment_service install --only dev
 
     - name: Bump root version
-      if: steps.changes.outputs.root_changed == 'true'
+      if: steps.changes.outputs.root_should_bump == 'true'
       run: |
         poetry run cz bump --changelog --yes || echo "Root: Nothing to bump"
 
     - name: Bump onboarding_service
-      if: steps.changes.outputs.onboarding_changed == 'true'
+      if: steps.changes.outputs.onboarding_should_bump == 'true'
       working-directory: ride_base/onboarding_service
       run: |
         poetry run cz bump --changelog --yes || echo "Onboarding Service: Nothing to bump"
 
     - name: Bump payment_service
-      if: steps.changes.outputs.payment_changed == 'true'
+      if: steps.changes.outputs.payment_should_bump == 'true'
       working-directory: ride_base/payment_service
       run: |
         poetry run cz bump --changelog --yes || echo "Payment Service: Nothing to bump"

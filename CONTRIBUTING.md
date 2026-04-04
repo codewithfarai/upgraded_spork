@@ -348,6 +348,14 @@ Each track bumps only when its paths change in CI:
 - Payment bump: changes under `ride_base/payment_service/`
 - Onboarding bump: changes under `ride_base/onboarding_service/`
 
+CI also requires matching commit message scopes before bumping:
+
+- Root bump requires `type(infra): ...` or `type(root): ...`
+- Payment bump requires `type(payment): ...`
+- Onboarding bump requires `type(onboarding): ...`
+
+If path changes exist without matching scope/type commits, that track is skipped (no empty bump release).
+
 For each service bump, Commitizen updates all three targets together:
 
 - `tool.poetry.version`
