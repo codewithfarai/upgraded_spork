@@ -1,3 +1,9 @@
+## v0.35.0 (2026-04-04)
+
+### feat
+
+- integrate Resend API to send payment confirmation emails via webhooks
+
 ## v0.34.0 (2026-04-04)
 
 ### feat
