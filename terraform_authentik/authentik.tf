@@ -398,18 +398,6 @@ data "authentik_property_mapping_provider_scope" "offline_access" {
   managed = "goauthentik.io/providers/oauth2/scope-offline_access"
 }
 
-# Create a custom scope to inject the user's groups into the JWT
-resource "authentik_property_mapping_provider_scope" "groups" {
-  name        = "ridebase-scope-groups"
-  scope_name  = "groups"
-  description = "Injects user groups into the JWT"
-  expression  = <<EOF
-return {
-    "groups": list(set([group.name for group in request.user.ak_groups.all()]))
-}
-EOF
-}
-
 # Custom scope to inject the user's numeric PK into the JWT
 # Piggybacks on the "profile" scope so no client changes are needed
 resource "authentik_property_mapping_provider_scope" "user_pk" {
@@ -452,7 +440,6 @@ resource "authentik_provider_oauth2" "ridebase" {
     data.authentik_property_mapping_provider_scope.profile.id,
     data.authentik_property_mapping_provider_scope.email.id,
     data.authentik_property_mapping_provider_scope.offline_access.id,
-    authentik_property_mapping_provider_scope.groups.id,
     authentik_property_mapping_provider_scope.subscription.id,
     authentik_property_mapping_provider_scope.user_pk.id,
   ]
