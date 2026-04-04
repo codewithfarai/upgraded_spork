@@ -106,7 +106,7 @@
 
     - name: Wait for payment service to be healthy
       shell: |
-        docker service ls --filter name=payment_payment-service --format '{{ "{{" }}.Replicas{{ "}}" }}'
+        docker service ls --filter name=payment_payment_service --format '{{ "{{" }}.Replicas{{ "}}" }}'
       register: service_status
       until: "service_status.stdout.split('/')[0] | int >= 1"
       retries: 30
