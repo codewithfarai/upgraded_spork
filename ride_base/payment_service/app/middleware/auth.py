@@ -74,7 +74,6 @@ async def get_current_user(
 
     except JWTError as e:
         logger.warning("JWT validation failed: %s", e)
-        clear_jwks_cache()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

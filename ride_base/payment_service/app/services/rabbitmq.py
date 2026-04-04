@@ -14,6 +14,7 @@ import logging
 
 import aio_pika
 from aio_pika.abc import AbstractRobustConnection
+from aio_pika.exceptions import AMQPConnectionError
 
 from app.config import settings
 

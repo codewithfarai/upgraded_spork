@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from app import __description__, __version__
 from app.api import subscriptions, webhooks
 from app.services.rabbitmq import publisher
+from app.consumers.authentik_sync import process_authentik_sync
+from app.consumers.db_tracker import process_db_tracking
+from app.consumers.email_notifier import process_email_notifications
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -41,7 +44,33 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage startup/shutdown: connect and disconnect RabbitMQ."""
+    # 1. Connect RabbitMQ
     await publisher.connect()
+
+    # Check if the connection succeeded!
+    if not publisher._connection:
+        logger.error("Failed to connect to RabbitMQ on startup. Exiting...")
+        raise RuntimeError("RabbitMQ connection required to start service.")
+
+    channel = await publisher._connection.channel()
+    exchange = publisher._exchange
+
+    # 2. Setup Authentik Queue
+    auth_queue = await channel.declare_queue("payment_service.authentik_sync", durable=True)
+    await auth_queue.bind(exchange, routing_key="subscription.*")
+    await auth_queue.consume(process_authentik_sync)
+
+    # 3. Setup DB Tracking Queue (Listens to both subs and payments)
+    db_queue = await channel.declare_queue("payment_service.db_tracking", durable=True)
+    await db_queue.bind(exchange, routing_key="subscription.*")
+    await db_queue.bind(exchange, routing_key="payment.*")
+    await db_queue.consume(process_db_tracking)
+
+    # 4. Setup Email Queue (Listens only to payments)
+    email_queue = await channel.declare_queue("payment_service.email_notifications", durable=True)
+    await email_queue.bind(exchange, routing_key="payment.*")
+    await email_queue.consume(process_email_notifications)
+
     logger.info("Payment service started")
     yield
     await publisher.disconnect()

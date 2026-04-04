@@ -19,7 +19,6 @@ import logging
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
-from app.services.authentik import get_authentik_user_id_from_customer, set_subscription_status
 from app.services.rabbitmq import publisher
 from app.services.stripe import verify_webhook
 
@@ -64,18 +63,6 @@ async def stripe_webhook(
     return {"status": "ok"}
 
 
-# ── Helpers ────────────────────────────────────────────────────
-
-
-async def _sync_authentik(customer_id: str, is_subscribed: bool) -> None:
-    """Resolve the Authentik user from Stripe customer and sync is_subscribed."""
-    user_id = await get_authentik_user_id_from_customer(customer_id)
-    if user_id:
-        await set_subscription_status(user_id, is_subscribed)
-    else:
-        logger.warning("Could not resolve Authentik user for Stripe customer %s", customer_id)
-
-
 # ── Event handlers ─────────────────────────────────────────────
 
 
@@ -84,10 +71,7 @@ async def _handle_checkout_completed(data) -> None:
     customer_id = getattr(data, "customer", "")
     subscription_id = getattr(data, "subscription", "")
 
-    # Sync is_subscribed=True to Authentik
-    await _sync_authentik(customer_id, is_subscribed=True)
-
-    await publisher.publish(
+    success = await publisher.publish(
         routing_key="subscription.created",
         message={
             "event_type": "subscription.created",
@@ -96,6 +80,9 @@ async def _handle_checkout_completed(data) -> None:
             "is_subscribed": True,
         },
     )
+    if not success:
+        logger.error("Failed to enqueue subscription.created for %s", subscription_id)
+        raise HTTPException(status_code=500, detail="Failed to enqueue event")
     logger.info("Driver subscription created: %s", subscription_id)
 
 
@@ -105,10 +92,7 @@ async def _handle_subscription_updated(data) -> None:
     customer_id = getattr(data, "customer", "")
     is_subscribed = sub_status in ("active", "trialing")
 
-    # Sync to Authentik on every status change
-    await _sync_authentik(customer_id, is_subscribed=is_subscribed)
-
-    await publisher.publish(
+    success = await publisher.publish(
         routing_key="subscription.updated",
         message={
             "event_type": "subscription.updated",
@@ -119,16 +103,16 @@ async def _handle_subscription_updated(data) -> None:
             "cancel_at_period_end": getattr(data, "cancel_at_period_end", False),
         },
     )
+    if not success:
+        logger.error("Failed to enqueue subscription.updated for %s", getattr(data, "id", ""))
+        raise HTTPException(status_code=500, detail="Failed to enqueue event")
 
 
 async def _handle_subscription_deleted(data) -> None:
     """A subscription was fully canceled/deleted — driver no longer subscribed."""
     customer_id = getattr(data, "customer", "")
 
-    # Sync is_subscribed=False to Authentik
-    await _sync_authentik(customer_id, is_subscribed=False)
-
-    await publisher.publish(
+    success = await publisher.publish(
         routing_key="subscription.deleted",
         message={
             "event_type": "subscription.deleted",
@@ -137,12 +121,15 @@ async def _handle_subscription_deleted(data) -> None:
             "is_subscribed": False,
         },
     )
+    if not success:
+        logger.error("Failed to enqueue subscription.deleted for %s", getattr(data, "id", ""))
+        raise HTTPException(status_code=500, detail="Failed to enqueue event")
     logger.info("Driver subscription deleted: %s", getattr(data, "id", ""))
 
 
 async def _handle_payment_succeeded(data) -> None:
     """An invoice payment succeeded."""
-    await publisher.publish(
+    success = await publisher.publish(
         routing_key="payment.succeeded",
         message={
             "event_type": "payment.succeeded",
@@ -153,11 +140,14 @@ async def _handle_payment_succeeded(data) -> None:
             "currency": getattr(data, "currency", "usd"),
         },
     )
+    if not success:
+        logger.error("Failed to enqueue payment.succeeded for %s", getattr(data, "id", ""))
+        raise HTTPException(status_code=500, detail="Failed to enqueue event")
 
 
 async def _handle_payment_failed(data) -> None:
     """An invoice payment failed."""
-    await publisher.publish(
+    success = await publisher.publish(
         routing_key="payment.failed",
         message={
             "event_type": "payment.failed",
@@ -168,4 +158,7 @@ async def _handle_payment_failed(data) -> None:
             "currency": getattr(data, "currency", "usd"),
         },
     )
+    if not success:
+        logger.error("Failed to enqueue payment.failed for %s", getattr(data, "id", ""))
+        raise HTTPException(status_code=500, detail="Failed to enqueue event")
     logger.warning("Payment failed for invoice %s", getattr(data, "id", ""))
