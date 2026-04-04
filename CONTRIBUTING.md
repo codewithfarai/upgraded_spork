@@ -331,3 +331,25 @@ Examples:
 - `feat(payment): add webhook idempotency guard`
 - `fix(onboarding): validate OIDC subject mapping`
 - `chore(infra): align shared event contracts`
+
+---
+
+## Versioning Model
+
+This repository uses three independent semantic version tracks:
+
+- Root platform (`pyproject.toml`, tag format `vX.Y.Z`)
+- Payment service (`ride_base/payment_service/pyproject.toml`, tag format `payment_service-vX.Y.Z`)
+- Onboarding service (`ride_base/onboarding_service/pyproject.toml`, tag format `onboarding_service-vX.Y.Z`)
+
+Each track bumps only when its paths change in CI:
+
+- Root bump: any changes outside both service folders
+- Payment bump: changes under `ride_base/payment_service/`
+- Onboarding bump: changes under `ride_base/onboarding_service/`
+
+For each service bump, Commitizen updates all three targets together:
+
+- `tool.poetry.version`
+- `tool.commitizen.version`
+- `app/__init__.py` `__version__`

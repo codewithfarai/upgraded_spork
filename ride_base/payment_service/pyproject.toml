@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ridebase_payment_service"
-version = "0.2.0"
+version = "0.3.0"
 description = "Subscription and Payment Service for RideBase"
 authors = ["Farai Wande <faraiwande@ridebase.tech>"]
 license = "MIT"

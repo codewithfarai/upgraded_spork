@@ -65,6 +65,14 @@ jobs:
         echo "onboarding_changed=$ONBOARDING_CHANGED" >> "$GITHUB_OUTPUT"
         echo "payment_changed=$PAYMENT_CHANGED" >> "$GITHUB_OUTPUT"
 
+    - name: Install onboarding_service dependencies
+      if: steps.changes.outputs.onboarding_changed == 'true'
+      run: poetry -C ride_base/onboarding_service install --only dev
+
+    - name: Install payment_service dependencies
+      if: steps.changes.outputs.payment_changed == 'true'
+      run: poetry -C ride_base/payment_service install --only dev
+
     - name: Bump root version
       if: steps.changes.outputs.root_changed == 'true'
       run: |
@@ -72,13 +80,15 @@ jobs:
 
     - name: Bump onboarding_service
       if: steps.changes.outputs.onboarding_changed == 'true'
+      working-directory: ride_base/onboarding_service
       run: |
-        poetry run cz --config ride_base/onboarding_service/pyproject.toml bump --changelog --yes || echo "Onboarding Service: Nothing to bump"
+        poetry run cz bump --changelog --yes || echo "Onboarding Service: Nothing to bump"
 
     - name: Bump payment_service
       if: steps.changes.outputs.payment_changed == 'true'
+      working-directory: ride_base/payment_service
       run: |
-        poetry run cz --config ride_base/payment_service/pyproject.toml bump --changelog --yes || echo "Payment Service: Nothing to bump"
+        poetry run cz bump --changelog --yes || echo "Payment Service: Nothing to bump"
 
     - name: Push changes
       run: |
