@@ -361,3 +361,25 @@ For each service bump, Commitizen updates all three targets together:
 - `tool.poetry.version`
 - `tool.commitizen.version`
 - `app/__init__.py` `__version__`
+
+---
+
+## Onboarding Migrations
+
+Onboarding DB migrations are deployment_driven. Do not run migration upgrades manually from your local terminal.
+
+When schema changes are needed (for example adding a column):
+
+1. Update SQLAlchemy models in `ride_base/onboarding_service/app/models/`.
+2. Create a migration scaffold:
+   ```bash
+   cd ride_base/onboarding_service
+   poetry run alembic revision -m "add_<column_name>_to_<table_name>"
+   ```
+3. Edit the generated file in `ride_base/onboarding_service/migrations/versions/`:
+   - Add explicit operations in `upgrade()` (`op.add_column`, `op.create_index`, etc.)
+   - Add reverse operations in `downgrade()`
+4. Commit the model + migration files.
+5. Deploy normally via Ansible.
+
+During deployment, Ansible runs `alembic upgrade head` in a one-off migration container and injects `DATABASE_URL` from deployment variables/secrets. The migration task is serialized with a lock and retried on transient failures.
