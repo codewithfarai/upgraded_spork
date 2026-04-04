@@ -29,6 +29,7 @@ version_files = [
     "ride_base/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+change_type_path = ":!ride_base/onboarding_service :!ride_base/payment_service"
 
 [tool.commitizen.customize]
 schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci):(\\s.*)"

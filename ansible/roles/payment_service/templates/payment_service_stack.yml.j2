@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  payment-service:
+  payment_service:
     image: {{ payment_service_image }}:{{ payment_service_version }}
     security_opt:
       - no-new-privileges:true
@@ -48,9 +48,9 @@ services:
         - traefik.enable=true
         - traefik.http.routers.payment.rule=Host(`{{ payment_service_full_domain }}`)
         - traefik.http.routers.payment.entrypoints=web
-        - traefik.http.routers.payment.service=payment-svc
+        - traefik.http.routers.payment.service=payment_service
         - traefik.http.routers.payment.middlewares=security-headers@file,global-ratelimit@file
-        - traefik.http.services.payment-svc.loadbalancer.server.port=8000
+        - traefik.http.services.payment_service.loadbalancer.server.port=8000
         - traefik.swarm.network=traefik-public
       update_config:
         parallelism: 1

@@ -2,7 +2,7 @@
 
 # Docker image — push to Docker Hub under your account
 # e.g. docker build -t fwande/ridebase-onboarding-service:0.1.0 .
-onboarding_service_image: "{{ lookup('env', 'ONBOARDING_SERVICE_IMAGE') | default('fwande/ridebase-onboarding-service', true) }}"
+onboarding_service_image: "{{ lookup('env', 'ONBOARDING_SERVICE_IMAGE') | default('fwande/ridebase_onboarding_service', true) }}"
 onboarding_service_version: "0.1.4"
 
 # Domain prefix — results in onboarding.dev.ridebase.tech (dev) or onboarding.ridebase.tech (prod)

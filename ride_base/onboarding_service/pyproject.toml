@@ -38,6 +38,7 @@ version_files = [
     "app/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+change_type_path = "ride_base/onboarding_service"
 # Ensure changelog is specific to this service
 changelog_file = "CHANGELOG.md"
 
