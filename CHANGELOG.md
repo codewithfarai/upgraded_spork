@@ -1,3 +1,9 @@
+## v0.38.0 (2026-04-04)
+
+### refactor
+
+- enhance service deployment with version detection and enable/disable flags
+
 ## v0.37.0 (2026-04-04)
 
 ### docs
