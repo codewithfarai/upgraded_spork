@@ -1,3 +1,9 @@
+## onboarding_service-v0.6.2 (2026-04-04)
+
+### refactor
+
+- update migration scripts for car colour and national ID photo
+
 ## onboarding_service-v0.6.1 (2026-04-04)
 
 ### refactor
