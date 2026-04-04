@@ -28,7 +28,7 @@ name = "cz_customize"
 # Use a specific tag format for this service in the monorepo
 tag_format = "payment_service-v$version"
 version_scheme = "semver2"
-version = "0.1.0"
+version = "0.2.0"
 version_files = [
     "pyproject.toml:version",
     "app/__init__.py:__version__"
