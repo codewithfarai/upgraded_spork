@@ -6,7 +6,7 @@ Single plan: $14.99/month driver subscription.
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.middleware.auth import get_current_user
 from app.models.schemas import (
@@ -66,6 +66,11 @@ async def create_checkout(
         name=user.get("preferred_username"),
         authentik_pk=user.get("authentik_pk"),
     )
+
+    # Block checkout if user already has an active subscription
+    existing = get_customer_subscriptions(customer.id)
+    if any(_is_active(s.status) for s in existing):
+        raise HTTPException(status_code=409, detail="Active subscription already exists")
 
     session = create_checkout_session(
         customer_id=customer.id,
