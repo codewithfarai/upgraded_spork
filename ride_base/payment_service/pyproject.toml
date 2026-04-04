@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ridebase_payment_service"
-version = "0.3.0"
+version = "0.3.1"
 description = "Subscription and Payment Service for RideBase"
 authors = ["Farai Wande <faraiwande@ridebase.tech>"]
 license = "MIT"
@@ -28,7 +28,7 @@ name = "cz_customize"
 # Use a specific tag format for this service in the monorepo
 tag_format = "payment_service-v$version"
 version_scheme = "semver2"
-version = "0.3.0"
+version = "0.3.1"
 version_files = [
     "pyproject.toml:version",
     "app/__init__.py:__version__"
