@@ -1,3 +1,9 @@
+## v0.35.3 (2026-04-04)
+
+### refactor
+
+- standardize service naming conventions and add service-specific Makefiles and automated version bumping workflows
+
 ## v0.35.2 (2026-04-04)
 
 ### chore
