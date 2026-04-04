@@ -1,3 +1,9 @@
+## v0.35.1 (2026-04-04)
+
+### chore
+
+- initialize virtual environment dependencies for onboarding service
+
 ## v0.35.0 (2026-04-04)
 
 ### feat
