@@ -6,42 +6,38 @@ Onboarding Service for RideBase.
 
 Use this flow whenever you change SQLAlchemy models (for example, adding a new column).
 
-This service uses deployment-driven migrations. You do not need to run Alembic locally.
-
 ### 1. Make your model change
 
-Example: add a new column in one of the models under `app/models/`.
+Edit the relevant model under `app/models/`.
 
-### 2. Create a migration file
-
-Generate a new revision file in the service project:
+### 2. Generate the migration
 
 ```bash
-poetry run alembic revision -m "add_<column_name>_to_<table_name>"
+make migrate m="describe_your_change"
 ```
 
-Notes:
+This single command:
+- Spins up a temporary local Postgres container
+- Applies all existing migrations to it (so it reflects the current prod schema)
+- Runs `alembic revision --autogenerate` to diff your models and generate the delta
+- Destroys the temporary container
 
-- This creates a migration scaffold under `migrations/versions/`.
-- Add explicit `op.add_column(...)`, `op.create_index(...)`, etc. in `upgrade()` and the reverse in `downgrade()`.
-- Keep migrations transactional/idempotent where possible.
+The new migration file will appear under `migrations/versions/`.
 
 ### 3. Review the generated migration
 
-Check the file under `migrations/versions/` and confirm it contains exactly the operations you expect.
+Check the file under `migrations/versions/` and confirm it contains exactly the operations you expect. Autogenerate is not perfect — always review before committing.
 
-### 4. Deploy
+### 4. Commit and deploy
 
-Run your normal deployment pipeline/playbook. During deploy, Ansible runs migrations for you.
+Commit the migration file alongside your model changes, build and push the image, then run the Ansible playbook. Ansible will automatically apply `alembic upgrade head` inside the new container against the real database.
 
 ## Deployment Behavior (Ansible)
 
-In deployment, Ansible runs Alembic in a one-off container:
+During deployment, Ansible runs Alembic in a one-off container:
 
 ```bash
 alembic upgrade head
 ```
 
-`DATABASE_URL` is injected at runtime by Ansible from deployment secrets/variables.
-
-The migration task is configured to be retryable and serialized with a host lock, so reruns after interruptions are safe.
+`DATABASE_URL` is injected at runtime from deployment secrets. The migration step is serialized with a host lock and retryable, so reruns after interruptions are safe.
