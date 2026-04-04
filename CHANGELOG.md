@@ -1,3 +1,13 @@
+## v0.34.0 (2026-04-04)
+
+### feat
+
+- Prevent multiple active subscriptions during checkout
+
+### refactor
+
+- decouple Authentik sync and event processing by migrating to asynchronous RabbitMQ consumers
+
 ## v0.33.0 (2026-04-03)
 
 ### feat
