@@ -11,18 +11,18 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build          Build the docker image: $(IMAGE_NAME):$(VERSION)"
-	@echo "  push           Push the docker image to registry"
+	@echo "  build          Build and push multi-platform image: $(IMAGE_NAME):$(VERSION)"
+	@echo "  push           Alias for build (build and push are combined)"
 	@echo "  migrate m=msg  Generate a new Alembic migration (autogenerate)"
 
-build:
-	@echo "🔨 Building $(IMAGE_NAME):$(VERSION)..."
-	docker build -t $(IMAGE_NAME):$(VERSION) -t $(IMAGE_NAME):latest .
-
-push:
-	@echo "🚀 Pushing $(IMAGE_NAME):$(VERSION)..."
-	docker push $(IMAGE_NAME):$(VERSION)
-	docker push $(IMAGE_NAME):latest
+build push:
+	@echo "🔨 Building & pushing $(IMAGE_NAME):$(VERSION) (linux/amd64 + linux/arm64)..."
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--push \
+		-t $(IMAGE_NAME):$(VERSION) \
+		-t $(IMAGE_NAME):latest \
+		.
 
 migrate:
 	@test -n "$(m)" || (echo "❌ Usage: make migrate m='your message'"; exit 1)
