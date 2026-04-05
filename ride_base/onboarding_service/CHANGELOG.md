@@ -1,3 +1,10 @@
+## onboarding_service-v0.8.0 (2026-04-05)
+
+### feat
+
+- add hiredis, pyjwt, and redis packages with respective versions
+- update email template and sender for OTP verification
+
 ## onboarding_service-v0.7.0 (2026-04-04)
 
 ### feat
