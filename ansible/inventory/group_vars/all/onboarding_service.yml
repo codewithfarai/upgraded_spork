@@ -21,6 +21,9 @@ onboarding_service_authentik_api_token: "{{ lookup('env', 'ONBOARDING_SERVICE_AU
 onboarding_service_db_name: "onboarding"
 onboarding_service_db_user: "onboarding"
 
+# Resend API key for OTP email verification
+onboarding_service_resend_api_key: "{{ lookup('env', 'RESEND_API_KEY') }}"
+
 # S3 / Hetzner Object Storage for driver license uploads
 onboarding_service_s3_endpoint_url: "{{ lookup('env', 'S3_ENDPOINT_URL') }}"
 onboarding_service_s3_access_key: "{{ lookup('env', 'S3_ACCESS_KEY') }}"

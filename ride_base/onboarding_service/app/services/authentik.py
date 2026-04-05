@@ -65,3 +65,50 @@ async def add_user_to_driver_group(authentik_user_id: str) -> bool:
     except Exception as e:
         logger.error("Failed to add user %s to driver group: %s", authentik_user_id, e)
         return False
+
+
+async def set_email_verified(authentik_user_id: str, verified: bool = True) -> bool:
+    """Set the `email_verified` custom attribute on an Authentik user.
+
+    This attribute is exposed in the JWT via a custom scope mapping,
+    so the mobile app can check email verification status from the token.
+    """
+    url = f"{settings.AUTHENTIK_API_URL}/api/v3/core/users/{authentik_user_id}/"
+    headers = {
+        "Authorization": f"Bearer {settings.AUTHENTIK_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            current_attrs = resp.json().get("attributes", {})
+
+            current_attrs["email_verified"] = verified
+
+            patch_resp = await client.patch(
+                url,
+                headers=headers,
+                json={"attributes": current_attrs},
+            )
+            patch_resp.raise_for_status()
+
+        logger.info(
+            "Set email_verified=%s for Authentik user %s",
+            verified,
+            authentik_user_id,
+        )
+        return True
+
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            "Failed to update Authentik user %s: %s %s",
+            authentik_user_id,
+            e.response.status_code,
+            e.response.text,
+        )
+        return False
+    except httpx.HTTPError as e:
+        logger.error("Authentik API request failed for user %s: %s", authentik_user_id, e)
+        return False

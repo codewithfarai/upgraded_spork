@@ -32,6 +32,11 @@
         path: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
       register: onboarding_db_pass_stat
 
+    - name: Check for existing Resend API key
+      stat:
+        path: /opt/docker/stacks/onboarding_service/secrets/resend_api_key
+      register: resend_api_key_stat
+
     - name: Check for existing Authentik Terraform token
       stat:
         path: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
@@ -74,6 +79,15 @@
       no_log: true
       register: onboarding_db_pass_file
 
+    - name: Write Resend API key
+      copy:
+        content: "{{ onboarding_service_resend_api_key }}"
+        dest: /opt/docker/stacks/onboarding_service/secrets/resend_api_key
+        mode: '0600'
+      when: (onboarding_service_resend_api_key | default('') != '') and (not resend_api_key_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool))
+      no_log: true
+      register: resend_api_key_file
+
     # -----------------------------------------------------------------------
     # Read back secrets for hash computation
     # -----------------------------------------------------------------------
@@ -84,6 +98,7 @@
         - authentik_api_token
         - s3_secret_key
         - onboarding_db_password
+        - resend_api_key
       register: secret_stats
 
     - name: Set secret hash facts
@@ -91,6 +106,7 @@
         authentik_api_token_hash: "{{ secret_stats.results[0].stat.checksum | truncate(10, True, '') }}"
         s3_secret_key_hash: "{{ secret_stats.results[1].stat.checksum | truncate(10, True, '') }}"
         onboarding_db_password_hash: "{{ secret_stats.results[2].stat.checksum | truncate(10, True, '') }}"
+        resend_api_key_hash: "{{ secret_stats.results[3].stat.checksum | truncate(10, True, '') }}"
 
     # -----------------------------------------------------------------------
     # Resolve shared variables from other roles
@@ -99,6 +115,11 @@
       slurp:
         src: /opt/docker/stacks/database_ha/secrets/rabbitmq_password
       register: slurped_rabbitmq_pass
+
+    - name: Slurp Redis password from database_ha
+      slurp:
+        src: /opt/docker/stacks/database_ha/secrets/redis_password
+      register: slurped_redis_pass
 
     - name: Slurp PostgreSQL password from database_ha
       slurp:
@@ -113,6 +134,7 @@
     - name: Set effective variables
       set_fact:
         effective_rabbitmq_password: "{{ slurped_rabbitmq_pass['content'] | b64decode }}"
+        effective_redis_password: "{{ slurped_redis_pass['content'] | b64decode }}"
         effective_postgres_password: "{{ slurped_postgres_pass['content'] | b64decode }}"
         effective_onboarding_db_password: "{{ slurped_onboarding_db_pass['content'] | b64decode }}"
         authentik_full_domain: "{{ authentik_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"

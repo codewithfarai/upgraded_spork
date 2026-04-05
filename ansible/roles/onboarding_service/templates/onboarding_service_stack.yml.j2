@@ -20,6 +20,9 @@ services:
       RABBITMQ_URL: "amqp://admin:{{ effective_rabbitmq_password }}@db_ha_pgpool:5672/"
       RABBITMQ_EXCHANGE: "ridebase.events"
 
+      # Redis (OTP storage, via HAProxy on db_ha_pgpool)
+      REDIS_URL: "redis://:{{ effective_redis_password }}@db_ha_pgpool:6379/0"
+
       # Database Connection mapping format: postgresql+asyncpg://user:pass@host:port/dbname
       DATABASE_URL: "postgresql+asyncpg://{{ onboarding_service_db_user }}:{{ effective_onboarding_db_password }}@db_ha_pgpool:5432/{{ onboarding_service_db_name }}?ssl=require"
 
@@ -43,6 +46,8 @@ services:
         target: s3_secret_key
       - source: onboarding_db_password-{{ onboarding_db_password_hash }}
         target: onboarding_db_password
+      - source: resend_api_key-{{ resend_api_key_hash }}
+        target: resend_api_key
     deploy:
       mode: replicated
       replicas: {{ onboarding_service_replicas | default(2) }}
@@ -89,3 +94,6 @@ secrets:
 
   onboarding_db_password-{{ onboarding_db_password_hash }}:
     file: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
+
+  resend_api_key-{{ resend_api_key_hash }}:
+    file: /opt/docker/stacks/onboarding_service/secrets/resend_api_key

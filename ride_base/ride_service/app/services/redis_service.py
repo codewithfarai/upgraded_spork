@@ -4,13 +4,11 @@ GPS write path:
     Driver ping → Redis HSET (O(1), no Postgres hit per ping)
                → H3 cell index updated (SREM old / SADD new)
                → Redis PUBLISH to rider channel → relay task → WebSocket frame
-               → Background task flushes to Postgres every GPS_FLUSH_INTERVAL_S
 
 Redis key schema:
-    driver:loc:{driver_id}              HASH  lat/lng/eta/h3_tracking/h3_broadcast/ride_id/updated_at/flushed
+    driver:loc:{driver_id}              HASH  lat/lng/eta/h3_tracking/h3_broadcast/ride_id/updated_at
     driver:online                       SET   currently online driver_ids
     h3:{resolution}:{cell}              SET   driver_ids in that H3 hexagon
-    driver:loc:pending_flush            SET   driver_ids with unflushed location
     ride:rider:{ride_guid}              STRING rider_id — cached mapping for GPS relay (24h TTL)
     rider:{rider_id}                    PUBSUB channel → rider WebSocket relay
     driver:{driver_id}                  PUBSUB channel → driver WebSocket relay
@@ -109,7 +107,6 @@ async def write_driver_location(
         "h3_tracking": new_track_cell,
         "h3_broadcast": new_bcast_cell,
         "updated_at": now,
-        "flushed": "0",
     })
 
     # Add to new H3 cell sets
@@ -120,9 +117,6 @@ async def write_driver_location(
     pipe.expire(loc_key, 300)
     pipe.expire(f"h3:{settings.H3_TRACKING_RESOLUTION}:{new_track_cell}", 300)
     pipe.expire(f"h3:{settings.H3_BROADCAST_RESOLUTION}:{new_bcast_cell}", 300)
-
-    # Mark pending Postgres flush
-    pipe.sadd("driver:loc:pending_flush", driver_id)
 
     await pipe.execute()
     return new_bcast_cell
@@ -239,57 +233,3 @@ async def subscribe_to_channel(channel: str) -> Any:
     pubsub = redis.pubsub()
     await pubsub.subscribe(channel)
     return pubsub
-
-
-# ---------------------------------------------------------------------------
-# Background GPS flush: Redis → Postgres
-# ---------------------------------------------------------------------------
-
-async def flush_pending_locations_to_db(session_factory) -> None:
-    """Flush pending driver GPS positions from Redis to Postgres.
-
-    Reads all driver_ids in the pending_flush set, updates their active ride
-    row, then clears the set. Safe to run concurrently — worst case: a
-    location is flushed twice with the same coordinates.
-    """
-    from app.models.ride import Ride
-    from sqlalchemy import select
-
-    redis = await get_redis()
-    pending: set[str] = await redis.smembers("driver:loc:pending_flush")
-    if not pending:
-        return
-
-    async with session_factory() as db:
-        for driver_id in pending:
-            loc = await redis.hgetall(f"driver:loc:{driver_id}")
-            if not loc or loc.get("flushed") == "1":
-                continue
-
-            ride_guid = loc.get("ride_id", "")
-            if not ride_guid:
-                continue
-
-            result = await db.execute(select(Ride).where(Ride.ride_guid == ride_guid))
-            ride = result.scalar_one_or_none()
-            if ride:
-                ride.driver_current_latitude = float(loc.get("lat", 0))
-                ride.driver_current_longitude = float(loc.get("lng", 0))
-                ride.driver_eta_minutes = int(loc.get("eta", 0))
-
-            await redis.hset(f"driver:loc:{driver_id}", "flushed", "1")
-
-        await db.commit()
-
-    await redis.delete("driver:loc:pending_flush")
-    logger.debug("GPS flush: %d driver(s) written to Postgres", len(pending))
-
-
-async def start_gps_flush_loop(session_factory) -> None:
-    """Async background loop — flushes GPS locations to Postgres on interval."""
-    while True:
-        await asyncio.sleep(settings.GPS_FLUSH_INTERVAL_S)
-        try:
-            await flush_pending_locations_to_db(session_factory)
-        except Exception:
-            logger.exception("GPS flush to Postgres failed")

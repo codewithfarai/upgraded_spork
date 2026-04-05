@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
     RABBITMQ_EXCHANGE: str = "ridebase.events"
 
+    # Redis (OTP storage)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Resend (email OTP)
+    RESEND_API_KEY: str = ""
+
     @model_validator(mode="before")
     @classmethod
     def derive_defaults(cls, values: dict) -> dict:

@@ -11,6 +11,17 @@ data "authentik_flow" "default_authorization_flow" {
   slug = "default-provider-authorization-explicit-consent"
 }
 
+# Custom authorization flow — no consent stage, no policy restrictions.
+# The built-in implicit consent flow has internal policies that deny non-superusers.
+# This flow auto-approves any authenticated user (including Google SSO users).
+resource "authentik_flow" "ridebase_authorization" {
+  name               = "ridebase-authorization"
+  slug               = "ridebase-authorization"
+  title              = "Authorize RideBase"
+  designation        = "authorization"
+  policy_engine_mode = "any"
+}
+
 data "authentik_flow" "default_invalidation_flow" {
   slug = "default-provider-invalidation-flow"
 }
@@ -237,80 +248,19 @@ resource "authentik_stage_prompt" "enrollment_prompt" {
   validation_policies = []
 }
 
-# User write — creates the account as inactive until email is verified
+# User write — creates the account as active immediately
 resource "authentik_stage_user_write" "enrollment_user_write" {
   name                     = "ridebase-enrollment-user-write"
-  create_users_as_inactive = true
+  create_users_as_inactive = false
   create_users_group       = authentik_group.ridebase_riders.id
 }
 
 # Email OTP verification stage
-resource "null_resource" "enrollment_email_stage" {
-  triggers = {
-    always_run    = timestamp()
-    authentik_url = var.authentik_url
-    stage_name    = "ridebase-enrollment-email-verify"
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-      EXISTING=$(curl -sk \
-        -H "Authorization: Bearer ${var.authentik_token}" \
-        "${var.authentik_url}/api/v3/stages/email/?name=ridebase-enrollment-email-verify" \
-        | jq -r '.results | length')
-      if [ "$EXISTING" = "0" ]; then
-        curl -sk -X POST \
-          -H "Authorization: Bearer ${var.authentik_token}" \
-          -H "Content-Type: application/json" \
-          -d '{
-            "name": "ridebase-enrollment-email-verify",
-            "use_global_settings": true,
-            "activate_user_on_success": true,
-            "subject": "Activate your RideBase account",
-            "template": "email/account_confirmation.html",
-            "token_expiry": "hours=0;minutes=30;seconds=0"
-          }' \
-          "${var.authentik_url}/api/v3/stages/email/" | jq .
-      else
-        echo "Email stage already exists, skipping."
-      fi
-    EOT
-  }
-}
-
-# Bind email stage to enrollment flow
-resource "null_resource" "enroll_email_binding" {
-  depends_on = [null_resource.enrollment_email_stage]
-
-  triggers = {
-    always_run = timestamp()
-    flow_uuid  = authentik_flow.ridebase_enrollment.uuid
-    stage_name = "ridebase-enrollment-email-verify"
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-      STAGE_UUID=$(curl -sk \
-        -H "Authorization: Bearer ${var.authentik_token}" \
-        "${var.authentik_url}/api/v3/stages/email/?name=ridebase-enrollment-email-verify" \
-        | jq -r '.results[0].pk')
-      echo "Email stage UUID: $STAGE_UUID"
-      EXISTING_BINDING=$(curl -sk \
-        -H "Authorization: Bearer ${var.authentik_token}" \
-        "${var.authentik_url}/api/v3/flows/bindings/?target=${authentik_flow.ridebase_enrollment.uuid}&stage=$STAGE_UUID" \
-        | jq -r '.results | length')
-      if [ "$EXISTING_BINDING" = "0" ]; then
-        curl -sk -X POST \
-          -H "Authorization: Bearer ${var.authentik_token}" \
-          -H "Content-Type: application/json" \
-          -d "{\"target\": \"${authentik_flow.ridebase_enrollment.uuid}\", \"stage\": \"$STAGE_UUID\", \"order\": 20}" \
-          "${var.authentik_url}/api/v3/flows/bindings/" | jq .
-      else
-        echo "Email binding already exists, skipping."
-      fi
-    EOT
-  }
-}
+# Email stage removed — email OTP verification is now handled
+# by the onboarding service after sign-up (not in the Authentik flow).
+# To clean up the existing stage+binding from Authentik, run:
+#   curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" \
+#     "$AUTH_URL/api/v3/stages/email/?name=ridebase-enrollment-email-verify"
 
 # User login stage (shared by both flows)
 resource "authentik_stage_user_login" "default_login" {
@@ -424,10 +374,24 @@ return {
 EOF
 }
 
+# Custom scope to inject email_verified boolean into the JWT
+# This attribute is set by the onboarding service via the Authentik API
+# after the user verifies their email with a 6-digit OTP
+resource "authentik_property_mapping_provider_scope" "email_verified" {
+  name        = "ridebase-scope-email-verified"
+  scope_name  = "profile"
+  description = "Injects email verification status (email_verified) into the JWT"
+  expression  = <<EOF
+return {
+    "email_verified": request.user.attributes.get("email_verified", False)
+}
+EOF
+}
+
 resource "authentik_provider_oauth2" "ridebase" {
   name                = "RideBase Provider"
   client_id           = "ridebase"
-  authorization_flow  = data.authentik_flow.default_authorization_flow.id
+  authorization_flow  = authentik_flow.ridebase_authorization.uuid
   invalidation_flow   = data.authentik_flow.default_invalidation_flow.id
   authentication_flow = authentik_flow.ridebase_authentication.uuid
   client_type         = "public"
@@ -442,14 +406,30 @@ resource "authentik_provider_oauth2" "ridebase" {
     data.authentik_property_mapping_provider_scope.offline_access.id,
     authentik_property_mapping_provider_scope.subscription.id,
     authentik_property_mapping_provider_scope.user_pk.id,
+    authentik_property_mapping_provider_scope.email_verified.id,
   ]
 }
 
 resource "authentik_application" "ridebase" {
-  name              = "RideBase"
-  slug              = "ridebase"
-  protocol_provider = authentik_provider_oauth2.ridebase.id
-  open_in_new_tab   = false
+  name               = "RideBase"
+  slug               = "ridebase"
+  protocol_provider  = authentik_provider_oauth2.ridebase.id
+  open_in_new_tab    = false
+  policy_engine_mode = "any"
+}
+
+# Allow riders — default group for all sign-ups (username/password + Google)
+resource "authentik_policy_binding" "ridebase_riders_access" {
+  target = authentik_application.ridebase.uuid
+  group  = authentik_group.ridebase_riders.id
+  order  = 0
+}
+
+# Allow drivers
+resource "authentik_policy_binding" "ridebase_drivers_access" {
+  target = authentik_application.ridebase.uuid
+  group  = authentik_group.ridebase_drivers.id
+  order  = 1
 }
 
 # ==============================================================================

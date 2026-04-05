@@ -152,7 +152,7 @@ async def update_driver_location(
 ):
     """Fast-path GPS ping: writes to Redis only.
 
-    No Postgres hit per ping — the background flush loop handles persistence.
+    No Postgres hit per ping — GPS lives in Redis only.
     H3 cell index is updated atomically in Redis.
     """
     driver_id = _user_id(current_user)

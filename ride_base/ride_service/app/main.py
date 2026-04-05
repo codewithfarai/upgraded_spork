@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import logging.config
 from contextlib import asynccontextmanager
@@ -8,9 +7,8 @@ from fastapi import FastAPI
 from app import __description__, __version__
 from app.api import driver, rider
 from app.config import settings
-from app.db.database import _get_session_factory
 from app.services.rabbitmq import publisher
-from app.services.redis_service import close_redis, start_gps_flush_loop
+from app.services.redis_service import close_redis
 from app.consumers.location_sync import process_mqtt_driver_location
 from app.websocket import ws
 
@@ -58,22 +56,8 @@ async def lifespan(app: FastAPI):
     await mqtt_loc_queue.bind(exchange, routing_key="rides.driver.*.location")
     await mqtt_loc_queue.consume(process_mqtt_driver_location)
 
-    # ── Background GPS flush: Redis → Postgres ────────────────────────
-    # Runs every GPS_FLUSH_INTERVAL_S (default 15s).
-    # Driver location pings write to Redis only; this task batch-flushes
-    # them to Postgres so persistent storage is never a per-ping bottleneck.
-    flush_task = asyncio.create_task(
-        start_gps_flush_loop(_get_session_factory())
-    )
-
     logger.info("Ride service started (env=%s, domain=%s)", settings.TARGET_ENV, settings.DOMAIN_NAME)
     yield
-
-    flush_task.cancel()
-    try:
-        await flush_task
-    except asyncio.CancelledError:
-        pass
 
     await publisher.disconnect()
     await close_redis()

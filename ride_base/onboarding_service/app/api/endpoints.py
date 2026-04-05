@@ -1,5 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Form, status
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,6 +10,7 @@ from app.models.profile import UserProfile, RoleEnum
 from app.models.vehicle import DriverDetails
 from app.services.s3 import upload_file_to_s3
 from app.services.rabbitmq import publisher
+from app.services.otp import generate_otp, verify_otp
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,7 @@ async def create_profile(
     phone_number: str = Form(...),
     city: str = Form(...),
     role: str = Form(...),
+    email: str = Form(...),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -135,11 +138,19 @@ async def create_profile(
         full_name=full_name,
         phone_number=phone_number,
         city=city,
+        email=email,
         role=role_enum
     )
 
     db.add(new_profile)
     await db.commit()
+
+    # Send OTP email for verification (via RabbitMQ)
+    otp_code = await generate_otp(auth_id)
+    await publisher.publish(
+        routing_key="onboarding.send_otp_email",
+        message={"email": email, "code": otp_code},
+    )
 
     # If driver, publish to RabbitMQ — consumer handles the slow Authentik API call
     if role_enum == RoleEnum.DRIVER:
@@ -153,9 +164,75 @@ async def create_profile(
         )
         if not success:
             logger.error("Failed to enqueue driver role assignment for user %s", auth_id)
-            return {"message": "Profile created successfully, but backend sync is delayed.", "role": role_enum.value, "warning": "sync_delayed"}
+            return {"message": "Profile created successfully, but backend sync is delayed.", "role": role_enum.value, "email_otp_sent": True, "warning": "sync_delayed"}
 
-    return {"message": "Profile created successfully", "role": role_enum.value}
+    return {"message": "Profile created successfully", "role": role_enum.value, "email_otp_sent": True}
+
+
+class VerifyOtpRequest(BaseModel):
+    code: str
+
+
+@router.post("/verify-email")
+async def verify_email(
+    body: VerifyOtpRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the 6-digit OTP code sent to the user's email."""
+    auth_id = _get_auth_id(current_user)
+
+    result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == auth_id))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+
+    if profile.email_verified:
+        return {"message": "Email already verified."}
+
+    if not await verify_otp(auth_id, body.code):
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+
+    profile.email_verified = True
+    await db.commit()
+
+    # Publish to RabbitMQ so the consumer syncs email_verified to Authentik JWT attribute
+    await publisher.publish(
+        routing_key="onboarding.email_verified",
+        message={
+            "event_type": "onboarding.email_verified",
+            "authentik_user_id": auth_id,
+        },
+    )
+
+    return {"message": "Email verified successfully."}
+
+
+@router.post("/resend-otp")
+async def resend_otp(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resend the 6-digit OTP code to the user's email."""
+    auth_id = _get_auth_id(current_user)
+
+    result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == auth_id))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    if profile.email_verified:
+        return {"message": "Email already verified."}
+
+    otp_code = await generate_otp(auth_id)
+    await publisher.publish(
+        routing_key="onboarding.send_otp_email",
+        message={"email": profile.email, "code": otp_code},
+    )
+
+    return {"message": "Verification code resent."}
 
 
 @router.post("/driver_setup")

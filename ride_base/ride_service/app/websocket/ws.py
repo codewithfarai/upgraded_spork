@@ -7,8 +7,7 @@ The first message from the client determines its role:
     {"type": "StartDriverRequestStream", ...} → driver session
 
 GPS location pings (PublishDriverLocation) are written directly to
-Redis without a Postgres round-trip; the background flush loop in
-redis_service handles Postgres persistence every GPS_FLUSH_INTERVAL_S.
+Redis only — no Postgres round-trip per ping.
 
 MQTT alternative
 ----------------

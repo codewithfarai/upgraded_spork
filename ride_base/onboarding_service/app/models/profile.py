@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, Enum
+from sqlalchemy import Boolean, Column, String, Enum
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.database import Base
@@ -19,5 +19,7 @@ class UserProfile(Base):
     full_name = Column(String, nullable=False)
     phone_number = Column(String, nullable=False)
     city = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)
 
     role = Column(Enum(RoleEnum), default=RoleEnum.RIDER, nullable=False)

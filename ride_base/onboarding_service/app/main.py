@@ -8,7 +8,7 @@ from app import __description__, __version__
 from app.api import endpoints
 from app.config import settings
 from app.services.rabbitmq import publisher
-from app.consumers.authentik_sync import process_driver_role_sync
+from app.consumers.authentik_sync import process_driver_role_sync, process_email_verified_sync, process_send_otp_email
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -61,8 +61,18 @@ async def lifespan(app: FastAPI):
 
     # 2. Setup Authentik Sync Queue (driver role assignment)
     auth_queue = await channel.declare_queue("onboarding_service.authentik_sync", durable=True)
-    await auth_queue.bind(exchange, routing_key="onboarding.*")
+    await auth_queue.bind(exchange, routing_key="onboarding.driver_role_assigned")
     await auth_queue.consume(process_driver_role_sync)
+
+    # 3. Setup Email Verified Sync Queue
+    email_queue = await channel.declare_queue("onboarding_service.email_verified_sync", durable=True)
+    await email_queue.bind(exchange, routing_key="onboarding.email_verified")
+    await email_queue.consume(process_email_verified_sync)
+
+    # 4. Setup OTP Email Send Queue
+    otp_queue = await channel.declare_queue("onboarding_service.send_otp_email", durable=True)
+    await otp_queue.bind(exchange, routing_key="onboarding.send_otp_email")
+    await otp_queue.consume(process_send_otp_email)
 
     logger.info("Onboarding service started")
     yield

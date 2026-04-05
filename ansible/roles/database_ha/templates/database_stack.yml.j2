@@ -218,7 +218,7 @@ services:
           bind *:5432
           mode tcp
           option httpchk
-          http-check send meth GET uri /master ver HTTP/1.1 hdr Host pgpool
+          http-check send meth HEAD uri /master ver HTTP/1.1 hdr Host pgpool
           http-check expect status 200
           default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
