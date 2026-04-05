@@ -1,3 +1,9 @@
+## v0.40.0 (2026-04-05)
+
+### feat
+
+- switch OTP to Redis, queue email via RabbitMQ
+
 ## v0.39.0 (2026-04-04)
 
 ### refactor
