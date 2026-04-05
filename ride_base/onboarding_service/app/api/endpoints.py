@@ -147,10 +147,12 @@ async def create_profile(
 
     # Send OTP email for verification (via RabbitMQ)
     otp_code = await generate_otp(auth_id)
-    await publisher.publish(
+    otp_sent = await publisher.publish(
         routing_key="onboarding.send_otp_email",
         message={"email": email, "code": otp_code},
     )
+    if not otp_sent:
+        logger.error("Failed to enqueue OTP email for user %s (%s)", auth_id, email)
 
     # If driver, publish to RabbitMQ — consumer handles the slow Authentik API call
     if role_enum == RoleEnum.DRIVER:
@@ -164,9 +166,9 @@ async def create_profile(
         )
         if not success:
             logger.error("Failed to enqueue driver role assignment for user %s", auth_id)
-            return {"message": "Profile created successfully, but backend sync is delayed.", "role": role_enum.value, "email_otp_sent": True, "warning": "sync_delayed"}
+            return {"message": "Profile created successfully, but backend sync is delayed.", "role": role_enum.value, "email_otp_sent": otp_sent, "warning": "sync_delayed"}
 
-    return {"message": "Profile created successfully", "role": role_enum.value, "email_otp_sent": True}
+    return {"message": "Profile created successfully", "role": role_enum.value, "email_otp_sent": otp_sent}
 
 
 class VerifyOtpRequest(BaseModel):

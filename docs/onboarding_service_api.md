@@ -27,6 +27,8 @@ Authorization: Bearer <token>
 5. [Setup Driver](#5-setup-driver)
 6. [Update Driver Details](#6-update-driver-details)
 7. [Delete Driver Setup](#7-delete-driver-setup)
+8. [Verify Email OTP](#8-verify-email-otp)
+9. [Resend OTP](#9-resend-otp)
 
 ---
 
@@ -89,7 +91,8 @@ curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/profile \
 ```json
 {
   "message": "Profile created successfully",
-  "role": "RIDER"
+  "role": "RIDER",
+  "email_otp_sent": true
 }
 ```
 
@@ -98,7 +101,8 @@ curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/profile \
 ```json
 {
   "message": "Profile created successfully",
-  "role": "DRIVER"
+  "role": "DRIVER",
+  "email_otp_sent": true
 }
 ```
 
@@ -108,6 +112,7 @@ curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/profile \
 {
   "message": "Profile created successfully, but backend sync is delayed.",
   "role": "DRIVER",
+  "email_otp_sent": true,
   "warning": "sync_delayed"
 }
 ```
@@ -317,6 +322,83 @@ _(empty body)_
 |--------|-------------|
 | `401`  | Invalid or missing token |
 | `404`  | Driver details not found |
+
+---
+
+### 8. Verify Email OTP
+
+Verifies the 6-digit OTP code sent to the user's email during profile creation. On success, sets `email_verified=true` on the profile and syncs the attribute to Authentik.
+
+```bash
+curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/verify-email \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "482301"}'
+```
+
+**Request Body**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `code` | string | Yes | 6-digit OTP from email |
+
+**Response `200 OK`**
+
+```json
+{
+  "message": "Email verified successfully."
+}
+```
+
+**Response `200 OK` — already verified**
+
+```json
+{
+  "message": "Email already verified."
+}
+```
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Invalid or expired code |
+| `401`  | Invalid or missing token |
+| `404`  | Profile not found — complete onboarding first |
+
+---
+
+### 9. Resend OTP
+
+Resends a new 6-digit OTP code to the user's email. The previous code is replaced.
+
+```bash
+curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/resend-otp \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "message": "Verification code resent."
+}
+```
+
+**Response `200 OK` — already verified**
+
+```json
+{
+  "message": "Email already verified."
+}
+```
+
+**Error Responses**
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Invalid or missing token |
+| `404`  | Profile not found |
 
 ---
 
