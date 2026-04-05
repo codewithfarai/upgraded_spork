@@ -1,3 +1,9 @@
+## onboarding_service-v0.8.1 (2026-04-05)
+
+### fix
+
+- add email OTP verification and resend OTP endpoints
+
 ## onboarding_service-v0.8.0 (2026-04-05)
 
 ### feat
