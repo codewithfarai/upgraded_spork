@@ -31,9 +31,9 @@ version_files = [
 update_changelog_on_bump = true
 
 [tool.commitizen.customize]
-schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|infra|root)\\))?:\\s.*"
+schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|ride_service|infra|root)\\))?:\\s.*"
 changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((infra|root)\\))?:\\s.*"
-commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|infra|root)\\))?:\\s(?P<message>.*)?"
+commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)(\\((payment|onboarding|ride_service|infra|root)\\))?:\\s(?P<message>.*)?"
 change_type_order = ["feat", "fix", "perf", "build", "refactor", "test", "style", "chore", "docs", "ci"]
 
 [tool.commitizen.customize.bump_map]

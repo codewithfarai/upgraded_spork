@@ -1,0 +1,65 @@
+[tool.poetry]
+name = "ridebase_ride_service"
+version = "0.1.0"
+description = "Ride Service for RideBase"
+authors = ["Farai Wande <faraiwande@ridebase.tech>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["fastapi", "microservice", "rabbitmq", "rides", "websocket"]
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = {extras = ["websockets"], version = "^0.115.3"}
+uvicorn = {extras = ["standard"], version = "^0.33.0"}
+sqlalchemy = "^2.0.36"
+asyncpg = "^0.31.0"
+alembic = "^1.15.0"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+httpx = "^0.28.1"
+aio-pika = "^9.6.2"
+pydantic-settings = "^2.7.1"
+pydantic = "^2.0.0"
+greenlet = "^3.3.2"
+redis = {extras = ["hiredis"], version = "^5.2.0"}
+h3 = "^4.1"
+
+[tool.poetry.group.dev.dependencies]
+commitizen = "^4.8.3"
+pre-commit = "^4.5.1"
+
+[tool.commitizen]
+name = "cz_customize"
+# Use a specific tag format for this service in the monorepo
+tag_format = "ride_service-v$version"
+version_scheme = "semver2"
+version = "0.1.0"
+version_files = [
+    "pyproject.toml:version",
+    "app/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+# Ensure changelog is specific to this service
+changelog_file = "CHANGELOG.md"
+
+[tool.commitizen.customize]
+schema_pattern = "^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(ride_service\\):\\s.*"
+changelog_pattern = "^(build|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(ride_service\\):\\s.*"
+commit_parser = "^(?P<change_type>build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\\(ride_service\\):\\s(?P<message>.*)?"
+change_type_order = ["feat", "fix", "perf", "build", "refactor", "test", "style", "chore", "docs", "ci"]
+
+[tool.commitizen.customize.bump_map]
+feat = "MINOR"
+fix = "PATCH"
+perf = "PATCH"
+build = "PATCH"
+docs = "PATCH"
+refactor = "PATCH"
+test = "PATCH"
+style = "PATCH"
+chore = "PATCH"
+ci = "PATCH"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
