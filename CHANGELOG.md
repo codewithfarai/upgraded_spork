@@ -1,3 +1,9 @@
+## v0.41.0 (2026-04-05)
+
+### fix
+
+- ensure channel creation and connection validation in RabbitMQPublisher - enable connection pool pre-pinging for async database engine
+
 ## v0.40.0 (2026-04-05)
 
 ### feat
