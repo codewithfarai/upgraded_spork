@@ -1,3 +1,10 @@
+## v0.42.0 (2026-04-06)
+
+### feat
+
+- implement RideBase logout flow and enhance Google account linking security
+- enhance Google enrollment flow with layout and subtitle, update branding customization
+
 ## v0.41.0 (2026-04-05)
 
 ### fix
