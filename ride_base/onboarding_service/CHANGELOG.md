@@ -1,3 +1,9 @@
+## onboarding_service-v0.9.0 (2026-04-06)
+
+### feat
+
+- enhance onboarding and payment services with new API tokens and database operations
+
 ## onboarding_service-v0.8.1 (2026-04-05)
 
 ### fix
