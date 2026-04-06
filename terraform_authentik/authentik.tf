@@ -121,6 +121,7 @@ resource "authentik_flow" "google_enrollment" {
   slug        = "ridebase-google-enrollment"
   title       = "Sign Up with Google"
   designation = "enrollment"
+  layout      = "stacked"
 }
 
 # 1. Custom Google Enrollment Prompt (Asks for Username)
@@ -196,52 +197,69 @@ resource "authentik_group" "ridebase_riders" {
 resource "authentik_flow" "ridebase_enrollment" {
   name        = "ridebase-enrollment"
   slug        = "ridebase-enrollment"
-  title       = "Create your RideBase account"
+  title       = "Create Account"
   designation = "enrollment"
+  layout      = "stacked"
+}
+
+# Subtitle
+resource "authentik_stage_prompt_field" "enrollment_subtitle" {
+  name          = "enrollment-subtitle"
+  field_key     = "enrollment_subtitle"
+  label         = "Sign up to get started with Ridebase"
+  type          = "static"
+  required      = false
+  order         = -1
+  initial_value = "Sign up to get started with Ridebase"
 }
 
 # Prompt fields
-resource "authentik_stage_prompt_field" "username" {
-  name      = "username"
-  field_key = "username"
-  label     = "Username"
-  type      = "username"
-  required  = true
-  order     = 0
+resource "authentik_stage_prompt_field" "email" {
+  name        = "email"
+  field_key   = "email"
+  label       = "Email"
+  type        = "email"
+  required    = true
+  placeholder = "you@example.com"
+  order       = 0
 }
 
-resource "authentik_stage_prompt_field" "email" {
-  name      = "email"
-  field_key = "email"
-  label     = "Email"
-  type      = "email"
-  required  = true
-  order     = 1
+resource "authentik_stage_prompt_field" "username" {
+  name        = "username"
+  field_key   = "username"
+  label       = "Username"
+  type        = "username"
+  required    = true
+  placeholder = "Choose a username"
+  order       = 1
 }
 
 resource "authentik_stage_prompt_field" "password" {
-  name      = "password"
-  field_key = "password"
-  label     = "Password"
-  type      = "password"
-  required  = true
-  order     = 2
+  name        = "password"
+  field_key   = "password"
+  label       = "Password"
+  type        = "password"
+  required    = true
+  placeholder = "Create a password"
+  order       = 2
 }
 
 resource "authentik_stage_prompt_field" "password_repeat" {
-  name      = "password_repeat"
-  field_key = "password_repeat"
-  label     = "Confirm Password"
-  type      = "password"
-  required  = true
-  order     = 3
+  name        = "password_repeat"
+  field_key   = "password_repeat"
+  label       = "Confirm Password"
+  type        = "password"
+  required    = true
+  placeholder = "Confirm your password"
+  order       = 3
 }
 
 resource "authentik_stage_prompt" "enrollment_prompt" {
   name = "ridebase-enrollment-prompt"
   fields = [
-    authentik_stage_prompt_field.username.id,
+    authentik_stage_prompt_field.enrollment_subtitle.id,
     authentik_stage_prompt_field.email.id,
+    authentik_stage_prompt_field.username.id,
     authentik_stage_prompt_field.password.id,
     authentik_stage_prompt_field.password_repeat.id,
   ]
@@ -292,8 +310,9 @@ resource "authentik_flow_stage_binding" "enroll_login" {
 resource "authentik_flow" "ridebase_authentication" {
   name        = "ridebase-authentication"
   slug        = "ridebase-authentication"
-  title       = "Sign in to RideBase"
+  title       = "Welcome Back"
   designation = "authentication"
+  layout      = "stacked"
 }
 
 # Identification stage — accept username OR email
@@ -479,4 +498,245 @@ resource "authentik_policy_binding" "traefik_access" {
   target = authentik_application.traefik.uuid
   group  = data.authentik_group.admins.id
   order  = 0
+}
+
+# ==============================================================================
+# RideBase Brand Customization
+# ==============================================================================
+resource "authentik_brand" "ridebase" {
+  domain              = "auth.${local.env_subdomain}${var.domain_name}"
+  default             = false
+  branding_title      = "RideBase"
+  branding_logo       = "/static/dist/assets/icons/icon_left_brand.svg"
+  branding_favicon    = "/static/dist/assets/icons/icon.png"
+  flow_authentication = authentik_flow.ridebase_authentication.uuid
+  flow_invalidation   = data.authentik_flow.default_invalidation_flow.id
+
+  attributes = jsonencode({
+    settings = {
+      theme = {
+        base = "light"
+      }
+    }
+  })
+}
+
+locals {
+  ridebase_css = <<-CSS
+    /* RideBase brand — Kinetic Anchor design system */
+    /* Primary: #004444, Background: #F8FAFA */
+
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500&display=swap');
+
+    /* Theme variables */
+    :root,
+    :host,
+    * {
+      --ak-accent: 0 68 68 !important;
+      --ak-dark-foreground: 25 28 29 !important;
+      --ak-dark-background: 248 250 250 !important;
+    }
+
+    /* Page background */
+    html, body {
+      background-color: #F8FAFA !important;
+      color: #191C1D !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+
+    .pf-c-login,
+    ak-flow-executor,
+    .ak-static-page {
+      background: #F8FAFA !important;
+      background-color: #F8FAFA !important;
+    }
+
+    /* Hide default background image */
+    .pf-c-background-image {
+      display: none !important;
+    }
+
+    /* Card / main form area */
+    .pf-c-login__main,
+    .ak-login-container,
+    .pf-c-card,
+    .pf-c-card__body {
+      background-color: #ffffff !important;
+      color: #191C1D !important;
+      border-radius: 16px !important;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* Restyle the Authentik logo as teal car circle */
+    .pf-c-login__header {
+      display: flex !important;
+      justify-content: center !important;
+      padding: 24px 0 8px !important;
+    }
+    .pf-c-login__header img.pf-c-brand,
+    img[src*="icon_left_brand"] {
+      width: 80px !important;
+      height: 80px !important;
+      padding: 0 !important;
+      border-radius: 50% !important;
+      background-color: #004444 !important;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23fff' d='M135.2 117.4L109.1 192H402.9l-26.1-74.6C372.3 104.6 360.2 96 346.6 96H165.4c-13.6 0-25.7 8.6-30.2 21.4zM39.6 196.8L74.8 96.3C88.3 57.8 124.6 32 165.4 32h181.2c40.8 0 77.1 25.8 90.6 64.3l35.2 100.5c23.2 9.6 39.6 32.5 39.6 59.2v96c0 17.7-14.3 32-32 32h-32c-17.7 0-32-14.3-32-32v-32H96v32c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32v-96c0-26.7 16.4-49.6 39.6-59.2zM128 288a32 32 0 1 0-64 0 32 32 0 1 0 64 0zm288 32a32 32 0 1 0 0-64 32 32 0 1 0 0 64z'/%3E%3C/svg%3E") !important;
+      background-size: 40px 40px !important;
+      background-repeat: no-repeat !important;
+      background-position: center !important;
+      content: '' !important;
+      font-size: 0 !important;
+      color: transparent !important;
+      overflow: hidden !important;
+      object-position: -9999px !important;
+    }
+
+    /* Flow title & headings — centered */
+    .pf-c-login__main-header,
+    .ak-flow-header,
+    [slot="header"],
+    header {
+      text-align: center !important;
+    }
+    .pf-c-login__main-header p,
+    .pf-c-login__main-header-desc,
+    .pf-c-login__main-header .pf-c-content p,
+    .ak-flow-header p,
+    [slot="header"] p,
+    header p,
+    .pf-c-login__main-body p:first-of-type,
+    .pf-c-content p {
+      text-align: center !important;
+      display: block !important;
+      width: 100% !important;
+      font-size: 16px !important;
+      font-weight: 400 !important;
+      color: #6B7280 !important;
+      font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Style the static subtitle field on enrollment */
+    .pf-c-form__group:first-child {
+      text-align: center !important;
+    }
+    .pf-c-form__group:first-child .pf-c-form__label,
+    .pf-c-form__group:first-child .pf-c-form__label-text {
+      text-align: center !important;
+      display: block !important;
+      width: 100% !important;
+      font-size: 16px !important;
+      font-weight: 400 !important;
+      color: #6B7280 !important;
+      margin-bottom: 8px !important;
+    }
+
+    /* Flow title & headings */
+    .pf-c-title,
+    h1, h2, h3 {
+      color: #191C1D !important;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-weight: 700 !important;
+    }
+
+    /* Primary buttons — teal pill */
+    .pf-c-button.pf-m-primary,
+    button[class*="primary"] {
+      background-color: #004444 !important;
+      border-color: #004444 !important;
+      border-radius: 24px !important;
+      color: #ffffff !important;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      font-weight: 600 !important;
+      min-height: 52px !important;
+    }
+    .pf-c-button.pf-m-primary:hover,
+    button[class*="primary"]:hover {
+      background-color: #003636 !important;
+      border-color: #003636 !important;
+    }
+
+    /* Links */
+    .pf-c-button.pf-m-link,
+    a {
+      color: #004444 !important;
+    }
+    a:hover {
+      color: #003636 !important;
+    }
+
+    /* Social login source buttons */
+    .pf-c-login__main-footer-links-item-link {
+      color: #004444 !important;
+    }
+
+    /* Labels and body text */
+    label,
+    .pf-c-form__label,
+    .pf-c-form__label-text,
+    p, span {
+      color: #6B7280 !important;
+      font-family: 'Inter', sans-serif !important;
+      font-size: 14px !important;
+    }
+
+    /* Input fields — filled gray with teal underline */
+    .pf-c-form-control,
+    input,
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      background-color: #F0F3F3 !important;
+      color: #191C1D !important;
+      border: none !important;
+      border-bottom: 2px solid #004444 !important;
+      border-radius: 4px !important;
+      font-family: 'Inter', sans-serif !important;
+      padding: 14px 16px !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    /* PatternFly uses ::after for focus indicator — override it */
+    .pf-c-form-control::after,
+    .pf-c-form-control::before {
+      border-bottom-color: #004444 !important;
+    }
+    .pf-c-form-control:focus,
+    input:focus {
+      border-bottom: 2px solid #004444 !important;
+      box-shadow: none !important;
+      outline: none !important;
+    }
+  CSS
+}
+
+# Inject custom CSS via Authentik API (TF provider lacks branding_custom_css attribute)
+resource "null_resource" "ridebase_brand_css" {
+  depends_on = [authentik_brand.ridebase]
+
+  triggers = {
+    css_hash = sha256(local.ridebase_css)
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      BRAND_ID=$(curl -sk \
+        -H "Authorization: Bearer ${var.authentik_token}" \
+        "${var.authentik_url}/api/v3/core/brands/?domain=auth.${local.env_subdomain}${var.domain_name}" \
+        | jq -r '.results[0].brand_uuid')
+
+      echo "Patching brand $BRAND_ID with custom CSS..."
+
+      cat <<'CSSEOF' > /tmp/ridebase_brand_css.json
+${jsonencode({ "branding_custom_css" = local.ridebase_css })}
+CSSEOF
+
+      curl -sk -X PATCH \
+        -H "Authorization: Bearer ${var.authentik_token}" \
+        -H "Content-Type: application/json" \
+        -d @/tmp/ridebase_brand_css.json \
+        "${var.authentik_url}/api/v3/core/brands/$BRAND_ID/" | jq .
+
+      rm -f /tmp/ridebase_brand_css.json
+    EOT
+  }
 }
