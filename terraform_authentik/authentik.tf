@@ -30,6 +30,30 @@ data "authentik_certificate_key_pair" "default" {
   name = "authentik Self-signed Certificate"
 }
 
+# ==============================================================================
+# RideBase Invalidation (Logout) Flow
+# Properly clears the user session so logout actually works.
+# The default-provider-invalidation-flow only does OIDC back-channel logout
+# and does NOT destroy the Authentik session cookie.
+# ==============================================================================
+resource "authentik_flow" "ridebase_invalidation" {
+  name        = "ridebase-invalidation"
+  slug        = "ridebase-invalidation"
+  title       = "Signed Out"
+  designation = "invalidation"
+  layout      = "stacked"
+}
+
+resource "authentik_stage_user_logout" "ridebase_logout" {
+  name = "ridebase-user-logout"
+}
+
+resource "authentik_flow_stage_binding" "invalidation_logout" {
+  target = authentik_flow.ridebase_invalidation.uuid
+  stage  = authentik_stage_user_logout.ridebase_logout.id
+  order  = 0
+}
+
 
 
 # ==============================================================================
@@ -111,9 +135,55 @@ resource "authentik_policy_binding" "rabbitmq_access" {
 # Google OAuth Source (Social Login)
 # ==============================================================================
 
+# --- Anti-takeover: only link Google to accounts that verified their email ---
+# Without this, an attacker can pre-register victim@gmail.com (unverified)
+# and Authentik's email_link mode silently links the real Google owner
+# to the attacker's account.
 
-data "authentik_flow" "default_source_authentication" {
-  slug = "default-source-authentication"
+resource "authentik_flow" "ridebase_source_authentication" {
+  name        = "ridebase-source-authentication"
+  slug        = "ridebase-source-authentication"
+  title       = "Link Google Account"
+  designation = "authentication"
+  layout      = "stacked"
+}
+
+resource "authentik_policy_expression" "require_email_verified_for_link" {
+  name       = "ridebase-require-email-verified-for-link"
+  expression = <<-EXPR
+    # Prevent pre-registration takeover attacks.
+    # If a Google user's email matches an unverified account, delete the
+    # squatter so the real owner gets a fresh account via Google enrollment.
+    # Unverified accounts can't take rides or transact, so no data is lost.
+    pending_user = request.context.get("pending_user")
+    if pending_user:
+        if pending_user.attributes.get("email_verified", False) == True:
+            return True
+        # Unverified squatter — wipe it so Google enrollment creates a clean account
+        pending_user.delete()
+        return True
+    # No existing account — allow (will create via enrollment flow)
+    return True
+  EXPR
+}
+
+# Look up the default source-authentication login stage
+data "authentik_stage" "default_source_authentication_login" {
+  name = "default-source-authentication-login"
+}
+
+# Bind the email_verified policy to the flow (evaluated before any stage)
+resource "authentik_policy_binding" "source_auth_require_verified" {
+  target = authentik_flow.ridebase_source_authentication.uuid
+  policy = authentik_policy_expression.require_email_verified_for_link.id
+  order  = 0
+}
+
+# Bind the login stage to our custom flow
+resource "authentik_flow_stage_binding" "source_auth_login" {
+  target = authentik_flow.ridebase_source_authentication.uuid
+  stage  = data.authentik_stage.default_source_authentication_login.id
+  order  = 0
 }
 
 resource "authentik_flow" "google_enrollment" {
@@ -160,7 +230,7 @@ resource "authentik_flow_stage_binding" "google_enroll_login" {
 resource "authentik_source_oauth" "google" {
   name                = "Google"
   slug                = "google"
-  authentication_flow = data.authentik_flow.default_source_authentication.id
+  authentication_flow = authentik_flow.ridebase_source_authentication.uuid
   enrollment_flow     = authentik_flow.google_enrollment.uuid
   provider_type       = "google"
   consumer_key        = var.google_client_id
@@ -254,6 +324,14 @@ resource "authentik_stage_prompt_field" "password_repeat" {
   order       = 3
 }
 
+# Password complexity policy — minimum 8 chars with at least 1 number
+resource "authentik_policy_password" "ridebase_password_policy" {
+  name          = "ridebase-password-policy"
+  length_min    = 8
+  amount_digits = 1
+  error_message = "Password must be at least 8 characters with at least 1 number."
+}
+
 resource "authentik_stage_prompt" "enrollment_prompt" {
   name = "ridebase-enrollment-prompt"
   fields = [
@@ -263,7 +341,9 @@ resource "authentik_stage_prompt" "enrollment_prompt" {
     authentik_stage_prompt_field.password.id,
     authentik_stage_prompt_field.password_repeat.id,
   ]
-  validation_policies = []
+  validation_policies = [
+    authentik_policy_password.ridebase_password_policy.id,
+  ]
 }
 
 # User write — creates the account as active immediately
@@ -411,12 +491,13 @@ resource "authentik_provider_oauth2" "ridebase" {
   name                = "RideBase Provider"
   client_id           = "ridebase"
   authorization_flow  = authentik_flow.ridebase_authorization.uuid
-  invalidation_flow   = data.authentik_flow.default_invalidation_flow.id
+  invalidation_flow   = authentik_flow.ridebase_invalidation.uuid
   authentication_flow = authentik_flow.ridebase_authentication.uuid
   client_type         = "public"
   signing_key         = data.authentik_certificate_key_pair.default.id
   allowed_redirect_uris = [
-    { matching_mode = "strict", url = "ridebase://callback" }
+    { matching_mode = "strict", url = "ridebase://callback" },
+    { matching_mode = "strict", url = "ridebase://logout-callback" }
   ]
   property_mappings = [
     data.authentik_property_mapping_provider_scope.openid.id,
@@ -449,6 +530,13 @@ resource "authentik_policy_binding" "ridebase_drivers_access" {
   target = authentik_application.ridebase.uuid
   group  = authentik_group.ridebase_drivers.id
   order  = 1
+}
+
+# Allow admins (for testing/support)
+resource "authentik_policy_binding" "ridebase_admins_access" {
+  target = authentik_application.ridebase.uuid
+  group  = data.authentik_group.admins.id
+  order  = 2
 }
 
 # ==============================================================================
@@ -510,7 +598,7 @@ resource "authentik_brand" "ridebase" {
   branding_logo       = "/static/dist/assets/icons/icon_left_brand.svg"
   branding_favicon    = "/static/dist/assets/icons/icon.png"
   flow_authentication = authentik_flow.ridebase_authentication.uuid
-  flow_invalidation   = data.authentik_flow.default_invalidation_flow.id
+  flow_invalidation   = authentik_flow.ridebase_invalidation.uuid
 
   attributes = jsonencode({
     settings = {
@@ -706,6 +794,27 @@ locals {
       box-shadow: none !important;
       outline: none !important;
     }
+
+    /* Hide "Powered by authentik" — page-level footer, NOT the signup link */
+    .pf-c-login__footer,
+    .pf-c-login [class*="powered"],
+    .pf-c-login .ak-brand-link,
+    .pf-c-login a[href*="goauthentik"] {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+
+    /* Hide language selector */
+    .pf-c-login .pf-c-select,
+    .pf-c-login select[name="locale"],
+    .pf-c-login .ak-locale-select,
+    .pf-c-login [aria-label="locale"],
+    .pf-c-login ak-locale-context,
+    .pf-c-login .ak-lang-select {
+      display: none !important;
+    }
   CSS
 }
 
@@ -714,7 +823,8 @@ resource "null_resource" "ridebase_brand_css" {
   depends_on = [authentik_brand.ridebase]
 
   triggers = {
-    css_hash = sha256(local.ridebase_css)
+    css_hash   = sha256(local.ridebase_css)
+    brand_hash = sha256(jsonencode(authentik_brand.ridebase))
   }
 
   provisioner "local-exec" {
