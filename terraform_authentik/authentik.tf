@@ -11,15 +11,31 @@ data "authentik_flow" "default_authorization_flow" {
   slug = "default-provider-authorization-explicit-consent"
 }
 
-# Custom authorization flow — no consent stage, no policy restrictions.
+# Custom authorization flow with implicit consent (no prompt).
 # The built-in implicit consent flow has internal policies that deny non-superusers.
-# This flow auto-approves any authenticated user (including Google SSO users).
+# This flow auto-approves any authenticated user (including Google SSO users)
+# via a consent stage with mode = 0 (always-approve, no user prompt).
 resource "authentik_flow" "ridebase_authorization" {
   name               = "ridebase-authorization"
   slug               = "ridebase-authorization"
   title              = "Authorize RideBase"
   designation        = "authorization"
   policy_engine_mode = "any"
+}
+
+# Auto-approve consent stage — mode 0 means "always approve" (no prompt shown)
+# Without this, the authorization flow has no stages and Authentik cannot
+# complete the OAuth handshake, causing redirect to the portal instead of
+# ridebase://callback.
+resource "authentik_stage_consent" "ridebase_auto_approve" {
+  name = "ridebase-auto-approve-consent"
+  mode = "permanent"
+}
+
+resource "authentik_flow_stage_binding" "authorization_consent" {
+  target = authentik_flow.ridebase_authorization.uuid
+  stage  = authentik_stage_consent.ridebase_auto_approve.id
+  order  = 0
 }
 
 data "authentik_flow" "default_invalidation_flow" {
@@ -139,14 +155,8 @@ resource "authentik_policy_binding" "rabbitmq_access" {
 # Without this, an attacker can pre-register victim@gmail.com (unverified)
 # and Authentik's email_link mode silently links the real Google owner
 # to the attacker's account.
-
-resource "authentik_flow" "ridebase_source_authentication" {
-  name        = "ridebase-source-authentication"
-  slug        = "ridebase-source-authentication"
-  title       = "Link Google Account"
-  designation = "authentication"
-  layout      = "stacked"
-}
+# Bound to the Google enrollment flow (not source auth) so it runs during
+# account creation only.
 
 resource "authentik_policy_expression" "require_email_verified_for_link" {
   name       = "ridebase-require-email-verified-for-link"
@@ -176,23 +186,11 @@ resource "authentik_policy_expression" "require_email_verified_for_link" {
   EXPR
 }
 
-# Look up the default source-authentication login stage
-data "authentik_stage" "default_source_authentication_login" {
-  name = "default-source-authentication-login"
-}
-
-# Bind the email_verified policy to the flow (evaluated before any stage)
-resource "authentik_policy_binding" "source_auth_require_verified" {
-  target = authentik_flow.ridebase_source_authentication.uuid
-  policy = authentik_policy_expression.require_email_verified_for_link.id
-  order  = 0
-}
-
-# Bind the login stage to our custom flow
-resource "authentik_flow_stage_binding" "source_auth_login" {
-  target = authentik_flow.ridebase_source_authentication.uuid
-  stage  = data.authentik_stage.default_source_authentication_login.id
-  order  = 0
+# Use Authentik's built-in default source authentication flow.
+# Custom source auth flows lose the pending OAuth authorize context,
+# causing the redirect to ridebase://callback to fail.
+data "authentik_flow" "default_source_authentication" {
+  slug = "default-source-authentication"
 }
 
 resource "authentik_flow" "google_enrollment" {
@@ -225,6 +223,7 @@ resource "authentik_stage_user_write" "google_user_write" {
   name                     = "ridebase-google-user-write"
   create_users_as_inactive = false
   create_users_group       = authentik_group.ridebase_riders.id
+  user_type                = "internal"
 }
 
 resource "authentik_flow_stage_binding" "google_enroll_write" {
@@ -233,16 +232,20 @@ resource "authentik_flow_stage_binding" "google_enroll_write" {
   order  = 10
 }
 
-resource "authentik_flow_stage_binding" "google_enroll_login" {
+# NOTE: No user_login stage here — login is handled by the built-in
+# default-source-authentication flow, which preserves OAuth context.
+
+# Bind anti-takeover policy to enrollment flow
+resource "authentik_policy_binding" "google_enroll_require_verified" {
   target = authentik_flow.google_enrollment.uuid
-  stage  = authentik_stage_user_login.default_login.id
-  order  = 20
+  policy = authentik_policy_expression.require_email_verified_for_link.id
+  order  = 0
 }
 
 resource "authentik_source_oauth" "google" {
   name                = "Sign in with Google"
   slug                = "google"
-  authentication_flow = authentik_flow.ridebase_source_authentication.uuid
+  authentication_flow = data.authentik_flow.default_source_authentication.id
   enrollment_flow     = authentik_flow.google_enrollment.uuid
   provider_type       = "google"
   consumer_key        = var.google_client_id
@@ -407,10 +410,14 @@ resource "authentik_stage_prompt" "enrollment_prompt" {
 }
 
 # User write — creates the account as active immediately
+# user_type = internal so users can interact with the SSO web interface
+# (login, consent). This does NOT grant admin access — group policies
+# control application access.
 resource "authentik_stage_user_write" "enrollment_user_write" {
   name                     = "ridebase-enrollment-user-write"
   create_users_as_inactive = false
   create_users_group       = authentik_group.ridebase_riders.id
+  user_type                = "internal"
 }
 
 # Email OTP verification stage
@@ -420,7 +427,7 @@ resource "authentik_stage_user_write" "enrollment_user_write" {
 #   curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" \
 #     "$AUTH_URL/api/v3/stages/email/?name=ridebase-enrollment-email-verify"
 
-# User login stage (shared by both flows)
+# User login stage (used by authentication flow only)
 resource "authentik_stage_user_login" "default_login" {
   name = "ridebase-user-login"
 }
@@ -437,11 +444,12 @@ resource "authentik_flow_stage_binding" "enroll_user_write" {
   order  = 10
 }
 
-resource "authentik_flow_stage_binding" "enroll_login" {
-  target = authentik_flow.ridebase_enrollment.uuid
-  stage  = authentik_stage_user_login.default_login.id
-  order  = 30
-}
+# NOTE: No user_login stage in enrollment. When enrollment is triggered from
+# an OAuth /authorize request, adding user_login creates a new session that
+# destroys the pending OAuth context (PKCE, redirect_uri). Without it,
+# enrollment completes → user is redirected back to the authentication flow
+# → enters their (freshly created) credentials → user_login → OAuth authorize
+# → consent → ridebase://callback.
 
 # ==============================================================================
 # RideBase Authentication (Login) Flow
