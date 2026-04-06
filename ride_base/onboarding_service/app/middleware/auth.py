@@ -19,10 +19,17 @@ async def _get_jwks() -> dict:
     global _jwks_cache
     if _jwks_cache is not None:
         return _jwks_cache
-    async with httpx.AsyncClient() as client:
-        response = await client.get(settings.AUTHENTIK_JWKS_URL)
-        response.raise_for_status()
-        _jwks_cache = response.json()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(settings.AUTHENTIK_JWKS_URL)
+            response.raise_for_status()
+            _jwks_cache = response.json()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+        logger.error("Failed to fetch JWKS from %s: %s", settings.AUTHENTIK_JWKS_URL, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service temporarily unavailable",
+        )
     return _jwks_cache
 
 

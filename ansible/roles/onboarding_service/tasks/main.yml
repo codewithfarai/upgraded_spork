@@ -37,27 +37,21 @@
         path: /opt/docker/stacks/onboarding_service/secrets/resend_api_key
       register: resend_api_key_stat
 
-    - name: Check for existing Authentik Terraform token
-      stat:
-        path: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
-      register: authentik_tf_stat
-
-    - name: Slurp Authentik Terraform token if available
+    - name: Slurp Authentik Terraform token
       slurp:
         src: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
       register: slurped_authentik_tf
-      when: authentik_tf_stat.stat.exists
 
     - name: Set final Authentik API token
       set_fact:
-        effective_authentik_api_token: "{{ onboarding_service_authentik_api_token | default(slurped_authentik_tf['content'] | b64decode if not slurped_authentik_tf.skipped | default(false) else '', true) }}"
+        effective_authentik_api_token: "{{ slurped_authentik_tf['content'] | b64decode }}"
 
     - name: Write Authentik API token
       copy:
         content: "{{ effective_authentik_api_token }}"
         dest: /opt/docker/stacks/onboarding_service/secrets/authentik_api_token
         mode: '0600'
-      when: (effective_authentik_api_token != '') and (not authentik_token_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool))
+      when: effective_authentik_api_token != ''
       no_log: true
       register: authentik_token_file
 

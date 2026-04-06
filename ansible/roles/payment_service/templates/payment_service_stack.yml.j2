@@ -36,6 +36,8 @@ services:
         target: stripe_webhook_secret
       - source: authentik_api_token-{{ authentik_api_token_hash }}
         target: authentik_api_token
+      - source: resend_api_key-{{ resend_api_key_hash }}
+        target: resend_api_key
     deploy:
       mode: replicated
       replicas: {{ payment_service_replicas | default(2) }}
@@ -82,3 +84,6 @@ secrets:
 
   authentik_api_token-{{ authentik_api_token_hash }}:
     file: /opt/docker/stacks/payment_service/secrets/authentik_api_token
+
+  resend_api_key-{{ resend_api_key_hash }}:
+    file: /opt/docker/stacks/payment_service/secrets/resend_api_key

@@ -146,13 +146,17 @@ async def create_profile(
     await db.commit()
 
     # Send OTP email for verification (via RabbitMQ)
-    otp_code = await generate_otp(auth_id)
-    otp_sent = await publisher.publish(
-        routing_key="onboarding.send_otp_email",
-        message={"email": email, "code": otp_code},
-    )
-    if not otp_sent:
-        logger.error("Failed to enqueue OTP email for user %s (%s)", auth_id, email)
+    otp_sent = False
+    try:
+        otp_code = await generate_otp(auth_id)
+        otp_sent = await publisher.publish(
+            routing_key="onboarding.send_otp_email",
+            message={"email": email, "code": otp_code},
+        )
+        if not otp_sent:
+            logger.error("Failed to enqueue OTP email for user %s (%s)", auth_id, email)
+    except Exception:
+        logger.exception("Failed to generate/send OTP for user %s", auth_id)
 
     # If driver, publish to RabbitMQ — consumer handles the slow Authentik API call
     if role_enum == RoleEnum.DRIVER:

@@ -27,10 +27,15 @@
         path: /opt/docker/stacks/payment_service/secrets/stripe_webhook_secret
       register: stripe_webhook_stat
 
-    - name: Check for existing Authentik API token
+    - name: Check for existing Resend API key
       stat:
-        path: /opt/docker/stacks/payment_service/secrets/authentik_api_token
-      register: authentik_token_stat
+        path: /opt/docker/stacks/payment_service/secrets/resend_api_key
+      register: resend_api_key_stat
+
+    - name: Slurp Authentik Terraform token
+      slurp:
+        src: /opt/docker/stacks/authentik/secrets/authentik_terraform_token
+      register: slurped_authentik_tf
 
     - name: Write Stripe secret key
       copy:
@@ -52,12 +57,20 @@
 
     - name: Write Authentik API token
       copy:
-        content: "{{ payment_service_authentik_api_token }}"
+        content: "{{ slurped_authentik_tf['content'] | b64decode }}"
         dest: /opt/docker/stacks/payment_service/secrets/authentik_api_token
         mode: '0600'
-      when: not authentik_token_stat.stat.exists or (payment_service_rotate_secrets | default(false) | bool)
       no_log: true
       register: authentik_token_file
+
+    - name: Write Resend API key
+      copy:
+        content: "{{ payment_service_resend_api_key }}"
+        dest: /opt/docker/stacks/payment_service/secrets/resend_api_key
+        mode: '0600'
+      when: (payment_service_resend_api_key | default('') != '') and (not resend_api_key_stat.stat.exists or (payment_service_rotate_secrets | default(false) | bool))
+      no_log: true
+      register: resend_api_key_file
 
     # -----------------------------------------------------------------------
     # Read back secrets for hash computation
@@ -69,6 +82,7 @@
         - stripe_secret_key
         - stripe_webhook_secret
         - authentik_api_token
+        - resend_api_key
       register: secret_stats
 
     - name: Set secret hash facts
@@ -76,6 +90,7 @@
         stripe_secret_key_hash: "{{ secret_stats.results[0].stat.checksum | truncate(10, True, '') }}"
         stripe_webhook_secret_hash: "{{ secret_stats.results[1].stat.checksum | truncate(10, True, '') }}"
         authentik_api_token_hash: "{{ secret_stats.results[2].stat.checksum | truncate(10, True, '') }}"
+        resend_api_key_hash: "{{ secret_stats.results[3].stat.checksum | truncate(10, True, '') }}"
 
     # -----------------------------------------------------------------------
     # Resolve shared variables from other roles

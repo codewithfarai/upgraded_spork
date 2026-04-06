@@ -155,9 +155,18 @@ resource "authentik_policy_expression" "require_email_verified_for_link" {
     # If a Google user's email matches an unverified account, delete the
     # squatter so the real owner gets a fresh account via Google enrollment.
     # Unverified accounts can't take rides or transact, so no data is lost.
+    # NEVER delete superusers — they are trusted admin accounts.
+    # NEVER delete users who already have an OAuth source connection
+    # (they signed up via Google previously — let them log in).
+    from authentik.sources.oauth.models import UserOAuthSourceConnection
     pending_user = request.context.get("pending_user")
     if pending_user:
+        if pending_user.ak_groups.filter(is_superuser=True).exists():
+            return True
         if pending_user.attributes.get("email_verified", False) == True:
+            return True
+        # If user already has a Google source connection, they're legit
+        if UserOAuthSourceConnection.objects.filter(user=pending_user).exists():
             return True
         # Unverified squatter — wipe it so Google enrollment creates a clean account
         pending_user.delete()
@@ -200,6 +209,9 @@ resource "authentik_stage_prompt" "google_enrollment_prompt" {
   fields = [
     authentik_stage_prompt_field.username.id
   ]
+  validation_policies = [
+    authentik_policy_expression.ridebase_username_policy.id,
+  ]
 }
 
 # 2. Bind the custom prompt to the Google flow
@@ -228,7 +240,7 @@ resource "authentik_flow_stage_binding" "google_enroll_login" {
 }
 
 resource "authentik_source_oauth" "google" {
-  name                = "Google"
+  name                = "Sign in with Google"
   slug                = "google"
   authentication_flow = authentik_flow.ridebase_source_authentication.uuid
   enrollment_flow     = authentik_flow.google_enrollment.uuid
@@ -324,6 +336,53 @@ resource "authentik_stage_prompt_field" "password_repeat" {
   order       = 3
 }
 
+# Username policy — enforces platform-quality usernames
+# Rules based on GitHub/Instagram/Discord conventions:
+#   - 3–20 characters
+#   - Must start with a letter
+#   - Only lowercase letters, numbers, underscores, periods
+#   - No spaces, no consecutive special chars (__  ..)
+#   - Cannot end with underscore or period
+#   - Cannot be purely numeric
+#   - Blocks reserved/system names
+resource "authentik_policy_expression" "ridebase_username_policy" {
+  name       = "ridebase-username-policy"
+  expression = <<-EXPR
+    import re
+    username = request.context.get("prompt_data", {}).get("username", "")
+    if not username:
+        ak_message("Username is required.")
+        return False
+    # Normalise to lowercase (Authentik stores lowercase anyway)
+    username = username.strip()
+    if len(username) < 3:
+        ak_message("Username must be at least 3 characters.")
+        return False
+    if len(username) > 20:
+        ak_message("Username cannot be longer than 20 characters.")
+        return False
+    if " " in username:
+        ak_message("Username cannot contain spaces.")
+        return False
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9_.]*[a-zA-Z0-9]$', username) and len(username) >= 3:
+        ak_message("Username must start with a letter, end with a letter or number, and contain only letters, numbers, underscores, or periods.")
+        return False
+    if '..' in username or '__' in username or '._' in username or '_.' in username:
+        ak_message("Username cannot have consecutive special characters.")
+        return False
+    if username.isdigit():
+        ak_message("Username cannot be only numbers.")
+        return False
+    reserved = {"admin", "administrator", "root", "system", "support", "help",
+                "ridebase", "driver", "rider", "moderator", "mod", "staff",
+                "official", "security", "api", "null", "undefined", "test"}
+    if username.lower() in reserved:
+        ak_message("That username is reserved. Please choose another.")
+        return False
+    return True
+  EXPR
+}
+
 # Password complexity policy — minimum 8 chars with at least 1 number
 resource "authentik_policy_password" "ridebase_password_policy" {
   name          = "ridebase-password-policy"
@@ -343,6 +402,7 @@ resource "authentik_stage_prompt" "enrollment_prompt" {
   ]
   validation_policies = [
     authentik_policy_password.ridebase_password_policy.id,
+    authentik_policy_expression.ridebase_username_policy.id,
   ]
 }
 
@@ -397,10 +457,11 @@ resource "authentik_flow" "ridebase_authentication" {
 
 # Identification stage — accept username OR email
 resource "authentik_stage_identification" "ridebase_identification" {
-  name            = "ridebase-identification"
-  user_fields     = ["username", "email"]
-  enrollment_flow = authentik_flow.ridebase_enrollment.uuid
-  sources         = [authentik_source_oauth.google.uuid]
+  name               = "ridebase-identification"
+  user_fields        = ["username", "email"]
+  enrollment_flow    = authentik_flow.ridebase_enrollment.uuid
+  sources            = [authentik_source_oauth.google.uuid]
+  show_source_labels = true
 }
 
 # Password stage
@@ -603,7 +664,7 @@ resource "authentik_brand" "ridebase" {
   attributes = jsonencode({
     settings = {
       theme = {
-        base = "light"
+        base = "dark"
       }
     }
   })
@@ -613,42 +674,25 @@ locals {
   ridebase_css = <<-CSS
     /* RideBase brand — Kinetic Anchor design system */
     /* Primary: #004444, Background: #F8FAFA */
+    /* ALL rules scoped under .pf-c-login so admin dashboard stays default */
+    /* NOTE: @import is not supported in adoptedStyleSheets — use system font stack */
 
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@400;500&display=swap');
-
-    /* Theme variables */
-    :root,
-    :host,
-    * {
-      --ak-accent: 0 68 68 !important;
-      --ak-dark-foreground: 25 28 29 !important;
-      --ak-dark-background: 248 250 250 !important;
-    }
-
-    /* Page background */
-    html, body {
-      background-color: #F8FAFA !important;
-      color: #191C1D !important;
-      font-family: 'Inter', sans-serif !important;
-    }
-
-    .pf-c-login,
-    ak-flow-executor,
-    .ak-static-page {
+    /* Page background — only on login pages */
+    .pf-c-login {
       background: #F8FAFA !important;
       background-color: #F8FAFA !important;
+      color: #191C1D !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
     }
 
     /* Hide default background image */
-    .pf-c-background-image {
+    .pf-c-login .pf-c-background-image {
       display: none !important;
     }
 
     /* Card / main form area */
-    .pf-c-login__main,
-    .ak-login-container,
-    .pf-c-card,
-    .pf-c-card__body {
+    .pf-c-login .pf-c-login__main,
+    .pf-c-login .ak-login-container {
       background-color: #ffffff !important;
       color: #191C1D !important;
       border-radius: 16px !important;
@@ -656,13 +700,13 @@ locals {
     }
 
     /* Restyle the Authentik logo as teal car circle */
-    .pf-c-login__header {
+    .pf-c-login .pf-c-login__header {
       display: flex !important;
       justify-content: center !important;
       padding: 24px 0 8px !important;
     }
-    .pf-c-login__header img.pf-c-brand,
-    img[src*="icon_left_brand"] {
+    .pf-c-login .pf-c-login__header img.pf-c-brand,
+    .pf-c-login img[src*="icon_left_brand"] {
       width: 80px !important;
       height: 80px !important;
       padding: 0 !important;
@@ -680,35 +724,29 @@ locals {
     }
 
     /* Flow title & headings — centered */
-    .pf-c-login__main-header,
-    .ak-flow-header,
-    [slot="header"],
-    header {
+    .pf-c-login .pf-c-login__main-header,
+    .pf-c-login .ak-flow-header,
+    .pf-c-login [slot="header"] {
       text-align: center !important;
     }
-    .pf-c-login__main-header p,
-    .pf-c-login__main-header-desc,
-    .pf-c-login__main-header .pf-c-content p,
-    .ak-flow-header p,
-    [slot="header"] p,
-    header p,
-    .pf-c-login__main-body p:first-of-type,
-    .pf-c-content p {
+    .pf-c-login .pf-c-login__main-header p,
+    .pf-c-login .pf-c-login__main-header-desc,
+    .pf-c-login .pf-c-login__main-header .pf-c-content p,
+    .pf-c-login .pf-c-login__main-body p:first-of-type {
       text-align: center !important;
       display: block !important;
       width: 100% !important;
       font-size: 16px !important;
       font-weight: 400 !important;
       color: #6B7280 !important;
-      font-family: 'Inter', sans-serif !important;
     }
 
     /* Style the static subtitle field on enrollment */
-    .pf-c-form__group:first-child {
+    .pf-c-login .pf-c-form__group:first-child {
       text-align: center !important;
     }
-    .pf-c-form__group:first-child .pf-c-form__label,
-    .pf-c-form__group:first-child .pf-c-form__label-text {
+    .pf-c-login .pf-c-form__group:first-child .pf-c-form__label,
+    .pf-c-login .pf-c-form__group:first-child .pf-c-form__label-text {
       text-align: center !important;
       display: block !important;
       width: 100% !important;
@@ -719,91 +757,149 @@ locals {
     }
 
     /* Flow title & headings */
-    .pf-c-title,
-    h1, h2, h3 {
+    .pf-c-login .pf-c-title,
+    .pf-c-login h1,
+    .pf-c-login h2,
+    .pf-c-login h3 {
       color: #191C1D !important;
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
       font-weight: 700 !important;
     }
 
     /* Primary buttons — teal pill */
-    .pf-c-button.pf-m-primary,
-    button[class*="primary"] {
+    .pf-c-login .pf-c-button.pf-m-primary,
+    .pf-c-login button[class*="primary"] {
       background-color: #004444 !important;
       border-color: #004444 !important;
       border-radius: 24px !important;
       color: #ffffff !important;
-      font-family: 'Plus Jakarta Sans', sans-serif !important;
       font-weight: 600 !important;
       min-height: 52px !important;
     }
-    .pf-c-button.pf-m-primary:hover,
-    button[class*="primary"]:hover {
+    .pf-c-login .pf-c-button.pf-m-primary:hover,
+    .pf-c-login button[class*="primary"]:hover {
       background-color: #003636 !important;
       border-color: #003636 !important;
     }
 
     /* Links */
-    .pf-c-button.pf-m-link,
-    a {
+    .pf-c-login .pf-c-button.pf-m-link,
+    .pf-c-login a {
       color: #004444 !important;
     }
-    a:hover {
+    .pf-c-login a:hover {
       color: #003636 !important;
     }
 
-    /* Social login source buttons */
-    .pf-c-login__main-footer-links-item-link {
-      color: #004444 !important;
+    /* ── Social login sources ── */
+    /* "or" divider above the source buttons */
+    .pf-c-login .pf-c-login__main-footer::before {
+      content: 'or' !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 100% !important;
+      font-size: 14px !important;
+      color: #9CA3AF !important;
+      margin: 8px 0 !important;
+      gap: 12px !important;
+      background-image: linear-gradient(#E5E7EB, #E5E7EB), linear-gradient(#E5E7EB, #E5E7EB) !important;
+      background-size: calc(50% - 24px) 1px, calc(50% - 24px) 1px !important;
+      background-position: left center, right center !important;
+      background-repeat: no-repeat !important;
     }
 
-    /* Labels and body text */
-    label,
-    .pf-c-form__label,
-    .pf-c-form__label-text,
-    p, span {
+    /* Source list fieldset — remove default fieldset chrome */
+    fieldset[name="login-sources"] {
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+      display: block !important;
+    }
+    fieldset[name="login-sources"] legend {
+      display: none !important;
+    }
+
+    /* Source button — the actual Google button is <button class="pf-c-button source-button"> */
+    button.source-button,
+    button[name="source-google"] {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 10px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 14px 16px !important;
+      background-color: #ffffff !important;
+      border: 2px solid #004444 !important;
+      border-radius: 24px !important;
+      color: #191C1D !important;
+      font-weight: 600 !important;
+      font-size: 16px !important;
+      min-height: 52px !important;
+      cursor: pointer !important;
+      transition: background-color 0.15s ease, border-color 0.15s ease !important;
+    }
+    button.source-button:hover,
+    button[name="source-google"]:hover {
+      background-color: #F0F3F3 !important;
+      border-color: #003636 !important;
+    }
+
+    /* Source button icon — override dark theme filter so Google colors show */
+    button.source-button img,
+    button[name="source-google"] img {
+      width: 28px !important;
+      height: 28px !important;
+      display: inline-block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      filter: brightness(1) invert(0) !important;
+      -webkit-filter: brightness(1) invert(0) !important;
+    }
+
+    /* Source button label text (show_source_labels = true renders a <span>) */
+    button.source-button span,
+    button[name="source-google"] span {
+      color: #191C1D !important;
+      font-size: 16px !important;
+      font-weight: 600 !important;
+    }
+
+    /* Labels and body text — NOT matching button spans */
+    .pf-c-login label,
+    .pf-c-login .pf-c-form__label,
+    .pf-c-login .pf-c-form__label-text,
+    .pf-c-login p {
       color: #6B7280 !important;
-      font-family: 'Inter', sans-serif !important;
       font-size: 14px !important;
     }
 
     /* Input fields — filled gray with teal underline */
-    .pf-c-form-control,
-    input,
-    input[type="text"],
-    input[type="email"],
-    input[type="password"] {
+    .pf-c-login .pf-c-form-control,
+    .pf-c-login input,
+    .pf-c-login input[type="text"],
+    .pf-c-login input[type="email"],
+    .pf-c-login input[type="password"] {
       background-color: #F0F3F3 !important;
       color: #191C1D !important;
       border: none !important;
       border-bottom: 2px solid #004444 !important;
       border-radius: 4px !important;
-      font-family: 'Inter', sans-serif !important;
       padding: 14px 16px !important;
       outline: none !important;
       box-shadow: none !important;
     }
-    /* PatternFly uses ::after for focus indicator — override it */
-    .pf-c-form-control::after,
-    .pf-c-form-control::before {
+    .pf-c-login .pf-c-form-control::after,
+    .pf-c-login .pf-c-form-control::before {
       border-bottom-color: #004444 !important;
     }
-    .pf-c-form-control:focus,
-    input:focus {
+    .pf-c-login .pf-c-form-control:focus,
+    .pf-c-login input:focus {
       border-bottom: 2px solid #004444 !important;
       box-shadow: none !important;
       outline: none !important;
-    }
-
-    /* Hide "Powered by authentik" — page-level footer, NOT the signup link */
-    .pf-c-login__footer,
-    .pf-c-login [class*="powered"],
-    .pf-c-login .ak-brand-link,
-    .pf-c-login a[href*="goauthentik"] {
-      display: none !important;
-      visibility: hidden !important;
-      height: 0 !important;
-      overflow: hidden !important;
     }
 
     /* Hide language selector */
@@ -811,8 +907,24 @@ locals {
     .pf-c-login select[name="locale"],
     .pf-c-login .ak-locale-select,
     .pf-c-login [aria-label="locale"],
-    .pf-c-login ak-locale-context,
-    .pf-c-login .ak-lang-select {
+    ak-locale-context,
+    [aria-label="locale"] {
+      display: none !important;
+    }
+
+    /* Ensure social login footer is visible */
+    .pf-c-login .pf-c-login__main-footer,
+    .pf-c-login__main-footer {
+      display: block !important;
+      visibility: visible !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+
+    /* Hide "Powered by authentik" site footer */
+    footer[name="site-footer"],
+    footer.pf-c-login__footer,
+    footer[aria-label="Site footer"] {
       display: none !important;
     }
   CSS

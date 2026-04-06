@@ -14,9 +14,6 @@ onboarding_service_domain: "onboarding"
 # Replicas
 onboarding_service_replicas: 2
 
-# Authentik API token for syncing driver group membership
-onboarding_service_authentik_api_token: "{{ lookup('env', 'ONBOARDING_SERVICE_AUTHENTIK_API_TOKEN') | default(lookup('env', 'PAYMENT_SERVICE_AUTHENTIK_API_TOKEN'), true) }}"
-
 # Database connection (Postgres via database_ha pgpool)
 onboarding_service_db_name: "onboarding"
 onboarding_service_db_user: "onboarding"
