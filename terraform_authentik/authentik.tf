@@ -13,17 +13,18 @@ data "authentik_flow" "default_authorization_flow" {
 
 # Custom authorization flow with implicit consent (no prompt).
 # The built-in implicit consent flow has internal policies that deny non-superusers.
-# This flow auto-approves any authenticated user (including Google SSO users)
-# via a consent stage with mode = 0 (always-approve, no user prompt).
+# This flow auto-approves any authenticated user
+# via a consent stage with mode = permanent (ask once, remember forever).
 resource "authentik_flow" "ridebase_authorization" {
   name               = "ridebase-authorization"
   slug               = "ridebase-authorization"
   title              = "Authorize RideBase"
   designation        = "authorization"
+  layout             = "stacked"
   policy_engine_mode = "any"
 }
 
-# Auto-approve consent stage — mode 0 means "always approve" (no prompt shown)
+# Auto-approve consent stage — permanent = ask once, remember forever.
 # Without this, the authorization flow has no stages and Authentik cannot
 # complete the OAuth handshake, causing redirect to the portal instead of
 # ridebase://callback.
@@ -148,119 +149,11 @@ resource "authentik_policy_binding" "rabbitmq_access" {
 }
 
 # ==============================================================================
-# Google OAuth Source (Social Login)
+# Google OAuth Source (Social Login) — DISABLED for MVP
 # ==============================================================================
-
-# --- Anti-takeover: only link Google to accounts that verified their email ---
-# Without this, an attacker can pre-register victim@gmail.com (unverified)
-# and Authentik's email_link mode silently links the real Google owner
-# to the attacker's account.
-# Bound to the Google enrollment flow (not source auth) so it runs during
-# account creation only.
-
-resource "authentik_policy_expression" "require_email_verified_for_link" {
-  name       = "ridebase-require-email-verified-for-link"
-  expression = <<-EXPR
-    # Prevent pre-registration takeover attacks.
-    # If a Google user's email matches an unverified account, delete the
-    # squatter so the real owner gets a fresh account via Google enrollment.
-    # Unverified accounts can't take rides or transact, so no data is lost.
-    # NEVER delete superusers — they are trusted admin accounts.
-    # NEVER delete users who already have an OAuth source connection
-    # (they signed up via Google previously — let them log in).
-    from authentik.sources.oauth.models import UserOAuthSourceConnection
-    pending_user = request.context.get("pending_user")
-    if pending_user:
-        if pending_user.ak_groups.filter(is_superuser=True).exists():
-            return True
-        if pending_user.attributes.get("email_verified", False) == True:
-            return True
-        # If user already has a Google source connection, they're legit
-        if UserOAuthSourceConnection.objects.filter(user=pending_user).exists():
-            return True
-        # Unverified squatter — wipe it so Google enrollment creates a clean account
-        pending_user.delete()
-        return True
-    # No existing account — allow (will create via enrollment flow)
-    return True
-  EXPR
-}
-
-# Use Authentik's built-in default source authentication flow.
-# Custom source auth flows lose the pending OAuth authorize context,
-# causing the redirect to ridebase://callback to fail.
-data "authentik_flow" "default_source_authentication" {
-  slug = "default-source-authentication"
-}
-
-resource "authentik_flow" "google_enrollment" {
-  name        = "ridebase-google-enrollment"
-  slug        = "ridebase-google-enrollment"
-  title       = "Sign Up with Google"
-  designation = "enrollment"
-  layout      = "stacked"
-}
-
-# 1. Custom Google Enrollment Prompt (Asks for Username)
-resource "authentik_stage_prompt" "google_enrollment_prompt" {
-  name = "ridebase-google-enrollment-prompt"
-  fields = [
-    authentik_stage_prompt_field.username.id
-  ]
-  validation_policies = [
-    authentik_policy_expression.ridebase_username_policy.id,
-  ]
-}
-
-# 2. Bind the custom prompt to the Google flow
-resource "authentik_flow_stage_binding" "google_enroll_prompt" {
-  target = authentik_flow.google_enrollment.uuid
-  stage  = authentik_stage_prompt.google_enrollment_prompt.id
-  order  = 5
-}
-
-resource "authentik_stage_user_write" "google_user_write" {
-  name                     = "ridebase-google-user-write"
-  create_users_as_inactive = false
-  create_users_group       = authentik_group.ridebase_riders.id
-  user_type                = "internal"
-}
-
-resource "authentik_flow_stage_binding" "google_enroll_write" {
-  target = authentik_flow.google_enrollment.uuid
-  stage  = authentik_stage_user_write.google_user_write.id
-  order  = 10
-}
-
-# NOTE: No user_login stage here — login is handled by the built-in
-# default-source-authentication flow, which preserves OAuth context.
-
-# Bind anti-takeover policy to enrollment flow
-resource "authentik_policy_binding" "google_enroll_require_verified" {
-  target = authentik_flow.google_enrollment.uuid
-  policy = authentik_policy_expression.require_email_verified_for_link.id
-  order  = 0
-}
-
-resource "authentik_source_oauth" "google" {
-  name                = "Sign in with Google"
-  slug                = "google"
-  authentication_flow = data.authentik_flow.default_source_authentication.id
-  enrollment_flow     = authentik_flow.google_enrollment.uuid
-  provider_type       = "google"
-  consumer_key        = var.google_client_id
-  consumer_secret     = var.google_client_secret
-  user_matching_mode  = "email_link"
-
-  lifecycle {
-    ignore_changes = [
-      access_token_url,
-      authorization_url,
-      oidc_jwks_url,
-      profile_url,
-    ]
-  }
-}
+# To re-enable, uncomment the resources below and add:
+#   sources = [authentik_source_oauth.google.uuid]
+# to the identification stage.
 
 # ==============================================================================
 # RideBase Groups
@@ -277,7 +170,7 @@ resource "authentik_group" "ridebase_riders" {
 
 # ==============================================================================
 # RideBase Enrollment (Sign-up) Flow
-# Flow: prompt → user_write (inactive) → email OTP → user_login
+# Flow: prompt → user_write → user_login
 # ==============================================================================
 resource "authentik_flow" "ridebase_enrollment" {
   name        = "ridebase-enrollment"
@@ -427,7 +320,7 @@ resource "authentik_stage_user_write" "enrollment_user_write" {
 #   curl -sk -X DELETE -H "Authorization: Bearer $TOKEN" \
 #     "$AUTH_URL/api/v3/stages/email/?name=ridebase-enrollment-email-verify"
 
-# User login stage (used by authentication flow only)
+# User login stage (shared by authentication + enrollment flows)
 resource "authentik_stage_user_login" "default_login" {
   name = "ridebase-user-login"
 }
@@ -444,12 +337,15 @@ resource "authentik_flow_stage_binding" "enroll_user_write" {
   order  = 10
 }
 
-# NOTE: No user_login stage in enrollment. When enrollment is triggered from
-# an OAuth /authorize request, adding user_login creates a new session that
-# destroys the pending OAuth context (PKCE, redirect_uri). Without it,
-# enrollment completes → user is redirected back to the authentication flow
-# → enters their (freshly created) credentials → user_login → OAuth authorize
-# → consent → ridebase://callback.
+# Log the user in immediately after enrollment so the pending OAuth
+# authorization flow can resume.  Authentik 2026.x stores the PKCE /
+# redirect_uri context server-side, so starting a session here no longer
+# destroys the OAuth state.
+resource "authentik_flow_stage_binding" "enroll_user_login" {
+  target = authentik_flow.ridebase_enrollment.uuid
+  stage  = authentik_stage_user_login.default_login.id
+  order  = 20
+}
 
 # ==============================================================================
 # RideBase Authentication (Login) Flow
@@ -465,11 +361,10 @@ resource "authentik_flow" "ridebase_authentication" {
 
 # Identification stage — accept username OR email
 resource "authentik_stage_identification" "ridebase_identification" {
-  name               = "ridebase-identification"
-  user_fields        = ["username", "email"]
-  enrollment_flow    = authentik_flow.ridebase_enrollment.uuid
-  sources            = [authentik_source_oauth.google.uuid]
-  show_source_labels = true
+  name            = "ridebase-identification"
+  user_fields     = ["username", "email"]
+  enrollment_flow = authentik_flow.ridebase_enrollment.uuid
+  recovery_flow   = authentik_flow.ridebase_recovery.uuid
 }
 
 # Password stage
@@ -556,6 +451,136 @@ return {
 EOF
 }
 
+# Custom scope to inject the user's group names into the JWT.
+# The mobile app uses this to determine whether the user is a driver
+# or rider without making an extra API call after login.
+resource "authentik_property_mapping_provider_scope" "groups" {
+  name        = "ridebase-scope-groups"
+  scope_name  = "profile"
+  description = "Injects ridebase group names (ridebase_riders, ridebase_drivers) into the JWT"
+  expression  = <<EOF
+return {
+    "groups": [
+        group.name
+        for group in request.user.ak_groups.filter(
+            name__startswith="ridebase_"
+        )
+    ]
+}
+EOF
+}
+
+# ==============================================================================
+# RideBase Password Recovery Flow
+# Flow: identification (email) → email (recovery link) → prompt (new password)
+#       → user_write → user_login
+#
+# Users who signed up with email+password and forget their credentials land
+# here via the "Forgot password?" link on the login page.
+# Google SSO users don't need this — they re-authenticate via Google.
+# ==============================================================================
+resource "authentik_flow" "ridebase_recovery" {
+  name        = "ridebase-recovery"
+  slug        = "ridebase-recovery"
+  title       = "Reset Password"
+  designation = "recovery"
+  layout      = "stacked"
+}
+
+# Stage 1 — Identify the user by email address only.
+# Using email (not username) because recovery requires sending a link.
+resource "authentik_stage_identification" "recovery_identification" {
+  name        = "ridebase-recovery-identification"
+  user_fields = ["email"]
+}
+
+# Stage 2 — Send recovery email with a time-limited link.
+# Uses Authentik's global SMTP settings (configured via Ansible/env vars)
+# and the built-in password_reset template.
+resource "authentik_stage_email" "recovery_email" {
+  name                     = "ridebase-recovery-email"
+  use_global_settings      = true
+  subject                  = "RideBase — Reset Your Password"
+  template                 = "email/password_reset.html"
+  token_expiry             = "minutes=30"
+  activate_user_on_success = true
+}
+
+# Stage 3 — Prompt for new password + confirmation
+resource "authentik_stage_prompt_field" "recovery_password" {
+  name        = "recovery-password"
+  field_key   = "password"
+  label       = "New Password"
+  type        = "password"
+  required    = true
+  placeholder = "Enter new password"
+  order       = 0
+}
+
+resource "authentik_stage_prompt_field" "recovery_password_repeat" {
+  name        = "recovery-password-repeat"
+  field_key   = "password_repeat"
+  label       = "Confirm New Password"
+  type        = "password"
+  required    = true
+  placeholder = "Confirm new password"
+  order       = 1
+}
+
+resource "authentik_stage_prompt" "recovery_password_prompt" {
+  name = "ridebase-recovery-password-prompt"
+  fields = [
+    authentik_stage_prompt_field.recovery_password.id,
+    authentik_stage_prompt_field.recovery_password_repeat.id,
+  ]
+  validation_policies = [
+    authentik_policy_password.ridebase_password_policy.id,
+  ]
+}
+
+# Stage 4 — Write the new password to the user record
+resource "authentik_stage_user_write" "recovery_user_write" {
+  name                     = "ridebase-recovery-user-write"
+  create_users_as_inactive = false
+  user_creation_mode       = "never_create"
+}
+
+# Stage 5 — Log the user in after successful reset
+resource "authentik_stage_user_login" "recovery_login" {
+  name = "ridebase-recovery-login"
+}
+
+# Bind stages to recovery flow in order
+resource "authentik_flow_stage_binding" "recovery_identification" {
+  target = authentik_flow.ridebase_recovery.uuid
+  stage  = authentik_stage_identification.recovery_identification.id
+  order  = 0
+}
+
+resource "authentik_flow_stage_binding" "recovery_email" {
+  target = authentik_flow.ridebase_recovery.uuid
+  stage  = authentik_stage_email.recovery_email.id
+  order  = 10
+}
+
+resource "authentik_flow_stage_binding" "recovery_password_prompt" {
+  target = authentik_flow.ridebase_recovery.uuid
+  stage  = authentik_stage_prompt.recovery_password_prompt.id
+  order  = 20
+}
+
+resource "authentik_flow_stage_binding" "recovery_user_write" {
+  target = authentik_flow.ridebase_recovery.uuid
+  stage  = authentik_stage_user_write.recovery_user_write.id
+  order  = 30
+}
+
+resource "authentik_flow_stage_binding" "recovery_login" {
+  target = authentik_flow.ridebase_recovery.uuid
+  stage  = authentik_stage_user_login.recovery_login.id
+  order  = 40
+}
+
 resource "authentik_provider_oauth2" "ridebase" {
   name                = "RideBase Provider"
   client_id           = "ridebase"
@@ -564,6 +589,21 @@ resource "authentik_provider_oauth2" "ridebase" {
   authentication_flow = authentik_flow.ridebase_authentication.uuid
   client_type         = "public"
   signing_key         = data.authentik_certificate_key_pair.default.id
+  sub_mode            = "hashed_user_id"
+
+  # Token lifetimes — tuned for a public mobile client.
+  # Short access tokens limit blast radius if intercepted;
+  # long refresh tokens keep users signed-in across app restarts.
+  access_code_validity   = "minutes=1"
+  access_token_validity  = "minutes=15"
+  refresh_token_validity = "days=90"
+
+  # Refresh-token rotation: when a refresh token older than this
+  # threshold is used, Authentik issues a new refresh token alongside
+  # the new access token. This limits the window an exfiltrated
+  # refresh token can be replayed.
+  refresh_token_threshold = "days=7"
+
   allowed_redirect_uris = [
     { matching_mode = "strict", url = "ridebase://callback" },
     { matching_mode = "strict", url = "ridebase://logout-callback" }
@@ -576,6 +616,7 @@ resource "authentik_provider_oauth2" "ridebase" {
     authentik_property_mapping_provider_scope.subscription.id,
     authentik_property_mapping_provider_scope.user_pk.id,
     authentik_property_mapping_provider_scope.email_verified.id,
+    authentik_property_mapping_provider_scope.groups.id,
   ]
 }
 
@@ -798,84 +839,7 @@ locals {
       color: #003636 !important;
     }
 
-    /* ── Social login sources ── */
-    /* "or" divider above the source buttons */
-    .pf-c-login .pf-c-login__main-footer::before {
-      content: 'or' !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      width: 100% !important;
-      font-size: 14px !important;
-      color: #9CA3AF !important;
-      margin: 8px 0 !important;
-      gap: 12px !important;
-      background-image: linear-gradient(#E5E7EB, #E5E7EB), linear-gradient(#E5E7EB, #E5E7EB) !important;
-      background-size: calc(50% - 24px) 1px, calc(50% - 24px) 1px !important;
-      background-position: left center, right center !important;
-      background-repeat: no-repeat !important;
-    }
-
-    /* Source list fieldset — remove default fieldset chrome */
-    fieldset[name="login-sources"] {
-      border: none !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      width: 100% !important;
-      display: block !important;
-    }
-    fieldset[name="login-sources"] legend {
-      display: none !important;
-    }
-
-    /* Source button — the actual Google button is <button class="pf-c-button source-button"> */
-    button.source-button,
-    button[name="source-google"] {
-      display: flex !important;
-      flex-wrap: nowrap !important;
-      align-items: center !important;
-      justify-content: center !important;
-      gap: 10px !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
-      padding: 14px 16px !important;
-      background-color: #ffffff !important;
-      border: 2px solid #004444 !important;
-      border-radius: 24px !important;
-      color: #191C1D !important;
-      font-weight: 600 !important;
-      font-size: 16px !important;
-      min-height: 52px !important;
-      cursor: pointer !important;
-      transition: background-color 0.15s ease, border-color 0.15s ease !important;
-    }
-    button.source-button:hover,
-    button[name="source-google"]:hover {
-      background-color: #F0F3F3 !important;
-      border-color: #003636 !important;
-    }
-
-    /* Source button icon — override dark theme filter so Google colors show */
-    button.source-button img,
-    button[name="source-google"] img {
-      width: 28px !important;
-      height: 28px !important;
-      display: inline-block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      filter: brightness(1) invert(0) !important;
-      -webkit-filter: brightness(1) invert(0) !important;
-    }
-
-    /* Source button label text (show_source_labels = true renders a <span>) */
-    button.source-button span,
-    button[name="source-google"] span {
-      color: #191C1D !important;
-      font-size: 16px !important;
-      font-weight: 600 !important;
-    }
-
-    /* Labels and body text — NOT matching button spans */
+    /* Labels and body text */
     .pf-c-login label,
     .pf-c-login .pf-c-form__label,
     .pf-c-login .pf-c-form__label-text,
@@ -920,19 +884,10 @@ locals {
       display: none !important;
     }
 
-    /* Ensure social login footer is visible */
-    .pf-c-login .pf-c-login__main-footer,
-    .pf-c-login__main-footer {
-      display: block !important;
-      visibility: visible !important;
-      height: auto !important;
-      overflow: visible !important;
-    }
-
-    /* Hide "Powered by authentik" site footer */
-    footer[name="site-footer"],
-    footer.pf-c-login__footer,
-    footer[aria-label="Site footer"] {
+    /* Hide "Powered by authentik" site footer on login pages */
+    .pf-c-login footer[name="site-footer"],
+    .pf-c-login footer.pf-c-login__footer,
+    .pf-c-login footer[aria-label="Site footer"] {
       display: none !important;
     }
   CSS
@@ -943,8 +898,8 @@ resource "null_resource" "ridebase_brand_css" {
   depends_on = [authentik_brand.ridebase]
 
   triggers = {
-    css_hash   = sha256(local.ridebase_css)
-    brand_hash = sha256(jsonencode(authentik_brand.ridebase))
+    css_hash = sha256(local.ridebase_css)
+    brand_id = authentik_brand.ridebase.id
   }
 
   provisioner "local-exec" {
