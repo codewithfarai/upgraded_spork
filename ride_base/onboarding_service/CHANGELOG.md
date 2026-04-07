@@ -1,3 +1,9 @@
+## onboarding_service-v0.11.0 (2026-04-07)
+
+### feat
+
+- add health checks and retry logic to Redis connection initialization
+
 ## onboarding_service-v0.10.0 (2026-04-07)
 
 ### feat
