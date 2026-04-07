@@ -53,6 +53,7 @@ async def generate_otp(user_id: str) -> str:
                 logger.error("Failed to store OTP in Redis after 3 attempts.")
                 raise e
             logger.warning("Redis ConnectionError on setex (attempt %d/3), retrying...", attempt + 1)
+            await r.connection_pool.disconnect()
             await asyncio.sleep(0.5)
     return code
 
@@ -72,6 +73,7 @@ async def verify_otp(user_id: str, code: str) -> bool:
                 logger.error("Failed to get OTP from Redis after 3 attempts.")
                 raise e
             logger.warning("Redis ConnectionError on get (attempt %d/3), retrying...", attempt + 1)
+            await r.connection_pool.disconnect()
             await asyncio.sleep(0.5)
 
     if stored_code is None:
@@ -87,6 +89,7 @@ async def verify_otp(user_id: str, code: str) -> bool:
             if attempt == 2:
                 logger.error("Failed to delete OTP from Redis after 3 attempts.")
                 raise e
+            await r.connection_pool.disconnect()
             await asyncio.sleep(0.5)
 
     return True
