@@ -1,3 +1,9 @@
+## v0.45.0 (2026-04-07)
+
+### feat
+
+- add logout redirect stage to ridebase-invalidation flow
+
 ## v0.44.0 (2026-04-07)
 
 ### feat
