@@ -1,3 +1,9 @@
+## onboarding_service-v0.13.0 (2026-04-07)
+
+### feat
+
+- add retry logic with exponential backoff for Redis operations in OTP service
+
 ## onboarding_service-v0.12.0 (2026-04-07)
 
 ### feat
