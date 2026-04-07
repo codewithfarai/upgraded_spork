@@ -1,3 +1,9 @@
+## onboarding_service-v0.15.0 (2026-04-07)
+
+### feat
+
+- - refactor role system to support dual Rider/Driver assignments simultaneously - implement deferred Driver privilege (is_driver = True only after vehicle verification) - add 'role_intent' tracking to maintain user signup context - add automated UTC timestamps (created_at, updated_at) to all onboarding models
+
 ## onboarding_service-v0.14.0 (2026-04-07)
 
 ### feat
