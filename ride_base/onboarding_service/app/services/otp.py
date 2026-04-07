@@ -9,6 +9,8 @@ import secrets
 
 import httpx
 import redis.asyncio as redis
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
 
 from app.config import settings
 
@@ -24,11 +26,14 @@ async def get_redis() -> redis.Redis:
     """Lazy-initialize the Redis connection with health checks and retries."""
     global _redis
     if _redis is None:
+        # Configure robust retries: 3 attempts with exponential backoff
+        retry_strategy = Retry(ExponentialBackoff(), 3)
         _redis = redis.from_url(
             settings.REDIS_URL,
             decode_responses=True,
             health_check_interval=30,
             retry_on_timeout=True,
+            retry=retry_strategy,
         )
     return _redis
 
