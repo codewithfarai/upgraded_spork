@@ -45,9 +45,7 @@ async def get_my_profile(
         "email": profile.email,
         "is_rider": profile.is_rider,
         "is_driver": profile.is_driver,
-        "role_intent": profile.role_intent.value,
-        "created_at": profile.created_at,
-        "updated_at": profile.updated_at
+        "role_intent": profile.role_intent.value
     }
 
 
@@ -95,7 +93,6 @@ async def update_my_profile(
         "is_rider": profile.is_rider,
         "is_driver": profile.is_driver,
         "role_intent": profile.role_intent.value,
-        "updated_at": profile.updated_at
     }
 
 
@@ -152,8 +149,7 @@ async def create_profile(
         "is_rider": new_profile.is_rider,
         "is_driver": new_profile.is_driver,
         "role_intent": intent.value,
-        "email_otp_sent": otp_sent,
-        "created_at": new_profile.created_at
+        "email_otp_sent": otp_sent
     }
 
 
@@ -300,8 +296,7 @@ async def setup_driver(
 
     return {
         "message": "Driver setup complete! You are now an authorized Driver.",
-        "vehicle_id": str(details.id),
-        "created_at": details.created_at
+        "vehicle_id": str(details.id)
     }
 
 
@@ -367,8 +362,7 @@ async def update_driver(
 
     return {
         "message": "Driver details updated.",
-        "vehicle_id": str(details.id),
-        "updated_at": details.updated_at
+        "vehicle_id": str(details.id)
     }
 
 
