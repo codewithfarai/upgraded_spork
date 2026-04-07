@@ -168,6 +168,14 @@
 
     - name: Deploy Database HA stack
       command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
+      register: stack_deploy
+
+    - name: Force restart Redis Sentinel to clear stale quorum IP state
+      command: docker service update --force db_ha_redis-sentinel
+      when: >
+        'Updating service db_ha_redis-0' in stack_deploy.stdout or
+        'Updating service db_ha_redis-1' in stack_deploy.stdout or
+        'Creating service db_ha_redis-' in stack_deploy.stdout
 
     - name: Wait for PostgreSQL Master to be ready via pgpool
       command: >

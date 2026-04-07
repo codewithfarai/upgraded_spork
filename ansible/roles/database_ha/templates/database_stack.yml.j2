@@ -238,7 +238,7 @@ services:
           tcp-check expect string +OK
           default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions init-addr libc,none
           {% for host in db_nodes %}
-          server redis-{{ loop.index0 }} redis-{{ loop.index0 }}:6379 check
+          server redis-{{ loop.index0 }} redis-{{ loop.index0 }}:6379 check resolvers docker resolve-prefer ipv4
           {% endfor %}
 
         listen rabbitmq-amqp
