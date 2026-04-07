@@ -1,3 +1,13 @@
+## v0.43.0 (2026-04-07)
+
+### feat
+
+- enhance authorization flow with implicit consent and improve user session handling
+
+### chore
+
+- upgrade authentik provider to 2025.12.1 and simplify enrollment flow by enabling direct user login
+
 ## v0.42.0 (2026-04-06)
 
 ### feat
