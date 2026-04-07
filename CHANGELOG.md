@@ -1,3 +1,9 @@
+## v0.44.0 (2026-04-07)
+
+### feat
+
+- force Redis Sentinel restart on stack updates and enable DNS resolution for HA Redis nodes
+
 ## v0.43.0 (2026-04-07)
 
 ### feat
