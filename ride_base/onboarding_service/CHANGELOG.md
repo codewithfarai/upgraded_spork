@@ -1,3 +1,9 @@
+## onboarding_service-v0.10.0 (2026-04-07)
+
+### feat
+
+- implement resilient RabbitMQ connection handling with startup softening and automatic publish retries
+
 ## onboarding_service-v0.9.0 (2026-04-06)
 
 ### feat
