@@ -1,3 +1,9 @@
+## onboarding_service-v0.13.1 (2026-04-07)
+
+### fix
+
+- disconnect redis connection pool before retrying failed operations in otp service
+
 ## onboarding_service-v0.13.0 (2026-04-07)
 
 ### feat
