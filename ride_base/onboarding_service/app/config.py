@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     S3_REGION_NAME: str = "eu-central"
 
     # RabbitMQ
-    RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
+    RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/?heartbeat=60"
     RABBITMQ_EXCHANGE: str = "ridebase.events"
 
     # Redis (OTP storage)

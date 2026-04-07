@@ -59,7 +59,7 @@ class RabbitMQPublisher:
         self._exchange = None
 
     async def publish(self, routing_key: str, message: dict) -> bool:
-        """Publish a JSON message to the exchange without blocking the event loop.
+        """Publish a JSON message to the exchange with retries.
 
         Args:
             routing_key: Dot-separated key, e.g. "onboarding.driver_role_assigned"
@@ -68,25 +68,51 @@ class RabbitMQPublisher:
         Returns:
             True if published successfully, False otherwise.
         """
-        if self._connection is None or self._connection.is_closed:
-            logger.error("RabbitMQ connection not available — was connect() called?")
-            return False
+        max_retries = 3
+        retry_delay = 1.0  # seconds
 
-        try:
-            await self._ensure_channel()
-            await self._exchange.publish(
-                aio_pika.Message(
-                    body=json.dumps(message).encode(),
-                    content_type="application/json",
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                ),
-                routing_key=routing_key,
-            )
-            logger.info("Published to '%s' key '%s'", settings.RABBITMQ_EXCHANGE, routing_key)
-            return True
-        except Exception:
-            logger.exception("Failed to publish message to RabbitMQ")
-            return False
+        for attempt in range(max_retries):
+            # 1. Ensure connection is active
+            if self._connection is None or self._connection.is_closed:
+                logger.warning("RabbitMQ connection lost, attempting to reconnect (attempt %d/%d)...", attempt + 1, max_retries)
+                try:
+                    await self.connect()
+                except Exception:
+                    logger.error("Failed to establish RabbitMQ connection on attempt %d", attempt + 1)
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    return False
+
+            if self._connection is None or self._connection.is_closed:
+                logger.error("RabbitMQ connection still not available after reconnect attempt")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                return False
+
+            # 2. Try to publish
+            try:
+                await self._ensure_channel()
+                await self._exchange.publish(
+                    aio_pika.Message(
+                        body=json.dumps(message).encode(),
+                        content_type="application/json",
+                        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                    ),
+                    routing_key=routing_key,
+                )
+                logger.info("Published to '%s' key '%s' on attempt %d", settings.RABBITMQ_EXCHANGE, routing_key, attempt + 1)
+                return True
+            except Exception:
+                logger.warning("Failed to publish message to RabbitMQ (attempt %d/%d)", attempt + 1, max_retries, exc_info=True)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                logger.error("Max retries reached for RabbitMQ publish")
+                return False
+
+        return False
 
 
 # Module-level singleton

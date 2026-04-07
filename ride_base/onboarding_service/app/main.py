@@ -51,28 +51,30 @@ async def lifespan(app: FastAPI):
         logger.error("S3_ACCESS_KEY or S3_ENDPOINT_URL missing in environment. Exiting...")
         raise RuntimeError("S3 credentials required to start service.")
 
-    # Fail fast if RabbitMQ is unreachable
+    # Soften fail-fast for RabbitMQ: allows service to start even if RabbitMQ is flickering
     if not publisher._connection:
-        logger.error("Failed to connect to RabbitMQ on startup. Exiting...")
-        raise RuntimeError("RabbitMQ connection required to start service.")
+        logger.error("Failed to connect to RabbitMQ on startup. Service will start, but background tasks may fail until connection is established.")
+    else:
+        try:
+            channel = await publisher._connection.channel()
+            exchange = publisher._exchange
 
-    channel = await publisher._connection.channel()
-    exchange = publisher._exchange
+            # 2. Setup Authentik Sync Queue (driver role assignment)
+            auth_queue = await channel.declare_queue("onboarding_service.authentik_sync", durable=True)
+            await auth_queue.bind(exchange, routing_key="onboarding.driver_role_assigned")
+            await auth_queue.consume(process_driver_role_sync)
 
-    # 2. Setup Authentik Sync Queue (driver role assignment)
-    auth_queue = await channel.declare_queue("onboarding_service.authentik_sync", durable=True)
-    await auth_queue.bind(exchange, routing_key="onboarding.driver_role_assigned")
-    await auth_queue.consume(process_driver_role_sync)
+            # 3. Setup Email Verified Sync Queue
+            email_queue = await channel.declare_queue("onboarding_service.email_verified_sync", durable=True)
+            await email_queue.bind(exchange, routing_key="onboarding.email_verified")
+            await email_queue.consume(process_email_verified_sync)
 
-    # 3. Setup Email Verified Sync Queue
-    email_queue = await channel.declare_queue("onboarding_service.email_verified_sync", durable=True)
-    await email_queue.bind(exchange, routing_key="onboarding.email_verified")
-    await email_queue.consume(process_email_verified_sync)
-
-    # 4. Setup OTP Email Send Queue
-    otp_queue = await channel.declare_queue("onboarding_service.send_otp_email", durable=True)
-    await otp_queue.bind(exchange, routing_key="onboarding.send_otp_email")
-    await otp_queue.consume(process_send_otp_email)
+            # 4. Setup OTP Email Send Queue
+            otp_queue = await channel.declare_queue("onboarding_service.send_otp_email", durable=True)
+            await otp_queue.bind(exchange, routing_key="onboarding.send_otp_email")
+            await otp_queue.consume(process_send_otp_email)
+        except Exception:
+            logger.exception("RabbitMQ connection established but failed to setup queues/consumers.")
 
     logger.info("Onboarding service started")
     yield
