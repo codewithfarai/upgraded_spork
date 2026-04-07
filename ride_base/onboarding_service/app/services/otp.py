@@ -40,22 +40,55 @@ async def get_redis() -> redis.Redis:
 
 async def generate_otp(user_id: str) -> str:
     """Generate and store a 6-digit OTP for the given user."""
+    import asyncio
     code = "".join([str(secrets.randbelow(10)) for _ in range(OTP_LENGTH)])
     r = await get_redis()
-    await r.setex(f"otp:{user_id}", OTP_TTL_SECONDS, code)
+
+    for attempt in range(3):
+        try:
+            await r.setex(f"otp:{user_id}", OTP_TTL_SECONDS, code)
+            return code
+        except redis.ConnectionError as e:
+            if attempt == 2:
+                logger.error("Failed to store OTP in Redis after 3 attempts.")
+                raise e
+            logger.warning("Redis ConnectionError on setex (attempt %d/3), retrying...", attempt + 1)
+            await asyncio.sleep(0.5)
     return code
 
 
 async def verify_otp(user_id: str, code: str) -> bool:
     """Verify the OTP code. Consumed on success (single use)."""
+    import asyncio
     r = await get_redis()
-    stored_code = await r.get(f"otp:{user_id}")
+    stored_code = None
+
+    for attempt in range(3):
+        try:
+            stored_code = await r.get(f"otp:{user_id}")
+            break
+        except redis.ConnectionError as e:
+            if attempt == 2:
+                logger.error("Failed to get OTP from Redis after 3 attempts.")
+                raise e
+            logger.warning("Redis ConnectionError on get (attempt %d/3), retrying...", attempt + 1)
+            await asyncio.sleep(0.5)
+
     if stored_code is None:
         return False
     if not secrets.compare_digest(stored_code, code):
         return False
-    # Consume the OTP
-    await r.delete(f"otp:{user_id}")
+
+    for attempt in range(3):
+        try:
+            await r.delete(f"otp:{user_id}")
+            break
+        except redis.ConnectionError as e:
+            if attempt == 2:
+                logger.error("Failed to delete OTP from Redis after 3 attempts.")
+                raise e
+            await asyncio.sleep(0.5)
+
     return True
 
 
