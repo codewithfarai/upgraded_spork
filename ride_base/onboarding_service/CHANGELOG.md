@@ -1,3 +1,9 @@
+## onboarding_service-v0.15.1 (2026-04-07)
+
+### refactor
+
+- remove redundant timestamp fields from API response schemas
+
 ## onboarding_service-v0.15.0 (2026-04-07)
 
 ### feat
