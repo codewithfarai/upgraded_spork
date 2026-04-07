@@ -1,3 +1,9 @@
+## onboarding_service-v0.12.0 (2026-04-07)
+
+### feat
+
+- implement exponential backoff retry strategy for Redis connection
+
 ## onboarding_service-v0.11.0 (2026-04-07)
 
 ### feat
