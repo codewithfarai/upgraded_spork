@@ -54,21 +54,36 @@ data "authentik_certificate_key_pair" "default" {
 # and does NOT destroy the Authentik session cookie.
 # ==============================================================================
 resource "authentik_flow" "ridebase_invalidation" {
-  name        = "ridebase-invalidation"
-  slug        = "ridebase-invalidation"
-  title       = "Signed Out"
-  designation = "invalidation"
-  layout      = "stacked"
+  name           = "ridebase-invalidation"
+  slug           = "ridebase-invalidation"
+  title          = "Signed Out"
+  designation    = "invalidation"
+  authentication = "none"
+  layout         = "stacked"
 }
 
 resource "authentik_stage_user_logout" "ridebase_logout" {
   name = "ridebase-user-logout"
 }
 
+# Stage 2 — After session is destroyed, redirect back to the mobile app
+# instead of rendering Authentik's default "Signed Out" page.
+resource "authentik_stage_redirect" "ridebase_logout_redirect" {
+  name          = "ridebase-logout-redirect"
+  mode          = "static"
+  target_static = "ridebase://logout-callback"
+}
+
 resource "authentik_flow_stage_binding" "invalidation_logout" {
   target = authentik_flow.ridebase_invalidation.uuid
   stage  = authentik_stage_user_logout.ridebase_logout.id
-  order  = 0
+  order  = 10
+}
+
+resource "authentik_flow_stage_binding" "invalidation_redirect" {
+  target = authentik_flow.ridebase_invalidation.uuid
+  stage  = authentik_stage_redirect.ridebase_logout_redirect.id
+  order  = 20
 }
 
 
