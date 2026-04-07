@@ -23,3 +23,5 @@ class UserProfile(Base):
     email_verified = Column(Boolean, default=False, nullable=False)
 
     role = Column(Enum(RoleEnum), default=RoleEnum.RIDER, nullable=False)
+    location_enabled = Column(Boolean, default=False, nullable=False)
+    details_confirmed = Column(Boolean, default=False, nullable=False)

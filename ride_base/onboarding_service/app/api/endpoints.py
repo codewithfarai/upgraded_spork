@@ -82,6 +82,10 @@ async def update_my_profile(
                 role_changed_to_driver = True
             profile.role = new_role
 
+    # Always set these to True when they pass through here from the app
+    profile.location_enabled = True
+    profile.details_confirmed = True
+
     await db.commit()
 
     if role_changed_to_driver:
@@ -139,7 +143,9 @@ async def create_profile(
         phone_number=phone_number,
         city=city,
         email=email,
-        role=role_enum
+        role=role_enum,
+        location_enabled=True,   # Mandatory per UI
+        details_confirmed=True   # Mandatory per UI
     )
 
     db.add(new_profile)
