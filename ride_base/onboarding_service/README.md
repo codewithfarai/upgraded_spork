@@ -41,3 +41,16 @@ alembic upgrade head
 ```
 
 `DATABASE_URL` is injected at runtime from deployment secrets. The migration step is serialized with a host lock and retryable, so reruns after interruptions are safe.
+
+## Data Model
+
+### UserProfile
+The `user_profiles` table now uses a **Dual-Role** system instead of a single Enum:
+- **`is_rider`**: Defaults to `True`. Everyone starts as a Rider.
+- **`is_driver`**: Defaults to `False`. Becomes `True` only after Step 3 (Vehicle Setup) is confirmed.
+- **`role_intent`**: Stores the user's initial signup choice (`RIDER` or `DRIVER`) to guide the app flow.
+- **`created_at` / `updated_at`**: Automated UTC timestamps for all profile events.
+
+### DriverDetails
+Stores vehicle and identification metadata. Linked via `profile_id` to `user_profiles`.
+- **Timestamps**: Now includes `created_at` and `updated_at` for vehicle confirmation auditing.

@@ -53,12 +53,12 @@ su - postgres -c "PAGER=cat psql -d onboarding"
 
 -- Tables: alembic_version, driver_details, user_profiles
 
--- View profiles
-SELECT * FROM user_profiles LIMIT 10;
+-- View profiles (New Dual-Role Schema)
+SELECT full_name, is_rider, is_driver, role_intent, created_at FROM user_profiles LIMIT 10;
 SELECT count(*) FROM user_profiles;
 
 -- View driver details
-SELECT * FROM driver_details LIMIT 10;
+SELECT car_make, car_model, license_plate, created_at FROM driver_details LIMIT 10;
 SELECT count(*) FROM driver_details;
 
 -- Wipe all profile data (keeps schema + migrations)

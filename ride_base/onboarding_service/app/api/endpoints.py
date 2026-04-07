@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.middleware.auth import get_current_user
 from app.db.database import get_db
-from app.models.profile import UserProfile, RoleEnum
+from app.models.profile import UserProfile, RoleIntentEnum
 from app.models.vehicle import DriverDetails
 from app.services.s3 import upload_file_to_s3
 from app.services.rabbitmq import publisher
@@ -42,7 +42,12 @@ async def get_my_profile(
         "full_name": profile.full_name,
         "phone_number": profile.phone_number,
         "city": profile.city,
-        "role": profile.role.value
+        "email": profile.email,
+        "is_rider": profile.is_rider,
+        "is_driver": profile.is_driver,
+        "role_intent": profile.role_intent.value,
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at
     }
 
 
@@ -51,11 +56,11 @@ async def update_my_profile(
     full_name: str | None = Form(None),
     phone_number: str | None = Form(None),
     city: str | None = Form(None),
-    role: str | None = Form(None),
+    role_intent: str | None = Form(None),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update profile fields. All fields optional. Role change triggers Authentik group sync."""
+    """Update profile fields. role_intent can be updated but doesn't grant permissions."""
     auth_id = _get_auth_id(current_user)
 
     result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == auth_id))
@@ -70,47 +75,27 @@ async def update_my_profile(
         profile.phone_number = phone_number
     if city is not None:
         profile.city = city
-
-    role_changed_to_driver = False
-    if role is not None:
+    if role_intent is not None:
         try:
-            new_role = RoleEnum(role.upper())
+            profile.role_intent = RoleIntentEnum(role_intent.upper())
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid role. Must be RIDER or DRIVER.")
-        if new_role != profile.role:
-            if new_role == RoleEnum.DRIVER:
-                role_changed_to_driver = True
-            profile.role = new_role
+            raise HTTPException(status_code=400, detail="Invalid role_intent. Must be RIDER or DRIVER.")
 
-    # Always set these to True when they pass through here from the app
+    # Always ensure these are confirmed from the app flow
     profile.location_enabled = True
     profile.details_confirmed = True
 
     await db.commit()
-
-    if role_changed_to_driver:
-        success = await publisher.publish(
-            routing_key="onboarding.driver_role_assigned",
-            message={
-                "event_type": "onboarding.driver_role_assigned",
-                "authentik_user_id": auth_id,
-                "full_name": profile.full_name,
-            },
-        )
-        if not success:
-            logger.error("Failed to enqueue driver role assignment for user %s", auth_id)
-            return {
-                "message": "Profile updated, but backend sync is delayed.",
-                "role": profile.role.value,
-                "warning": "sync_delayed",
-            }
 
     return {
         "message": "Profile updated.",
         "full_name": profile.full_name,
         "phone_number": profile.phone_number,
         "city": profile.city,
-        "role": profile.role.value,
+        "is_rider": profile.is_rider,
+        "is_driver": profile.is_driver,
+        "role_intent": profile.role_intent.value,
+        "updated_at": profile.updated_at
     }
 
 
@@ -124,16 +109,15 @@ async def create_profile(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Step 1 & 2: Save the user's basic info and their choice to be a Driver/Rider."""
+    """Step 1 & 2: Save metadata and intent. Everyone is a Rider by default."""
     auth_id = _get_auth_id(current_user)
 
-    # Check if exists
     result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == auth_id))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Profile already exists.")
 
     try:
-        role_enum = RoleEnum(role.upper())
+        intent = RoleIntentEnum(role.upper())
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid role. Must be RIDER or DRIVER.")
 
@@ -143,15 +127,16 @@ async def create_profile(
         phone_number=phone_number,
         city=city,
         email=email,
-        role=role_enum,
-        location_enabled=True,   # Mandatory per UI
-        details_confirmed=True   # Mandatory per UI
+        role_intent=intent,
+        is_rider=True,          # Everyone is a Rider
+        is_driver=False,         # Not a Driver until confirmed (Step 3)
+        location_enabled=True,
+        details_confirmed=True
     )
 
     db.add(new_profile)
     await db.commit()
 
-    # Send OTP email for verification (via RabbitMQ)
     otp_sent = False
     try:
         otp_code = await generate_otp(auth_id)
@@ -159,26 +144,17 @@ async def create_profile(
             routing_key="onboarding.send_otp_email",
             message={"email": email, "code": otp_code},
         )
-        if not otp_sent:
-            logger.error("Failed to enqueue OTP email for user %s (%s)", auth_id, email)
     except Exception:
         logger.exception("Failed to generate/send OTP for user %s", auth_id)
 
-    # If driver, publish to RabbitMQ — consumer handles the slow Authentik API call
-    if role_enum == RoleEnum.DRIVER:
-        success = await publisher.publish(
-            routing_key="onboarding.driver_role_assigned",
-            message={
-                "event_type": "onboarding.driver_role_assigned",
-                "authentik_user_id": auth_id,
-                "full_name": full_name,
-            },
-        )
-        if not success:
-            logger.error("Failed to enqueue driver role assignment for user %s", auth_id)
-            return {"message": "Profile created successfully, but backend sync is delayed.", "role": role_enum.value, "email_otp_sent": otp_sent, "warning": "sync_delayed"}
-
-    return {"message": "Profile created successfully", "role": role_enum.value, "email_otp_sent": otp_sent}
+    return {
+        "message": "Profile created successfully",
+        "is_rider": new_profile.is_rider,
+        "is_driver": new_profile.is_driver,
+        "role_intent": intent.value,
+        "email_otp_sent": otp_sent,
+        "created_at": new_profile.created_at
+    }
 
 
 class VerifyOtpRequest(BaseModel):
@@ -270,9 +246,6 @@ async def setup_driver(
     if not profile:
         raise HTTPException(status_code=404, detail="Complete your basic profile first.")
 
-    if profile.role != RoleEnum.DRIVER:
-        raise HTTPException(status_code=403, detail="Only drivers can access vehicle setup.")
-
     # Prevent duplicate driver setup
     driver_result = await db.execute(select(DriverDetails).where(DriverDetails.profile_id == auth_id))
     if driver_result.scalar_one_or_none():
@@ -309,9 +282,27 @@ async def setup_driver(
     )
 
     db.add(details)
+
+    # GRANT DRIVER STATUS NOW
+    profile.is_driver = True
+
     await db.commit()
 
-    return {"message": "Driver setup complete!", "vehicle_id": str(details.id)}
+    # SYNC TO AUTHENTIK NOW
+    await publisher.publish(
+        routing_key="onboarding.driver_role_assigned",
+        message={
+            "event_type": "onboarding.driver_role_assigned",
+            "authentik_user_id": auth_id,
+            "full_name": profile.full_name,
+        },
+    )
+
+    return {
+        "message": "Driver setup complete! You are now an authorized Driver.",
+        "vehicle_id": str(details.id),
+        "created_at": details.created_at
+    }
 
 
 @router.patch("/driver_setup")
@@ -374,7 +365,11 @@ async def update_driver(
 
     await db.commit()
 
-    return {"message": "Driver details updated.", "vehicle_id": str(details.id)}
+    return {
+        "message": "Driver details updated.",
+        "vehicle_id": str(details.id),
+        "updated_at": details.updated_at
+    }
 
 
 @router.delete("/driver_setup", status_code=status.HTTP_204_NO_CONTENT)

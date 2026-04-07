@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.database import Base
@@ -19,3 +19,6 @@ class DriverDetails(Base):
     national_id_photo_url = Column(String, nullable=False)
     driver_license_number = Column(String, nullable=False, unique=True)
     driver_license_photo_url = Column(String, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
