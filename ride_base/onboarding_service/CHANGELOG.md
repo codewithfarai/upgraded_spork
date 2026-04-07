@@ -1,3 +1,9 @@
+## onboarding_service-v0.13.2 (2026-04-07)
+
+### refactor
+
+- remove redis retry strategy from onboarding service connection initialization
+
 ## onboarding_service-v0.13.1 (2026-04-07)
 
 ### fix
