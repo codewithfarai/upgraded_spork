@@ -21,10 +21,15 @@ _redis: redis.Redis | None = None
 
 
 async def get_redis() -> redis.Redis:
-    """Lazy-initialize the Redis connection."""
+    """Lazy-initialize the Redis connection with health checks and retries."""
     global _redis
     if _redis is None:
-        _redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        _redis = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            health_check_interval=30,
+            retry_on_timeout=True,
+        )
     return _redis
 
 
