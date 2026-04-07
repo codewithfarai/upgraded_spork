@@ -1,3 +1,9 @@
+## onboarding_service-v0.14.0 (2026-04-07)
+
+### feat
+
+- add location_enabled and details_confirmed flags to user profiles and onboarding flow
+
 ## onboarding_service-v0.13.2 (2026-04-07)
 
 ### refactor
