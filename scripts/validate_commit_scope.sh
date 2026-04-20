@@ -13,6 +13,7 @@ STAGED_FILES="$(git diff --cached --name-only)"
 HAS_PAYMENT=false
 HAS_ONBOARDING=false
 HAS_RIDE=false
+HAS_ADMIN=false
 
 if echo "$STAGED_FILES" | grep -qE '^ride_base/payment_service/'; then
   HAS_PAYMENT=true
@@ -26,6 +27,10 @@ if echo "$STAGED_FILES" | grep -qE '^ride_base/ride_service/'; then
   HAS_RIDE=true
 fi
 
+if echo "$STAGED_FILES" | grep -qE '^ride_base/admin_service/'; then
+  HAS_ADMIN=true
+fi
+
 # Ignore auto-generated version bump commits.
 if echo "$COMMIT_MSG" | grep -qE '^bump:'; then
   exit 0
@@ -36,6 +41,7 @@ SERVICES_TOUCHED=0
 [[ "$HAS_PAYMENT" == true ]] && SERVICES_TOUCHED=$((SERVICES_TOUCHED + 1))
 [[ "$HAS_ONBOARDING" == true ]] && SERVICES_TOUCHED=$((SERVICES_TOUCHED + 1))
 [[ "$HAS_RIDE" == true ]] && SERVICES_TOUCHED=$((SERVICES_TOUCHED + 1))
+[[ "$HAS_ADMIN" == true ]] && SERVICES_TOUCHED=$((SERVICES_TOUCHED + 1))
 
 if [[ "$HAS_PAYMENT" == true && "$SERVICES_TOUCHED" -eq 1 ]]; then
   if ! echo "$COMMIT_MSG" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\(payment\):\s.+'; then
@@ -57,6 +63,14 @@ if [[ "$HAS_RIDE" == true && "$SERVICES_TOUCHED" -eq 1 ]]; then
   if ! echo "$COMMIT_MSG" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\(ride_service\):\s.+'; then
     echo "ERROR: ride_service changes require scope '(ride_service)'."
     echo "Example: feat(ride_service): add GPS flush loop"
+    exit 1
+  fi
+fi
+
+if [[ "$HAS_ADMIN" == true && "$SERVICES_TOUCHED" -eq 1 ]]; then
+  if ! echo "$COMMIT_MSG" | grep -qE '^(build|bump|docs|feat|fix|refactor|chore|test|style|perf|ci)\(admin\):\s.+'; then
+    echo "ERROR: admin_service changes require scope '(admin)'."
+    echo "Example: feat(admin): add vehicle invite flow"
     exit 1
   fi
 fi

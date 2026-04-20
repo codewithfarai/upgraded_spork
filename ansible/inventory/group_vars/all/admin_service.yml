@@ -1,0 +1,26 @@
+# Admin / Fleet Service Configuration
+
+# Set to false to skip deployment
+admin_service_enabled: true
+
+# Docker image — push to Docker Hub under your account
+# e.g. docker build -t fwande/ridebase_admin_service:0.1.0 .
+admin_service_image: "{{ lookup('env', 'ADMIN_SERVICE_IMAGE') | default('fwande/ridebase_admin_service', true) }}"
+admin_service_version: "{{ lookup('env', 'ADMIN_SERVICE_VERSION') | default('latest', true) }}"
+
+# Domain prefix — results in fleet.dev.ridebase.tech (dev) or fleet.ridebase.tech (prod)
+admin_service_domain: "fleet"
+
+# Replicas
+admin_service_replicas: 2
+
+# Database connection (Postgres via database_ha pgpool)
+admin_service_db_name: "admin_fleet"
+admin_service_db_user: "admin_fleet"
+
+# S3 / Hetzner Object Storage for vehicle registration docs
+admin_service_s3_endpoint_url: "{{ lookup('env', 'S3_ENDPOINT_URL') }}"
+admin_service_s3_access_key: "{{ lookup('env', 'S3_ACCESS_KEY') }}"
+admin_service_s3_secret_key: "{{ lookup('env', 'S3_SECRET_KEY') }}"
+admin_service_s3_bucket_name: "{{ lookup('env', 'S3_BUCKET_NAME') | default('ridebase-driver-docs', true) }}"
+admin_service_s3_region_name: "{{ lookup('env', 'S3_REGION_NAME') | default('eu-central', true) }}"

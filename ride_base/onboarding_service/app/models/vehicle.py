@@ -10,11 +10,6 @@ class DriverDetails(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     profile_id = Column(String, ForeignKey("user_profiles.authentik_user_id", ondelete="CASCADE"), unique=True, nullable=False)
 
-    car_make = Column(String, nullable=False)
-    car_model = Column(String, nullable=False)
-    car_colour = Column(String, nullable=False)
-    year = Column(Integer, nullable=False)
-    license_plate = Column(String, nullable=False, unique=True)
     national_id = Column(String, nullable=False, unique=True)
     national_id_photo_url = Column(String, nullable=False)
     driver_license_number = Column(String, nullable=False, unique=True)

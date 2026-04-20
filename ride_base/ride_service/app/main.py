@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __description__, __version__
-from app.api import driver, rider
+from app.api import driver, rider, reporting
 from app.config import settings
 from app.services.rabbitmq import publisher
 from app.services.redis_service import close_redis
@@ -73,6 +73,7 @@ app = FastAPI(
 
 app.include_router(rider.router, prefix="/api", tags=["rider"])
 app.include_router(driver.router, prefix="/api", tags=["driver"])
+app.include_router(reporting.router, prefix="/api/reporting", tags=["reporting"])
 app.include_router(ws.router, tags=["realtime"])
 
 

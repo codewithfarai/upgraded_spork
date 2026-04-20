@@ -197,7 +197,19 @@
       when: onboarding_service_enabled | default(true) | bool
 
 # ==============================================================================
-# Play 11: Deploy Standalone Monitoring on Bastion
+# Play 11: Deploy Admin / Fleet Service
+# ==============================================================================
+- name: Deploy Admin Service
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Configure Admin Service
+      include_role:
+        name: admin_service
+      when: admin_service_enabled | default(true) | bool
+
+# ==============================================================================
+# Play 12: Deploy Standalone Monitoring on Bastion
 # ==============================================================================
 - name: Deploy Standalone Monitoring on Bastion
   hosts: bastion
@@ -207,7 +219,7 @@
       include_tasks: ../roles/monitoring/tasks/standalone.yml
 
 # ==============================================================================
-# Play 12: Deploy Monitoring Stack
+# Play 13: Deploy Monitoring Stack
 # ==============================================================================
 - name: Deploy Monitoring Stack
   hosts: managers[0]

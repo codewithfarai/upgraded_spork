@@ -157,7 +157,7 @@ class VerifyOtpRequest(BaseModel):
     code: str
 
 
-@router.post("/verify-email")
+@router.post("/verify_email")
 async def verify_email(
     body: VerifyOtpRequest,
     current_user: dict = Depends(get_current_user),
@@ -193,7 +193,7 @@ async def verify_email(
     return {"message": "Email verified successfully."}
 
 
-@router.post("/resend-otp")
+@router.post("/resend_otp")
 async def resend_otp(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -221,11 +221,6 @@ async def resend_otp(
 
 @router.post("/driver_setup")
 async def setup_driver(
-    car_make: str = Form(...),
-    car_model: str = Form(...),
-    car_colour: str = Form(...),
-    year: int = Form(...),
-    license_plate: str = Form(...),
     national_id: str = Form(...),
     driver_license_number: str = Form(...),
     license_photo: UploadFile = File(...),
@@ -266,11 +261,6 @@ async def setup_driver(
     # 3. Save Driver Details
     details = DriverDetails(
         profile_id=auth_id,
-        car_make=car_make,
-        car_model=car_model,
-        car_colour=car_colour,
-        year=year,
-        license_plate=license_plate,
         national_id=national_id,
         national_id_photo_url=national_id_photo_url,
         driver_license_number=driver_license_number,
@@ -302,11 +292,6 @@ async def setup_driver(
 
 @router.patch("/driver_setup")
 async def update_driver(
-    car_make: str | None = Form(None),
-    car_model: str | None = Form(None),
-    car_colour: str | None = Form(None),
-    year: int | None = Form(None),
-    license_plate: str | None = Form(None),
     national_id: str | None = Form(None),
     driver_license_number: str | None = Form(None),
     license_photo: UploadFile | None = File(None),
@@ -324,16 +309,6 @@ async def update_driver(
         raise HTTPException(status_code=404, detail="Driver details not found. Complete driver setup first.")
 
     # Update scalar fields if provided
-    if car_make is not None:
-        details.car_make = car_make
-    if car_model is not None:
-        details.car_model = car_model
-    if car_colour is not None:
-        details.car_colour = car_colour
-    if year is not None:
-        details.year = year
-    if license_plate is not None:
-        details.license_plate = license_plate
     if national_id is not None:
         details.national_id = national_id
     if driver_license_number is not None:

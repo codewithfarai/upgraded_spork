@@ -1,9 +1,9 @@
-"""RabbitMQ publisher for onboarding events.
+"""RabbitMQ publisher for fleet management events.
 
 Uses aio-pika (async) so publishing never blocks FastAPI's event loop.
 Publishes to a topic exchange so other RideBase services can bind
 to the routing keys they care about, e.g.:
-    onboarding.driver_role_assigned
+    fleet.vehicle_registered
 """
 
 import asyncio
@@ -63,7 +63,7 @@ class RabbitMQPublisher:
         """Publish a JSON message to the exchange with retries.
 
         Args:
-            routing_key: Dot-separated key, e.g. "onboarding.driver_role_assigned"
+            routing_key: Dot-separated key, e.g. "fleet.vehicle_registered"
             message: Dict payload to serialise as JSON
 
         Returns:
