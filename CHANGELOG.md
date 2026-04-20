@@ -1,3 +1,9 @@
+## v0.46.0 (2026-04-20)
+
+### feat
+
+- initialize admin service environment with database setup, documentation, and build automation
+
 ## v0.45.0 (2026-04-07)
 
 ### feat
