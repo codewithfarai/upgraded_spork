@@ -43,21 +43,21 @@ cd "$ROOT_DIR/terraform"
 make apply ENV=$ENV ARGS="-auto-approve"
 
 echo "⏳ Sleeping 10m for SSH and cloud-init to finish..."
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 3: SSH Keyscan
 # ------------------------------------------------------------------------------
 echo "🔑 Running keyscan..."
 make keyscan ENV=$ENV
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 4: Verify Nodes
 # ------------------------------------------------------------------------------
 echo "🔍 Verifying node health..."
 make verify ENV=$ENV
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 5: Ansible Initial Deploy (without services — Authentik not ready yet)
@@ -66,14 +66,14 @@ sleep 300
 echo "🐝 Deploying Swarm (Pass 1 - Bootstrap, services disabled)..."
 cd "$ROOT_DIR/ansible"
 AUTHENTIK_BOOTSTRAP_REPLICAS=1 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false"
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 6: Ansible Second Deploy (still without services — stabilization)
 # ------------------------------------------------------------------------------
 echo "🔁 Redeploying Swarm (Pass 2 - Stabilization, services disabled)..."
 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false"
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 7: Authentik Setup
@@ -81,7 +81,7 @@ sleep 300
 echo "🔐 Deploying Authentik Configuration..."
 cd "$ROOT_DIR/terraform_authentik"
 make apply ENV=$ENV ARGS="-auto-approve"
-sleep 300
+sleep 5
 
 # ------------------------------------------------------------------------------
 # Step 8: Ansible Third Deploy (with services — Authentik token now exists)

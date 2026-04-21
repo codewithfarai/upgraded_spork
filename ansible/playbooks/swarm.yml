@@ -209,7 +209,19 @@
       when: admin_service_enabled | default(true) | bool
 
 # ==============================================================================
-# Play 12: Deploy Standalone Monitoring on Bastion
+# Play 12: Deploy Map Service (OSRM + Martin)
+# ==============================================================================
+- name: Deploy Map Service
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Configure Map Service
+      include_role:
+        name: map_service
+      when: map_service_enabled | default(true) | bool
+
+# ==============================================================================
+# Play 13: Deploy Standalone Monitoring on Bastion
 # ==============================================================================
 - name: Deploy Standalone Monitoring on Bastion
   hosts: bastion
@@ -219,7 +231,7 @@
       include_tasks: ../roles/monitoring/tasks/standalone.yml
 
 # ==============================================================================
-# Play 13: Deploy Monitoring Stack
+# Play 14: Deploy Monitoring Stack
 # ==============================================================================
 - name: Deploy Monitoring Stack
   hosts: managers[0]
