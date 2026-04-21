@@ -1,3 +1,9 @@
+## v0.47.0 (2026-04-21)
+
+### feat
+
+- initialize Flutter application project and update infrastructure configurations
+
 ## v0.46.0 (2026-04-20)
 
 ### feat
