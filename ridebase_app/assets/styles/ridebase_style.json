@@ -6,7 +6,7 @@
   "sources": {
     "openmaptiles": {
       "type": "vector",
-      "url": "https://tiles.ridebase.tech/zimbabwe"
+      "url": "https://tiles.dev.ridebase.tech/zimbabwe"
     }
   },
   "layers": [

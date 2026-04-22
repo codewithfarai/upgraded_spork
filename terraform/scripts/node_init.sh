@@ -67,11 +67,19 @@ sleep 3
 # Default Route via Network Gateway (Internal Nodes Only)
 if [[ "$NODE_TYPE" != "edge" && "$NODE_TYPE" != "bastion" ]]; then
     echo "Setting default route via $NETWORK_GATEWAY..."
-    # Add route if it doesn't exist
+    # Add route if it doesn't exist natively, and make it persistent against DHCP renewals
     ip route add default via "$NETWORK_GATEWAY" || true
 
+    mkdir -p /etc/networkd-dispatcher/routable.d
+    cat > /etc/networkd-dispatcher/routable.d/50-default-route << EOF
+#!/bin/sh
+ip route add default via "$NETWORK_GATEWAY" || true
+EOF
+    chmod +x /etc/networkd-dispatcher/routable.d/50-default-route
+
+
     # Wait for NAT Gateway/Connectivity (Wait until we can reach an external nameserver)
-    echo "Waiting for NAT Gateway (Edge) to provide internet access..."
+    echo "Waiting for NAT Gateway (Edge) to provide internet access."
     until curl -s -m 2 https://1.1.1.1 >/dev/null 2>&1; do
         echo "Internet not reachable yet. Sleeping 5s.."
         sleep 5
@@ -89,6 +97,10 @@ if [[ "$NODE_TYPE" == "edge" ]]; then
 
     # Setup Masquerading - allow the entire private network
     iptables -t nat -A POSTROUTING -s '10.0.0.0/16' -o eth0 -j MASQUERADE
+
+    # Bypass Docker's DROP policy so internal nodes can firmly use the internet
+    iptables -I FORWARD -s '10.0.0.0/16' -o eth0 -j ACCEPT
+    iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
 
     # Install iptables-persistent to keep rules across reboots
     export DEBIAN_FRONTEND=noninteractive

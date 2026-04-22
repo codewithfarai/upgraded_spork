@@ -121,23 +121,47 @@
   hosts: managers[0]
   become: yes
   tasks:
+    - name: Calculate expected node count
+      set_fact:
+        expected_node_count: "{{ groups['managers'] | length + groups['workers'] | length + groups['edge'] | length + groups['database'] | length }}"
+
+    - name: Wait for all nodes to appear in Swarm
+      shell: docker node ls --format '{{ "{{" }}.Hostname{{ "}}" }}' | wc -l
+      register: swarm_node_count
+      until: swarm_node_count.stdout | int >= expected_node_count | int
+      retries: 30
+      delay: 10
+      changed_when: false
+
     - name: Label Edge nodes
       command: "docker node update --label-add role=edge {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['edge'] }}"
       when: groups['edge'] is defined
       changed_when: true
+      register: label_edge
+      until: label_edge is not failed
+      retries: 10
+      delay: 6
 
     - name: Label Database nodes
       command: "docker node update --label-add role=database {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['database'] }}"
       when: groups['database'] is defined
       changed_when: true
+      register: label_database
+      until: label_database is not failed
+      retries: 10
+      delay: 6
 
     - name: Label Worker nodes
       command: "docker node update --label-add role=worker {{ hostvars[item].ansible_facts['hostname'] }}"
       loop: "{{ groups['workers'] }}"
       when: groups['workers'] is defined
       changed_when: true
+      register: label_workers
+      until: label_workers is not failed
+      retries: 10
+      delay: 6
 
 # ==============================================================================
 # Play 6: Deploy Edge Load Balancer (Traefik) and Socket Proxy
