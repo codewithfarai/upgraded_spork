@@ -2,6 +2,34 @@
 # Docker CE Installation Role
 # Installs Docker CE and Docker Compose plugin from the official Docker APT repository
 
+# Repair broken Hetzner Nuremberg (nbg1) DNS override right now
+- name: Guarantee /etc/resolv.conf symlink to systemd-resolved (Repair nbg1 datacenter)
+  file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: yes
+
+- name: Force systemd-resolved to use our verified fallback servers
+  copy:
+    dest: /etc/systemd/resolved.conf.d/99-hetzner-dns.conf
+    content: |
+      [Resolve]
+      DNS=185.12.64.2 185.12.64.1 8.8.8.8
+      FallbackDNS=1.1.1.1 8.8.4.4
+  register: dns_fix
+
+- name: Restart systemd-resolved if DNS config changed
+  systemd:
+    name: systemd-resolved
+    state: restarted
+  when: dns_fix.changed
+
+- name: Wait 5 seconds for systemd-resolved to stabilize
+  pause:
+    seconds: 5
+  when: dns_fix.changed
+
 - name: Install prerequisites
   apt:
     name:
@@ -13,14 +41,21 @@
     state: present
     update_cache: yes
     cache_valid_time: 3600
+  register: apt_prereqs
+  until: apt_prereqs is not failed
+  retries: 5
+  delay: 10
 
 - name: Add Docker GPG key
-  shell: |
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-  args:
-    creates: /etc/apt/keyrings/docker.asc
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+    force: false
+  register: gpg_result
+  until: gpg_result is not failed
+  retries: 5
+  delay: 10
 
 - name: Add Docker APT repository
   shell: |
@@ -32,6 +67,10 @@
 - name: Refresh apt cache (ensures Docker repo is indexed)
   apt:
     update_cache: yes
+  register: apt_cache
+  until: apt_cache is not failed
+  retries: 5
+  delay: 10
 
 - name: Install Docker CE
   apt:
@@ -42,6 +81,10 @@
       - docker-buildx-plugin
       - docker-compose-plugin
     state: present
+  register: apt_install
+  until: apt_install is not failed
+  retries: 5
+  delay: 10
 
 - name: Configure Docker daemon for log rotation and Hetzner MTU
   copy:

@@ -87,7 +87,7 @@ variable "vps_image" {
 variable "bastion_server_type" {
   description = "Server type for bastion host"
   type        = string
-  default     = "cx23"
+  default     = "cx33"
 }
 
 
@@ -149,18 +149,18 @@ variable "manager_server_type" {
   description = "Map of environment to Hetzner server type for manager nodes"
   type        = map(string)
   default = {
-    prod  = "cx23"
-    stage = "cx23"
-    dev   = "cx23"
+    prod  = "cx33"
+    stage = "cx33"
+    dev   = "cx33"
   }
 }
 variable "edge_server_type" {
   description = "Map of environment to Hetzner server type for edge nodes (Traefik load balancer)"
   type        = map(string)
   default = {
-    prod  = "cx23"
-    stage = "cx23"
-    dev   = "cx23"
+    prod  = "cx33"
+    stage = "cx33"
+    dev   = "cx33"
   }
 }
 
@@ -189,9 +189,9 @@ variable "worker_server_type" {
   description = "Map of environment to Hetzner server type for worker nodes"
   type        = map(string)
   default = {
-    prod  = "cx23"
-    stage = "cx23"
-    dev   = "cx23"
+    prod  = "cx33"
+    stage = "cx33"
+    dev   = "cx33"
   }
 }
 
@@ -199,9 +199,9 @@ variable "db_server_type" {
   description = "Map of environment to Hetzner server type for database nodes"
   type        = map(string)
   default = {
-    prod  = "cx23"
-    stage = "cx23"
-    dev   = "cx23"
+    prod  = "cx33"
+    stage = "cx33"
+    dev   = "cx33"
   }
 }
 

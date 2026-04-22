@@ -1,4 +1,4 @@
-package com.example.ridebase_app
+package tech.ridebase.app
 
 import io.flutter.embedding.android.FlutterActivity
 

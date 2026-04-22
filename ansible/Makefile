@@ -7,9 +7,15 @@ PAYMENT_VERSION    := $(shell grep -m 1 '^version = ' ../ride_base/payment_servi
 ONBOARDING_VERSION := $(shell grep -m 1 '^version = ' ../ride_base/onboarding_service/pyproject.toml | cut -d '"' -f2)
 ADMIN_VERSION      := $(shell grep -m 1 '^version = ' ../ride_base/admin_service/pyproject.toml | cut -d '"' -f2)
 
-# Load secrets from .env if it exists
+# Load base secrets from .env if it exists
 ifneq (,$(wildcard ./.env))
     include .env
+    export
+endif
+
+# Load environment-specific secrets from .env.$(ENV) (e.g. .env.dev) to override base secrets
+ifneq (,$(wildcard ./.env.$(ENV)))
+    include .env.$(ENV)
     export
 endif
 

@@ -105,7 +105,17 @@ check_sysctl "vm.overcommit_memory" "1"
 if [[ "$(hostname)" != *"bastion"* && "$(hostname)" != *"edge"* ]]; then
     echo "------------------------------------------------"
     echo "Checking NAT Gateway / Outbound IP..."
-    CURRENT_IP=$(curl -s --connect-timeout 5 https://icanhazip.com | tr -d '\n')
+
+    # Try multiple IP services with retries to avoid rate limits when multiple nodes verify simultaneously
+    CURRENT_IP=""
+    for service in "https://ipv4.icanhazip.com" "https://ifconfig.me/ip" "https://api.ipify.org"; do
+        CURRENT_IP=$(curl -4s --connect-timeout 5 "$service" | tr -d '\n')
+        if [[ -n "$CURRENT_IP" ]]; then
+            break
+        fi
+        sleep 2
+    done
+
     if [[ -n "$EXPECTED_NAT_IP" ]]; then
         # Check if current IP is in the list of expected IPs
         found_match=0
@@ -119,7 +129,11 @@ if [[ "$(hostname)" != *"bastion"* && "$(hostname)" != *"edge"* ]]; then
         if [[ $found_match -eq 1 ]]; then
             log_pass "NAT: Outbound IP correctly matches one of the Edge IPs ($CURRENT_IP)"
         else
-            log_fail "NAT: Outbound IP ($CURRENT_IP) DOES NOT match any Edge IPs ($EXPECTED_NAT_IP)"
+            if [[ -z "$CURRENT_IP" ]]; then
+                log_fail "NAT: Could not reach any external IP service (Wait for DNS/NAT to stabilize)"
+            else
+                log_fail "NAT: Outbound IP ($CURRENT_IP) DOES NOT match any Edge IPs ($EXPECTED_NAT_IP)"
+            fi
         fi
     else
         if [[ -z "$CURRENT_IP" ]]; then

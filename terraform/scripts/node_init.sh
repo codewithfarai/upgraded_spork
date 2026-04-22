@@ -10,11 +10,30 @@ NETWORK_GATEWAY="${network_gateway}"
 WORKER_COUNT="${worker_count}"
 ENABLE_HARDENING="${enable_hardening}"
 
+# Helper function for reliable execution during boot
+retry() {
+    local n=1
+    local max=5
+    local delay=5
+    while true; do
+        "$@" && break || {
+            if [[ $n -lt $max ]]; then
+                ((n++))
+                echo "Command failed. Attempt $n/$max in $delay seconds..."
+                sleep $delay
+            else
+                echo "Command failed after $n attempts."
+                return 1
+            fi
+        }
+    done
+}
+
 # 1. Provision dedicated 'provision' user IMMEDIATELY (Before network wait)
 # This ensures we can always SSH in to debug even if internet/NAT is not up yet.
 if [[ "$ENABLE_HARDENING" == "true" ]]; then
     if ! id "provision" &>/dev/null; then
-        echo "Creating 'provision' user and preparing SSH access."
+        echo "Creating 'provision' user and preparing SSH access"
         useradd -m -s /bin/bash provision
         echo "provision ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/provision
         chmod 0440 /etc/sudoers.d/provision
@@ -29,9 +48,21 @@ if [[ "$ENABLE_HARDENING" == "true" ]]; then
 fi
 
 # Permanent DNS Configuration (Required for Private Nodes)
+# Use a drop-in override that always wins, regardless of cloud-init pre-configuration.
 echo "Configuring persistent DNS..."
-sed -i 's/#DNS=/DNS=185.12.64.2 185.12.64.1/' /etc/systemd/resolved.conf
+mkdir -p /etc/systemd/resolved.conf.d
+cat > /etc/systemd/resolved.conf.d/99-hetzner-dns.conf << 'EOF'
+[Resolve]
+DNS=185.12.64.2 185.12.64.1 8.8.8.8
+FallbackDNS=1.1.1.1 8.8.4.4
+EOF
 systemctl restart systemd-resolved
+# Force /etc/resolv.conf to use the systemd-resolved stub (127.0.0.53)
+# Cloud-init on some Hetzner nodes replaces this symlink with a static file,
+# breaking Python/urllib DNS resolution even when shell curl works fine.
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+# Give the resolver a moment to come up
+sleep 3
 
 # Default Route via Network Gateway (Internal Nodes Only)
 if [[ "$NODE_TYPE" != "edge" && "$NODE_TYPE" != "bastion" ]]; then
@@ -61,13 +92,14 @@ if [[ "$NODE_TYPE" == "edge" ]]; then
 
     # Install iptables-persistent to keep rules across reboots
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update && apt-get install -y iptables-persistent
+    retry apt-get update
+    retry apt-get install -y iptables-persistent
 fi
 
 # Update and install base packages
-apt-get update
-apt-get dist-upgrade -y
-apt-get install -y python3 python3-pip net-tools curl jq
+retry apt-get update
+retry apt-get dist-upgrade -y
+retry apt-get install -y python3 python3-pip net-tools curl jq
 
 # Configure Docker MTU and logging to prevent hangs and disk exhaustion
 mkdir -p /etc/docker
@@ -119,7 +151,7 @@ if [[ "$ENABLE_HARDENING" == "true" ]]; then
     echo "SSH hardening applied successfully"
 
     echo "Installing fail2ban for SSH protection..."
-    apt-get install -y fail2ban python3-systemd
+    retry apt-get install -y fail2ban python3-systemd
 
     # Configure fail2ban with SSH protection
     # We use 'backend = auto' to let fail2ban decide between polling and systemd
@@ -212,7 +244,7 @@ EOL
 
     # Install and configure unattended-upgrades for automatic security patching
     echo "Configuring automated security updates..."
-    apt-get install -y unattended-upgrades
+    retry apt-get install -y unattended-upgrades
 
     # Ensure it's enabled and configured to only install security updates
     cat > /etc/apt/apt.conf.d/20auto-upgrades << EOL
