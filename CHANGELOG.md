@@ -1,3 +1,19 @@
+## v0.48.0 (2026-05-05)
+
+### feat
+
+- initialize Flutter application with GoRouter, Riverpod, and Google Places integration for ride services
+- upgrade infrastructure to cx33 nodes, refactor Flutter project namespace, and integrate location and mapping dependencies.
+
+### style
+
+- increase bottom margin for map controls to prevent overlap with search sheet
+- update map theme to RideBase Ultra Minimal with refined color palette and road styling
+
+### chore
+
+- update dev infrastructure, improve network persistence, and add swarm node synchronization logic
+
 ## v0.47.0 (2026-04-21)
 
 ### feat
