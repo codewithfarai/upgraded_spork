@@ -24,10 +24,16 @@ dependencies:
   permission_handler: ^11.3.1
 
   # Networking
-  dio: ^5.7.0
+  dio: ^5.9.2
+
+  # Auth (OAuth2/OIDC)
+  flutter_appauth: ^7.0.1
+  flutter_secure_storage: ^9.2.4
 
   # Typography
   google_fonts: ^6.2.1
+  image_picker: ^1.2.2
+  http_parser: ^4.1.2
 
 dev_dependencies:
   flutter_test:

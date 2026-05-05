@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
+import '../../core/providers/auth_provider.dart';
 
 /// Navigation drawer matching the MAUI app design:
 ///   • Teal header with circular avatar
-///   • "Welcome to Ridebase" / "Sign in to get started"
-///   • Sign In button
-///   • Divider
+///   • Authenticated: shows user info + Sign Out
+///   • Unauthenticated: shows "Welcome to Ridebase" + Sign In / Sign Up
 ///   • Menu items: Home, Support
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
     return Drawer(
       child: Column(
         children: [
           // ── Teal Header ─────────────────────────────────────────
-          _buildHeader(context),
+          authState.isAuthenticated
+              ? _buildAuthenticatedHeader(context, ref, authState)
+              : _buildUnauthenticatedHeader(context, ref, authState),
 
           // ── Menu Items ──────────────────────────────────────────
           _buildMenuSection(context),
@@ -26,7 +31,154 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  // ── Authenticated Header ──────────────────────────────────────────
+
+  Widget _buildAuthenticatedHeader(
+    BuildContext context,
+    WidgetRef ref,
+    AuthState authState,
+  ) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final user = authState.user;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(24, topPadding + 32, 24, 28),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            RideBaseTheme.teal,
+            RideBaseTheme.tealDark,
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar circle with user initial
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: RideBaseTheme.tealLight.withValues(alpha: 0.4),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                (user?.displayName ?? 'U')[0].toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Username
+          Text(
+            user?.displayName ?? 'User',
+            style: GoogleFonts.inter(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: -0.3,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          // Email
+          if (user?.email != null)
+            Text(
+              user!.email!,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+            ),
+
+          // Role badge
+          if (user != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                user.isDriver ? '🚗 Driver' : '🧑 Rider',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Sign Out button
+          SizedBox(
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: authState.isLoading
+                  ? null
+                  : () async {
+                      Navigator.of(context).pop();
+                      await ref.read(authProvider.notifier).logout();
+                    },
+              icon: authState.isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: RideBaseTheme.tealDark,
+                      ),
+                    )
+                  : const Icon(Icons.logout, size: 20),
+              label: Text(
+                'Sign Out',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: RideBaseTheme.tealDark,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Unauthenticated Header ────────────────────────────────────────
+
+  Widget _buildUnauthenticatedHeader(
+    BuildContext context,
+    WidgetRef ref,
+    AuthState authState,
+  ) {
     final topPadding = MediaQuery.of(context).padding.top;
 
     return Container(
@@ -91,21 +243,27 @@ class AppDrawer extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // Sign In button
+          // Sign In button (Authentik login page also has "Sign up" link)
           SizedBox(
+            width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () {
-                // Phase 2: Wire up Authentik PKCE flow
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Sign In will be available in Phase 2'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              icon: const Icon(Icons.login, size: 20),
+              onPressed: authState.isLoading
+                  ? null
+                  : () async {
+                      Navigator.of(context).pop();
+                      await ref.read(authProvider.notifier).login();
+                    },
+              icon: authState.isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: RideBaseTheme.tealDark,
+                      ),
+                    )
+                  : const Icon(Icons.login, size: 20),
               label: Text(
                 'Sign In',
                 style: GoogleFonts.inter(
@@ -128,6 +286,8 @@ class AppDrawer extends StatelessWidget {
       ),
     );
   }
+
+  // ── Menu Section ──────────────────────────────────────────────────
 
   Widget _buildMenuSection(BuildContext context) {
     return Expanded(

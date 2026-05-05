@@ -23,8 +23,23 @@ class RideBaseConfig {
   /// Fallback routing for offline development (localhost)
   static const String routingBaseLocal = 'http://localhost:5000';
 
-  // ── Auth (Authentik) — Phase 2 ────────────────────────────────────
+  // ── Auth (Authentik OIDC) ───────────────────────────────────────────
   static const String authBase = 'https://auth.ridebase.tech';
+  static const String oidcClientId = 'ridebase';
+  static const String oidcRedirectUri = 'ridebase://callback';
+  static const String oidcLogoutRedirectUri = 'ridebase://logout-callback';
+  static const List<String> oidcScopes = [
+    'openid',
+    'profile',
+    'email',
+    'offline_access',
+  ];
+
+  // ── Onboarding API ──────────────────────────────────────────────────
+  static const String onboardingApiBase = 'https://onboarding.ridebase.tech/api/v1/onboarding';
+
+  /// Fallback onboarding API for offline development
+  static const String onboardingApiBaseLocal = 'http://localhost:8080/api/v1/onboarding';
 
   // ── Map Style ─────────────────────────────────────────────────────
   /// Bundled asset path for the MapLibre style JSON.
