@@ -40,6 +40,7 @@ class AuthService {
           RideBaseConfig.oidcRedirectUri,
           discoveryUrl: _discoveryUrl,
           scopes: RideBaseConfig.oidcScopes,
+          promptValues: ['login'], // Force login screen
         ),
       );
 
@@ -90,36 +91,27 @@ class AuthService {
       return await _handleTokenResponse(result);
     } catch (e) {
       debugPrint('[AuthService] Token refresh failed: $e');
-      // Refresh token might be expired (>90 days) — clear everything
-      await _tokenStorage.clearAll();
+      // Don't clear tokens here - if it's just a network error,
+      // we want to keep the current tokens and try again later.
       return null;
     }
   }
 
   // ── Logout ───────────────────────────────────────────────────────
 
-  /// Clear all stored tokens and open Authentik's logout page.
-  Future<void> logout() async {
+  /// Clear only the browser session. Local tokens should be cleared by the caller.
+  Future<void> logoutBrowserOnly(String idToken) async {
     try {
-      final idToken = await _tokenStorage.idToken;
-
-      // Open Authentik's invalidation endpoint to destroy the web session
-      if (idToken != null) {
-        await _appAuth.endSession(
-          EndSessionRequest(
-            idTokenHint: idToken,
-            postLogoutRedirectUrl: RideBaseConfig.oidcLogoutRedirectUri,
-            discoveryUrl: _discoveryUrl,
-          ),
-        );
-      }
+      await _appAuth.endSession(
+        EndSessionRequest(
+          idTokenHint: idToken,
+          postLogoutRedirectUrl: RideBaseConfig.oidcLogoutRedirectUri,
+          discoveryUrl: _discoveryUrl,
+        ),
+      );
     } catch (e) {
-      // Even if the browser session clear fails, still clear local tokens
-      debugPrint('[AuthService] Logout browser session error: $e');
+      debugPrint('[AuthService] Browser session clear error: $e');
     }
-
-    // Always clear local tokens
-    await _tokenStorage.clearAll();
   }
 
   // ── Get Current User ─────────────────────────────────────────────

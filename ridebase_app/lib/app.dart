@@ -42,15 +42,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authProvider);
       final onboardingState = ref.read(onboardingProvider);
 
+      debugPrint('[GoRouter] Redirect: path=${state.matchedLocation}, auth=${authState.isAuthenticated}, step=${onboardingState.step}');
+
       final isGoingToOnboarding = state.matchedLocation.startsWith('/onboarding');
       final isGoingToHome = state.matchedLocation == '/home';
 
-      if (authState.isLoading || onboardingState.step == OnboardingStep.loading) {
-        // If auth is done but onboarding is loading (fetching profile), let's show loading
-        if (authState.isAuthenticated && onboardingState.step == OnboardingStep.loading) {
-          if (state.matchedLocation != '/loading') return '/loading';
-          return null;
-        }
+      // While auth is still initializing, stay on the current page (map is
+      // guest-accessible so there's no need to block behind a loading screen).
+      // Once auth resolves, the redirect below will handle onboarding routing.
+      if (authState.isLoading) {
+        return null;
       }
 
       if (!authState.isAuthenticated) {
@@ -58,6 +59,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         // But they cannot access onboarding screens or authenticated areas.
         if (isGoingToOnboarding) return '/home';
         if (state.matchedLocation == '/loading') return '/home';
+        return null;
+      }
+
+      // Auth done but onboarding profile is still being fetched — show loading
+      // only once we know the user is authenticated.
+      // CRITICAL FIX: If we are already on the home screen (map), don't jump to
+      // the loading screen. Let the map stay visible while the profile is
+      // fetched in the background to avoid a "reload" flicker.
+      if (onboardingState.step == OnboardingStep.loading) {
+        if (isGoingToHome) return null;
+        if (state.matchedLocation != '/loading') return '/loading';
         return null;
       }
 
@@ -129,8 +141,13 @@ class _RideBaseAppState extends ConsumerState<RideBaseApp> {
   void initState() {
     super.initState();
     // Initialize auth state on app startup (check stored tokens, try refresh)
+    // Only call initialize if we haven't already resolved the session
+    // (helps with process recreation race conditions).
     Future.microtask(() {
-      ref.read(authProvider.notifier).initialize();
+      final currentAuth = ref.read(authProvider);
+      if (currentAuth.isLoading && !currentAuth.isAuthenticated) {
+        ref.read(authProvider.notifier).initialize();
+      }
     });
   }
 

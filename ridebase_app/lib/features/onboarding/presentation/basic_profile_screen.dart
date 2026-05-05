@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/theme.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../providers/onboarding_provider.dart';
+
+const Color _teal = Color(0xFF044C44);
 
 class BasicProfileScreen extends ConsumerStatefulWidget {
   const BasicProfileScreen({super.key});
@@ -61,96 +62,244 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
     }
   }
 
+  InputDecoration _inputDecoration(String label, String hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+      hintStyle: const TextStyle(color: Colors.black26),
+      filled: true,
+      fillColor: Colors.grey.shade100,
+      border: InputBorder.none,
+      enabledBorder: const UnderlineInputBorder(
+        borderSide: BorderSide(color: _teal, width: 2),
+      ),
+      focusedBorder: const UnderlineInputBorder(
+        borderSide: BorderSide(color: _teal, width: 3),
+      ),
+      errorBorder: const UnderlineInputBorder(
+        borderSide: BorderSide(color: Colors.redAccent, width: 2),
+      ),
+      focusedErrorBorder: const UnderlineInputBorder(
+        borderSide: BorderSide(color: Colors.redAccent, width: 3),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Complete Profile')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: const SizedBox.shrink(),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 16),
+
+              // Icon Circle
+              Center(
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: const BoxDecoration(
+                    color: _teal,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    size: 48,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Title
               Text(
-                'Welcome to RideBase!',
+                'Complete Your Profile',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: RideBaseTheme.tealDark,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
                     ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+
+              // Subtitle
               const Text(
-                "Let's get to know you before you start riding or driving.",
+                "Tell us about yourself to get started\nwith RideBase.",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
+
+              // Full Name
               TextFormField(
                 controller: _fullNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: _inputDecoration('Full Name', 'John Doe'),
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+
+              // Phone Number
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: _inputDecoration('Phone Number', '+263 77 123 4567'),
                 keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+
+              // City
               TextFormField(
                 controller: _cityController,
-                decoration: const InputDecoration(
-                  labelText: 'City',
-                  border: OutlineInputBorder(),
-                ),
+                decoration: _inputDecoration('City', 'Harare'),
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
+
+              // Role Selector
               const Text(
                 'I want to use RideBase as a:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'RIDER',
-                    label: Text('Rider'),
-                    icon: Icon(Icons.person),
+              const SizedBox(height: 16),
+
+              // Custom role toggle
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedRole = 'RIDER'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: _selectedRole == 'RIDER'
+                              ? _teal
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: _selectedRole == 'RIDER'
+                                ? _teal
+                                : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_rounded,
+                              color: _selectedRole == 'RIDER'
+                                  ? Colors.white
+                                  : Colors.grey,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Rider',
+                              style: TextStyle(
+                                color: _selectedRole == 'RIDER'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  ButtonSegment(
-                    value: 'DRIVER',
-                    label: Text('Driver'),
-                    icon: Icon(Icons.directions_car),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedRole = 'DRIVER'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: _selectedRole == 'DRIVER'
+                              ? _teal
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: _selectedRole == 'DRIVER'
+                                ? _teal
+                                : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.directions_car_rounded,
+                              color: _selectedRole == 'DRIVER'
+                                  ? Colors.white
+                                  : Colors.grey,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Driver',
+                              style: TextStyle(
+                                color: _selectedRole == 'DRIVER'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
-                selected: {_selectedRole},
-                onSelectionChanged: (Set<String> newSelection) {
-                  setState(() => _selectedRole = newSelection.first);
-                },
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
+
+              // Continue Button
               SizedBox(
-                height: 48,
+                height: 54,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: RideBaseTheme.teal,
+                    backgroundColor: _teal,
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(27),
+                    ),
+                    elevation: 0,
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Continue'),
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Continue',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w500)),
                 ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

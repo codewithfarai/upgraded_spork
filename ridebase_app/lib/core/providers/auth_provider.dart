@@ -49,11 +49,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Called once on app startup to check for stored tokens.
   Future<void> initialize() async {
+    // If we've already resolved auth (e.g. from a login that just finished
+    // before init ran), don't overwrite it.
+    if (state.isAuthenticated) return;
+
     try {
       // First, try to get the user from stored ID token (instant, no network)
       final storedUser = await _authService.getCurrentUser();
       if (storedUser != null) {
-        // We have a stored session — show the user immediately
+        debugPrint('[AuthNotifier] initialize: Found stored user: ${storedUser.displayName}');
         state = AuthState(
           isLoading: false,
           isAuthenticated: true,
@@ -61,16 +65,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
 
         // Then try a silent refresh in the background to get fresh tokens
-        final refreshResult = await _authService.tryRefresh();
-        if (refreshResult != null && refreshResult.success) {
-          state = AuthState(
-            isLoading: false,
-            isAuthenticated: true,
-            user: refreshResult.user ?? storedUser,
-          );
+        try {
+          final refreshResult = await _authService.tryRefresh();
+          if (refreshResult != null && refreshResult.success) {
+            state = AuthState(
+              isLoading: false,
+              isAuthenticated: true,
+              user: refreshResult.user ?? storedUser,
+            );
+          }
+        } catch (e) {
+          // If silent refresh fails (e.g. network), we still keep the storedUser session.
+          debugPrint('[AuthNotifier] Silent refresh failed during init: $e');
         }
-        // If refresh fails, we still keep the user logged in with the cached data
-        // until the access token is needed and fails server-side.
         return;
       }
 
@@ -85,11 +92,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
 
-      // No valid session
+      debugPrint('[AuthNotifier] initialize: No session found');
       state = AuthState.unauthenticated;
     } catch (e) {
-      debugPrint('[AuthNotifier] Initialization error: $e');
-      state = AuthState.unauthenticated;
+      debugPrint('[AuthNotifier] initialize: Error during init: $e');
+      if (!state.isAuthenticated) {
+        state = AuthState.unauthenticated;
+      }
     }
   }
 
@@ -100,12 +109,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final result = await _authService.login();
 
     if (result.success) {
+      debugPrint('[AuthNotifier] login: Success');
       state = AuthState(
         isLoading: false,
         isAuthenticated: true,
         user: result.user,
       );
     } else {
+      debugPrint('[AuthNotifier] login: Failed: ${result.error}');
       state = state.copyWith(
         isLoading: false,
         error: result.error,
@@ -117,13 +128,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // the Authentik login page, which preserves the OAuth PKCE context.
   // After enrollment, login() handles the resulting tokens identically.
 
-  /// Log out: clear tokens and open Authentik logout page.
+  /// Log out: clear tokens and update state immediately, then clear browser session.
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
 
-    await _authService.logout();
+    // 1. Get the ID token before clearing everything
+    final idToken = await _authService.tokenStorage.idToken;
 
+    debugPrint('[AuthNotifier] logout: Clearing tokens and state');
+    // 2. Clear local tokens immediately so the app is locally logged out
+    await _authService.tokenStorage.clearAll();
+
+    // 3. Update state to unauthenticated IMMEDIATELY.
     state = AuthState.unauthenticated;
+
+    // 4. Try to clear the browser session in the background (fire and forget)
+    // so we don't block the app UI on the browser's redirect performance.
+    if (idToken != null) {
+      _authService.logoutBrowserOnly(idToken).catchError((e) {
+        debugPrint('[AuthNotifier] Background browser logout error: $e');
+      });
+    }
   }
 }
 
