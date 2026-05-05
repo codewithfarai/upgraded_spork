@@ -21,32 +21,78 @@
         dest: /opt/docker/stacks/map_service/setup_map_data.sh
         mode: '0755'
 
-    - name: Run map data setup script (one-time process, could take a few minutes)
-      command: /opt/docker/stacks/map_service/setup_map_data.sh
+    - name: Run map data setup script (one-time process, could take 10-30 minutes)
+      shell: |
+        set -e
+        /opt/docker/stacks/map_service/setup_map_data.sh
+        echo "Setup completed successfully"
       args:
         chdir: /opt/docker/stacks/map_service
-        creates: /opt/docker/stacks/map_service/data/.setup_done
+      environment:
+        SETUPDONE_FILE: "/opt/docker/stacks/map_service/data/.setup_done"
       register: map_setup_result
-      # This can take 5-10 minutes for small extracts, give it enough time
-      async: 1800
-      poll: 15
+      # This can take 10-30 minutes for Zimbabwe extract, give it enough time
+      async: 3600
+      poll: 30
+      changed_when: "'Setup completed successfully' in map_setup_result.stdout"
+
+    - name: Verify OSRM data file was created
+      stat:
+        path: /opt/docker/stacks/map_service/data/zimbabwe-latest.osrm
+      register: osrm_file
+      failed_when: not osrm_file.stat.exists
+      retries: 5
+      delay: 10
+
+    - name: Verify MBTiles file was created
+      stat:
+        path: /opt/docker/stacks/map_service/tiles/zimbabwe.mbtiles
+      register: mbtiles_file
+      failed_when: not mbtiles_file.stat.exists
+      retries: 5
+      delay: 10
 
     - name: Generate map service stack definition
       template:
         src: map_service_stack.yml.j2
         dest: /opt/docker/stacks/map_service/docker-compose.yml
         mode: '0644'
+      notify: deploy_map_services
 
-    - name: Deploy map service stack
-      command: docker stack deploy -c /opt/docker/stacks/map_service/docker-compose.yml map
+    - name: Deploy map service stack (via handler)
+      meta: flush_handlers
 
     - name: Wait for OSRM service to be healthy
       shell: |
         docker service ls --filter name=map_osrm --format '{{ "{{" }}.Replicas{{ "}}" }}'
-      register: service_status
-      until: "service_status.stdout.split('/')[0] | int >= 1"
-      retries: 30
+      register: osrm_status
+      until: "osrm_status.stdout.split('/')[0] | int >= 1"
+      retries: 60
       delay: 10
       changed_when: false
 
+    - name: Wait for Martin service to be healthy
+      shell: |
+        docker service ls --filter name=map_martin --format '{{ "{{" }}.Replicas{{ "}}" }}'
+      register: martin_status
+      until: "martin_status.stdout.split('/')[0] | int >= 1"
+      retries: 60
+      delay: 10
+      changed_when: false
+
+
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "✓ Map services deployed successfully"
+          - "OSRM routing endpoint: https://route.{{ domain_name }}"
+          - "Martin tile server: https://tiles.{{ domain_name }}"
+          - "Martin Web UI: https://tiles.{{ domain_name }}/"
+
   when: "inventory_hostname == groups['managers'][0]"
+  rescue:
+    - name: Deployment failed
+      debug:
+        msg: "Map service deployment failed. Please check the logs above."
+      changed_when: true

@@ -151,7 +151,7 @@ variable "manager_server_type" {
   default = {
     prod  = "cx33"
     stage = "cx33"
-    dev   = "cx43"
+    dev   = "cx33"
   }
 }
 variable "edge_server_type" {

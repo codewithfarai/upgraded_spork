@@ -43,14 +43,14 @@ cd "$ROOT_DIR/terraform"
 make apply ENV=$ENV ARGS="-auto-approve"
 
 echo "⏳ Sleeping 10m for SSH and cloud-init to finish..."
-sleep 300
+# sleep 1
 
 # ------------------------------------------------------------------------------
 # Step 3: SSH Keyscan
 # ------------------------------------------------------------------------------
 echo "🔑 Running keyscan..."
 make keyscan ENV=$ENV
-sleep 3
+# sleep 60
 
 # ------------------------------------------------------------------------------
 # Step 4: Verify Nodes
@@ -60,20 +60,20 @@ make verify ENV=$ENV
 sleep 300
 
 # ------------------------------------------------------------------------------
-# Step 300: Ansible Initial Deploy (without services — Authentik not ready yet)
+# Step 2: Ansible Initial Deploy (without services — Authentik not ready yet)
 # Single Authentik replica to avoid migration lock race condition on fresh DB.
 # ------------------------------------------------------------------------------
 echo "🐝 Deploying Swarm (Pass 1 - Bootstrap, services disabled)..."
 cd "$ROOT_DIR/ansible"
-AUTHENTIK_BOOTSTRAP_REPLICAS=1 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false"
-sleep 300
+AUTHENTIK_BOOTSTRAP_REPLICAS=1 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false map_service_enabled=false"
+# sleep 60
 
 # ------------------------------------------------------------------------------
 # Step 6: Ansible Second Deploy (still without services — stabilization)
 # ------------------------------------------------------------------------------
 echo "🔁 Redeploying Swarm (Pass 2 - Stabilization, services disabled)..."
-make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false"
-sleep 300
+make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false map_service_enabled=false"
+# sleep 60
 
 # ------------------------------------------------------------------------------
 # Step 7: Authentik Setup
@@ -81,7 +81,7 @@ sleep 300
 echo "🔐 Deploying Authentik Configuration..."
 cd "$ROOT_DIR/terraform_authentik"
 make apply ENV=$ENV ARGS="-auto-approve"
-sleep 300
+# sleep 60
 
 
 # ------------------------------------------------------------------------------

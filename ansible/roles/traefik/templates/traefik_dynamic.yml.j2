@@ -15,7 +15,7 @@ http:
   middlewares:
     security-headers:
       headers:
-        frameDeny: true
+        frameDeny: false
         browserXssFilter: true
         contentTypeNosniff: true
         stsIncludeSubdomains: true
@@ -27,6 +27,15 @@ http:
       rateLimit:
         average: 100
         burst: 50
+
+    cors-headers:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "OPTIONS"
+        accessControlAllowOriginList:
+          - "*"
+        accessControlMaxAge: 100
 
 
 

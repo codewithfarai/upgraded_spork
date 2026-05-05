@@ -1,0 +1,8 @@
+---
+# ===========================================================================
+# Map Service Role Handlers
+# ===========================================================================
+
+- name: deploy_map_services
+  command: docker stack deploy -c /opt/docker/stacks/map_service/docker-compose.yml map
+  listen: deploy_map_services

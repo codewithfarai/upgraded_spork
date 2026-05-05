@@ -9,41 +9,45 @@ services:
     networks:
       - traefik-public
       - shared-backend
+
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
           - node.hostname == upgraded-spork-manager-{{ target_env }}-1
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.osrm.rule=Host(`route.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)"
         - "traefik.http.routers.osrm.entrypoints=web"
+        - "traefik.http.routers.osrm.middlewares=cors-headers@file"
         - "traefik.http.routers.osrm.service=osrm-svc"
         - "traefik.http.services.osrm-svc.loadbalancer.server.port=5000"
         - "traefik.swarm.network=traefik-public"
 
   martin:
     image: ghcr.io/maplibre/martin:latest
-    command: "/tiles"
+    command: "--webui enable-for-all /tiles"
     volumes:
       - /opt/docker/stacks/map_service/tiles:/tiles
     networks:
       - traefik-public
       - shared-backend
+
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
           - node.hostname == upgraded-spork-manager-{{ target_env }}-1
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.martin.rule=Host(`tiles.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)"
         - "traefik.http.routers.martin.entrypoints=web"
+        - "traefik.http.routers.martin.middlewares=cors-headers@file"
         - "traefik.http.routers.martin.service=martin-svc"
         - "traefik.http.services.martin-svc.loadbalancer.server.port=3000"
         - "traefik.swarm.network=traefik-public"
+
+
 
 networks:
   traefik-public:
