@@ -1,3 +1,9 @@
+## v0.49.0 (2026-05-05)
+
+### feat
+
+- implement multi-step user onboarding flow including profile creation, email verification, and driver setup
+
 ## v0.48.0 (2026-05-05)
 
 ### feat
