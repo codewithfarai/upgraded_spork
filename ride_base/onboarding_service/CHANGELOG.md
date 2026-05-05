@@ -1,3 +1,9 @@
+## onboarding_service-v0.16.0 (2026-05-05)
+
+### feat
+
+- include email_verified field in user profile API response
+
 ## onboarding_service-v0.15.1 (2026-04-07)
 
 ### refactor
