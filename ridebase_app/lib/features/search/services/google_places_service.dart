@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 class GooglePlacesService {
   GooglePlacesService(this._dio);
@@ -19,31 +20,31 @@ class GooglePlacesService {
     if (query.isEmpty) return [];
 
     try {
-      print('GooglePlacesService: Searching for "$query" with key: ${_apiKey.isNotEmpty ? "SET" : "EMPTY"}');
+      debugPrint('GooglePlacesService: Searching for "$query" with key: ${_apiKey.isNotEmpty ? "SET" : "EMPTY"}');
       final response = await _dio.get(_autocompleteUrl, queryParameters: {
         'input': query,
         'key': _apiKey,
         'components': 'country:zw',
-        if (sessionToken != null) 'sessiontoken': sessionToken,
+        'sessiontoken': ?sessionToken,
       });
 
       if (response.statusCode == 200) {
         final data = response.data;
-        print('GooglePlacesService: Status: ${data['status']}');
+        debugPrint('GooglePlacesService: Status: ${data['status']}');
 
         if (data['status'] == 'OK') {
           return List<Map<String, dynamic>>.from(data['predictions']);
         } else if (data['status'] == 'ZERO_RESULTS') {
           return [];
         } else {
-          print('GooglePlacesService: Error: ${data['error_message']}');
+          debugPrint('GooglePlacesService: Error: ${data['error_message']}');
           throw Exception(data['error_message'] ?? 'Failed to fetch predictions');
         }
       } else {
         throw Exception('Failed to communicate with Google.');
       }
     } catch (e) {
-      print('GooglePlacesService: Exception: $e');
+      debugPrint('GooglePlacesService: Exception: $e');
       return [];
     }
   }

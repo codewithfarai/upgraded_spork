@@ -1,9 +1,6 @@
-import 'package:dio/dio.dart';
 import '../domain/ride_actions.dart';
 
 class RideApiService {
-  // Static service class mirroring the expected legacy structure
-  static final Dio _dio = Dio();
 
   static Future<void> triggerSos(String rideId, SosRequest request) async {
     // In a real app, this would hit your backend endpoint

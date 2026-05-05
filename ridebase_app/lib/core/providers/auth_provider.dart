@@ -128,26 +128,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // the Authentik login page, which preserves the OAuth PKCE context.
   // After enrollment, login() handles the resulting tokens identically.
 
-  /// Log out: clear tokens and update state immediately, then clear browser session.
+  /// Log out: end browser session, clear tokens, update state.
   Future<void> logout() async {
+    // isLoading: true prevents re-entrant logout calls while the browser
+    // session is being cleared (e.g. double-tap on Sign Out).
     state = state.copyWith(isLoading: true);
 
-    // 1. Get the ID token before clearing everything
     final idToken = await _authService.tokenStorage.idToken;
-
-    debugPrint('[AuthNotifier] logout: Clearing tokens and state');
-    // 2. Clear local tokens immediately so the app is locally logged out
     await _authService.tokenStorage.clearAll();
 
-    // 3. Update state to unauthenticated IMMEDIATELY.
-    state = AuthState.unauthenticated;
-
-    // 4. Try to clear the browser session in the background (fire and forget)
-    // so we don't block the app UI on the browser's redirect performance.
+    // Await endSession before setting unauthenticated so the browser operation
+    // fully completes before the user can start a new login. Running it in the
+    // background caused the next login's Custom Tab to be cancelled by the
+    // still-in-flight endSession (AppAuth only supports one browser op at a time).
+    //
+    // Expected errors we treat as success:
+    //   • state-mismatch — Authentik cleared the session but omits the state
+    //     param on the post-logout redirect; AppAuth rejects the response yet
+    //     the session is gone server-side.
+    //   • user-cancelled  — can occur if the Custom Tab is dismissed before
+    //     the redirect arrives; tokens are already cleared so we proceed.
     if (idToken != null) {
-      _authService.logoutBrowserOnly(idToken).catchError((e) {
-        debugPrint('[AuthNotifier] Background browser logout error: $e');
+      await _authService.logoutBrowserOnly(idToken).catchError((e) {
+        debugPrint('[AuthNotifier] Browser logout error (expected): $e');
       });
+    }
+
+    state = AuthState.unauthenticated;
+  }
+
+  /// Refresh the stored tokens and update the in-memory user from the new ID
+  /// token. Called after operations that change server-side user attributes
+  /// (e.g. driver verification) so the UI reflects the updated role immediately.
+  Future<void> refreshUser() async {
+    final result = await _authService.tryRefresh();
+    if (result != null && result.success) {
+      state = state.copyWith(user: result.user);
     }
   }
 }

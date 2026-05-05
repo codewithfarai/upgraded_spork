@@ -7,7 +7,6 @@ import '../drawer/app_drawer.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:go_router/go_router.dart';
 import 'widgets/location_button.dart';
-import '../search/search_screen.dart';
 
 /// The home screen — a full-screen MapLibre map with drawer navigation.
 ///
@@ -26,8 +25,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _isLocating = false;
   bool _isMapLoading = true;
   bool _hasMapError = false;
-  String _mapErrorMessage = '';
-  Map<String, dynamic>? _selectedDestination;
+  final String _mapErrorMessage = '';
 
   @override
   void initState() {
@@ -50,28 +48,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _handleSearchResults(Map<String, dynamic> result) {
-    setState(() {
-      _selectedDestination = result;
-    });
-
     if (_mapController != null) {
       _mapController!.animateCamera(
         center: Geographic(lat: result['lat'], lon: result['lng']),
         zoom: 15,
         nativeDuration: const Duration(milliseconds: 1000),
-      );
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 4),
-        ),
       );
     }
   }
@@ -111,7 +92,7 @@ class _MapScreenState extends State<MapScreen> {
           // ── Loading Indicator ────────────────────────────────────
           if (_isMapLoading)
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: const Center(
                 child: CircularProgressIndicator(color: Colors.white),
               ),
@@ -120,7 +101,7 @@ class _MapScreenState extends State<MapScreen> {
           // ── Error Overlay ────────────────────────────────────────
           if (_hasMapError)
             Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: Center(
                 child: Container(
                   margin: const EdgeInsets.all(24),
@@ -344,28 +325,6 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
-  }
-
-  /// Request location permission and start tracking if granted.
-  Future<void> _requestLocationAndTrack() async {
-    try {
-      final permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        final requested = await geo.Geolocator.requestPermission();
-        if (requested == geo.LocationPermission.denied ||
-            requested == geo.LocationPermission.deniedForever) {
-          return;
-        }
-      }
-
-      if (_mapController != null) {
-        await _mapController!.enableLocation();
-        // Commented out to prevent the map from flying away to the UK during testing
-        // await _mapController!.trackLocation();
-      }
-    } catch (e) {
-      debugPrint('Initial tracking error: $e');
-    }
   }
 
   /// Animate the camera to the user's current location with robust error handling.

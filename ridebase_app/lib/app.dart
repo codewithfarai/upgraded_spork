@@ -26,8 +26,8 @@ class RouterNotifier extends ChangeNotifier {
   final Ref ref;
 
   RouterNotifier(this.ref) {
-    ref.listen(authProvider, (_, __) => notifyListeners());
-    ref.listen(onboardingProvider, (_, __) => notifyListeners());
+    ref.listen(authProvider, (_, _) => notifyListeners());
+    ref.listen(onboardingProvider, (_, _) => notifyListeners());
   }
 }
 
@@ -76,8 +76,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // User is authenticated. Check onboarding step.
       switch (onboardingState.step) {
         case OnboardingStep.loading:
-        case OnboardingStep.unauthenticated:
           return null; // Handled above
+
+        case OnboardingStep.unauthenticated:
+          // Auth is authenticated but the profile fetch failed (network error,
+          // 401, etc.). Don't trap the user on /loading — fall back to the map
+          // so they can use the app and retry by signing out and back in.
+          if (state.matchedLocation == '/loading') return '/home';
+          return null;
 
         case OnboardingStep.needsProfile:
           if (state.matchedLocation != '/onboarding/profile') return '/onboarding/profile';

@@ -205,15 +205,19 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
               const SizedBox(height: 32),
               // Back to Sign In
               Center(
-                child: TextButton(
-                  onPressed: () {
-                    // Sign out to go back to sign in
-                    ref.read(authProvider.notifier).logout();
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final isLoading = ref.watch(authProvider).isLoading;
+                    return TextButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => ref.read(authProvider.notifier).logout(),
+                      child: const Text(
+                        'Back to Sign In',
+                        style: TextStyle(color: Color(0xFF044C44)),
+                      ),
+                    );
                   },
-                  child: const Text(
-                    'Back to Sign In',
-                    style: TextStyle(color: Color(0xFF044C44)),
-                  ),
                 ),
               ),
             ],

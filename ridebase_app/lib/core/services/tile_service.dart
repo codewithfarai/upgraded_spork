@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../config.dart';
 
 /// Service to handle tile server connectivity and health checks.
@@ -43,7 +44,7 @@ class TileService {
       }
       return _isHealthy;
     } catch (e) {
-      print('Tile server health check failed: $e');
+      debugPrint('Tile server health check failed: $e');
       _fallbackToLocal();
       return false;
     }
@@ -52,7 +53,7 @@ class TileService {
   void _fallbackToLocal() {
     _isHealthy = false;
     _activeTileSource = RideBaseConfig.tileSourceUrlLocal;
-    print('Falling back to local tile server: $_activeTileSource');
+    debugPrint('Falling back to local tile server: $_activeTileSource');
   }
 
   bool get isHealthy => _isHealthy;

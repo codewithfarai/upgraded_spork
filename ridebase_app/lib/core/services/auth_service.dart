@@ -40,13 +40,13 @@ class AuthService {
           RideBaseConfig.oidcRedirectUri,
           discoveryUrl: _discoveryUrl,
           scopes: RideBaseConfig.oidcScopes,
-          promptValues: ['login'], // Force login screen
+          promptValues: ['login'],
+          // max_age=0 forces Authentik to re-authenticate the user every time,
+          // regardless of any active browser session. This is stronger than
+          // prompt=login alone and prevents silent re-authentication after logout.
+          additionalParameters: {'max_age': '0'},
         ),
       );
-
-      if (result == null) {
-        return const AuthResult(success: false, error: 'Login was cancelled.');
-      }
 
       return await _handleTokenResponse(result);
     } catch (e) {
@@ -82,11 +82,6 @@ class AuthService {
           scopes: RideBaseConfig.oidcScopes,
         ),
       );
-
-      if (result == null) {
-        debugPrint('[AuthService] Token refresh returned null.');
-        return null;
-      }
 
       return await _handleTokenResponse(result);
     } catch (e) {

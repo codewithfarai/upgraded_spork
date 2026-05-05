@@ -70,10 +70,11 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
             nationalIdPhoto: _nationalIdPhoto!,
           );
 
-      // Refresh tokens to get updated JWT with is_driver=true
-      await ref.read(authServiceProvider).tryRefresh();
+      // Refresh tokens then update auth state so the drawer role badge
+      // reflects is_driver=true without requiring a full sign-out/in cycle.
+      await ref.read(authProvider.notifier).refreshUser();
 
-      // Refresh onboarding state
+      // Advance onboarding to the next step
       await ref.read(onboardingProvider.notifier).refresh();
     } catch (e) {
       if (mounted) {
