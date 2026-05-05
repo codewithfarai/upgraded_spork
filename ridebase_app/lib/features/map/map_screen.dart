@@ -178,7 +178,7 @@ class _MapScreenState extends State<MapScreen> {
 
           // ── Zoom & Location Controls ─────────────────────────────
           Positioned(
-            bottom: 240, // Pushed up above the search bottom sheet
+            bottom: 320, // Pushed up above the search bottom sheet
             right: 16,
             child: Column(
               mainAxisSize: MainAxisSize.min,
