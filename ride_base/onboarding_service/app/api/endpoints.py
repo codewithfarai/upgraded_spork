@@ -45,7 +45,8 @@ async def get_my_profile(
         "email": profile.email,
         "is_rider": profile.is_rider,
         "is_driver": profile.is_driver,
-        "role_intent": profile.role_intent.value
+        "role_intent": profile.role_intent.value,
+        "email_verified": profile.email_verified,
     }
 
 
