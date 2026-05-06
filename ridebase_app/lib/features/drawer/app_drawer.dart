@@ -9,11 +9,57 @@ import '../../core/providers/auth_provider.dart';
 ///   • Authenticated: shows user info + Sign Out
 ///   • Unauthenticated: shows "Welcome to Ridebase" + Sign In / Sign Up
 ///   • Menu items: Home, Support
-class AppDrawer extends ConsumerWidget {
+///
+/// Implemented as a StatefulWidget so it can observe app lifecycle events and
+/// impose a short cooldown after returning from the OIDC browser. This prevents
+/// ghost taps from the Google Password Manager Accessibility Service (which
+/// injects a lingering "tap" event when the browser closes) from accidentally
+/// hitting the Sign In / Sign Out button the moment the Drawer rebuilds.
+class AppDrawer extends ConsumerStatefulWidget {
   const AppDrawer({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends ConsumerState<AppDrawer>
+    with WidgetsBindingObserver {
+  /// Timestamp of the most recent app-resume event.
+  DateTime? _lastResumedAt;
+
+  /// How long to ignore button presses after the app regains focus from the browser.
+  static const _resumeCooldown = Duration(milliseconds: 700);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Record when the app came back to the foreground.
+      _lastResumedAt = DateTime.now();
+    }
+  }
+
+  /// Returns true if we are within the cooldown window after resuming.
+  /// Ghost taps from the Password Manager arrive in this window.
+  bool get _isCoolingDown {
+    final resumed = _lastResumedAt;
+    if (resumed == null) return false;
+    return DateTime.now().difference(resumed) < _resumeCooldown;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
     return Drawer(
@@ -21,8 +67,8 @@ class AppDrawer extends ConsumerWidget {
         children: [
           // ── Teal Header ─────────────────────────────────────────
           authState.isAuthenticated
-              ? _buildAuthenticatedHeader(context, ref, authState)
-              : _buildUnauthenticatedHeader(context, ref, authState),
+              ? _buildAuthenticatedHeader(context, authState)
+              : _buildUnauthenticatedHeader(context, authState),
 
           // ── Menu Items ──────────────────────────────────────────
           _buildMenuSection(context),
@@ -35,7 +81,6 @@ class AppDrawer extends ConsumerWidget {
 
   Widget _buildAuthenticatedHeader(
     BuildContext context,
-    WidgetRef ref,
     AuthState authState,
   ) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -133,11 +178,24 @@ class AppDrawer extends ConsumerWidget {
           SizedBox(
             height: 44,
             child: ElevatedButton.icon(
+              key: const ValueKey('sign_out_button'),
+              focusNode: FocusNode(canRequestFocus: false),
               onPressed: authState.isLoading
                   ? null
                   : () async {
+                      // Reject ghost taps from the Password Manager that arrive
+                      // immediately after the app resumes from the browser.
+                      if (_isCoolingDown) {
+                        debugPrint('[AppDrawer] Sign Out blocked – post-resume cooldown active');
+                        return;
+                      }
+
+                      // Capture the notifier before the Drawer unmounts.
+                      final notifier = ref.read(authProvider.notifier);
                       Navigator.of(context).pop();
-                      await ref.read(authProvider.notifier).logout();
+
+                      // Logout is now HTTP-only (no browser popup), so no delay needed.
+                      await notifier.logout();
                     },
               icon: authState.isLoading
                   ? const SizedBox(
@@ -176,7 +234,6 @@ class AppDrawer extends ConsumerWidget {
 
   Widget _buildUnauthenticatedHeader(
     BuildContext context,
-    WidgetRef ref,
     AuthState authState,
   ) {
     final topPadding = MediaQuery.of(context).padding.top;
@@ -248,11 +305,20 @@ class AppDrawer extends ConsumerWidget {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
+              key: const ValueKey('sign_in_button'),
+              focusNode: FocusNode(canRequestFocus: false),
               onPressed: authState.isLoading
                   ? null
                   : () async {
+                      // Capture the notifier before the Drawer unmounts.
+                      final notifier = ref.read(authProvider.notifier);
+
+                      // Pop the drawer and let its exit animation complete before
+                      // opening the login browser tab.
                       Navigator.of(context).pop();
-                      await ref.read(authProvider.notifier).login();
+                      await Future.delayed(const Duration(milliseconds: 300));
+
+                      await notifier.login();
                     },
               icon: authState.isLoading
                   ? const SizedBox(

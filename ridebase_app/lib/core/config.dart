@@ -28,6 +28,14 @@ class RideBaseConfig {
   static const String oidcClientId = 'ridebase';
   static const String oidcRedirectUri = 'ridebase://callback';
   static const String oidcLogoutRedirectUri = 'ridebase://logout-callback';
+  static const String oidcRevocationUri = '$authBase/application/o/revoke/';
+
+  // Explicit OIDC endpoints (from .well-known/openid-configuration).
+  // Using these directly avoids a discovery round-trip on every auth operation.
+  static const String oidcAuthorizationEndpoint = '$authBase/application/o/authorize/';
+  static const String oidcTokenEndpoint = '$authBase/application/o/token/';
+  static const String oidcEndSessionEndpoint = '$authBase/application/o/ridebase/end-session/';
+  static const String oidcDiscoveryUrl = '$authBase/application/o/ridebase/.well-known/openid-configuration';
   static const List<String> oidcScopes = [
     'openid',
     'profile',

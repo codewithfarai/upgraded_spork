@@ -4,7 +4,6 @@ import '../config.dart';
 import '../models/user_model.dart';
 import 'token_storage.dart';
 
-/// Result of a login or signup attempt.
 class AuthResult {
   final bool success;
   final RideBaseUser? user;
@@ -13,25 +12,14 @@ class AuthResult {
   const AuthResult({required this.success, this.user, this.error});
 }
 
-/// Handles OAuth2/OIDC authentication against Authentik via PKCE.
-///
-/// Uses [FlutterAppAuth] to open a secure browser for login/signup,
-/// and manages token lifecycle (exchange, refresh, revoke).
 class AuthService {
   final FlutterAppAuth _appAuth = const FlutterAppAuth();
   final TokenStorage _tokenStorage = TokenStorage();
 
-  // ── Authentik OIDC Discovery ─────────────────────────────────────
-  // flutter_appauth will auto-discover endpoints from the issuer's
-  // .well-known/openid-configuration, but we can also specify them
-  // explicitly for faster startup.
-  static const String _discoveryUrl =
-      '${RideBaseConfig.authBase}/application/o/ridebase/.well-known/openid-configuration';
+  static const String _discoveryUrl = RideBaseConfig.oidcDiscoveryUrl;
 
   // ── Login ────────────────────────────────────────────────────────
 
-  /// Opens the Authentik login page in a secure browser tab.
-  /// Returns [AuthResult] with the decoded user on success.
   Future<AuthResult> login() async {
     try {
       final result = await _appAuth.authorizeAndExchangeCode(
@@ -40,11 +28,6 @@ class AuthService {
           RideBaseConfig.oidcRedirectUri,
           discoveryUrl: _discoveryUrl,
           scopes: RideBaseConfig.oidcScopes,
-          promptValues: ['login'],
-          // max_age=0 forces Authentik to re-authenticate the user every time,
-          // regardless of any active browser session. This is stronger than
-          // prompt=login alone and prevents silent re-authentication after logout.
-          additionalParameters: {'max_age': '0'},
         ),
       );
 
@@ -55,16 +38,8 @@ class AuthService {
     }
   }
 
-  // ── Sign Up ──────────────────────────────────────────────────────
-  // Sign-up is handled via the "Need an account? Sign up." link on the
-  // Authentik login page. This preserves the OAuth PKCE context server-side.
-  // After enrollment, Authentik auto-logs the user in, issues the auth code,
-  // and redirects to ridebase://callback — same as a normal login.
-
   // ── Silent Refresh ───────────────────────────────────────────────
 
-  /// Attempt to silently refresh the access token using a stored refresh token.
-  /// Returns null if no refresh token is available or if the refresh fails.
   Future<AuthResult?> tryRefresh() async {
     final storedRefreshToken = await _tokenStorage.refreshToken;
     if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
@@ -86,32 +61,41 @@ class AuthService {
       return await _handleTokenResponse(result);
     } catch (e) {
       debugPrint('[AuthService] Token refresh failed: $e');
-      // Don't clear tokens here - if it's just a network error,
-      // we want to keep the current tokens and try again later.
       return null;
     }
   }
 
   // ── Logout ───────────────────────────────────────────────────────
 
-  /// Clear only the browser session. Local tokens should be cleared by the caller.
-  Future<void> logoutBrowserOnly(String idToken) async {
-    try {
-      await _appAuth.endSession(
-        EndSessionRequest(
-          idTokenHint: idToken,
-          postLogoutRedirectUrl: RideBaseConfig.oidcLogoutRedirectUri,
-          discoveryUrl: _discoveryUrl,
-        ),
-      );
-    } catch (e) {
-      debugPrint('[AuthService] Browser session clear error: $e');
+  // Opens the Authentik invalidation flow in a browser (user_logout stage
+  // destroys the session cookie, redirect stage returns to the app).
+  // This call BLOCKS until ridebase://logout-callback is received — tokens
+  // are only cleared after the browser session is gone, so there is no
+  // window where a new login AMA can race against a stale logout AMA.
+  Future<void> logout() async {
+    final idToken = await _tokenStorage.idToken;
+
+    if (idToken != null) {
+      try {
+        await _appAuth.endSession(
+          EndSessionRequest(
+            idTokenHint: idToken,
+            postLogoutRedirectUrl: RideBaseConfig.oidcLogoutRedirectUri,
+            discoveryUrl: _discoveryUrl,
+          ),
+        );
+      } catch (e) {
+        // If the user closes the browser tab early, endSession throws.
+        // We still clear local tokens so the app is logged out locally.
+        debugPrint('[AuthService] Browser logout error (non-fatal): $e');
+      }
     }
+
+    await _tokenStorage.clearAll();
   }
 
   // ── Get Current User ─────────────────────────────────────────────
 
-  /// Try to get the current user from stored tokens without any network call.
   Future<RideBaseUser?> getCurrentUser() async {
     final idToken = await _tokenStorage.idToken;
     if (idToken == null) return null;
@@ -135,11 +119,9 @@ class AuthService {
       return const AuthResult(success: false, error: 'No access token received.');
     }
 
-    // Calculate expiry
     final expiresAt = response.accessTokenExpirationDateTime ??
         DateTime.now().add(const Duration(minutes: 15));
 
-    // Persist tokens
     await _tokenStorage.saveTokens(
       accessToken: accessToken,
       refreshToken: refreshToken,
@@ -147,7 +129,6 @@ class AuthService {
       expiresAt: expiresAt,
     );
 
-    // Decode user from ID token
     RideBaseUser? user;
     if (idToken != null) {
       try {
@@ -172,6 +153,5 @@ class AuthService {
     return 'Authentication failed. Please try again.';
   }
 
-  /// Expose token storage for provider-level access.
   TokenStorage get tokenStorage => _tokenStorage;
 }

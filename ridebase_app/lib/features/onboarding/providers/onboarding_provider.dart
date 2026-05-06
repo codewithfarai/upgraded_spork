@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../models/onboarding_profile.dart';
@@ -88,8 +89,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         profile: profile,
       );
     } catch (e) {
+      debugPrint('[OnboardingNotifier] Profile fetch failed: $e');
+      // Do NOT set step=unauthenticated here — that creates an impossible
+      // auth=true + step=unauthenticated state that confuses the GoRouter.
+      // Fall through to 'complete' so the user lands on the home map and
+      // can retry by signing out and back in.
       state = OnboardingState(
-        step: OnboardingStep.unauthenticated, // Fallback if error occurs
+        step: OnboardingStep.complete,
         error: e.toString(),
       );
     }

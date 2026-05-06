@@ -211,7 +211,10 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                     return TextButton(
                       onPressed: isLoading
                           ? null
-                          : () => ref.read(authProvider.notifier).logout(),
+                          : () {
+                              if (!context.mounted) return;
+                              ref.read(authProvider.notifier).logout();
+                            },
                       child: const Text(
                         'Back to Sign In',
                         style: TextStyle(color: Color(0xFF044C44)),
