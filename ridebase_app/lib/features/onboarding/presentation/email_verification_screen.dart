@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/theme.dart';
 import '../providers/onboarding_provider.dart';
 
 class EmailVerificationScreen extends ConsumerStatefulWidget {
@@ -95,7 +96,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                   width: 96,
                   height: 96,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF044C44), // Dark Teal
+                    color: RideBaseTheme.teal,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -147,10 +148,10 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                     border: InputBorder.none,
                     counterText: '',
                     focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF044C44), width: 3),
+                      borderSide: BorderSide(color: RideBaseTheme.teal, width: 3),
                     ),
                     enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF044C44), width: 3),
+                      borderSide: BorderSide(color: RideBaseTheme.teal, width: 3),
                     ),
                     contentPadding: EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -164,7 +165,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _verify,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF044C44), // Dark Teal
+                    backgroundColor: RideBaseTheme.primaryContainer,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(27),
@@ -187,8 +188,8 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                 child: OutlinedButton(
                   onPressed: _isResending || _isLoading ? null : _resend,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF044C44),
-                    side: const BorderSide(color: Color(0xFF044C44)),
+                    foregroundColor: RideBaseTheme.teal,
+                    side: const BorderSide(color: RideBaseTheme.teal),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(27),
                     ),
@@ -197,7 +198,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                       ? const SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(color: Color(0xFF044C44), strokeWidth: 2),
+                          child: CircularProgressIndicator(color: RideBaseTheme.teal, strokeWidth: 2),
                         )
                       : const Text('Resend Code', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                 ),
@@ -217,7 +218,7 @@ class _EmailVerificationScreenState extends ConsumerState<EmailVerificationScree
                             },
                       child: const Text(
                         'Back to Sign In',
-                        style: TextStyle(color: Color(0xFF044C44)),
+                        style: TextStyle(color: RideBaseTheme.teal),
                       ),
                     );
                   },

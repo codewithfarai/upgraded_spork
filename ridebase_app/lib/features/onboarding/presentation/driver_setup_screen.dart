@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/theme.dart';
 import '../providers/onboarding_provider.dart';
 
-const Color _teal = Color(0xFF044C44);
+const Color _teal = RideBaseTheme.teal;
 
 class DriverSetupScreen extends ConsumerStatefulWidget {
   const DriverSetupScreen({super.key});
@@ -16,6 +17,11 @@ class DriverSetupScreen extends ConsumerStatefulWidget {
 
 class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _carMakeController = TextEditingController();
+  final _carModelController = TextEditingController();
+  final _carColourController = TextEditingController();
+  final _yearController = TextEditingController();
+  final _licensePlateController = TextEditingController();
   final _nationalIdController = TextEditingController();
   final _licenseController = TextEditingController();
 
@@ -27,6 +33,11 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
 
   @override
   void dispose() {
+    _carMakeController.dispose();
+    _carModelController.dispose();
+    _carColourController.dispose();
+    _yearController.dispose();
+    _licensePlateController.dispose();
     _nationalIdController.dispose();
     _licenseController.dispose();
     super.dispose();
@@ -64,8 +75,13 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
 
     try {
       await ref.read(onboardingServiceProvider).submitDriverSetup(
-            nationalId: _nationalIdController.text,
-            driverLicenseNumber: _licenseController.text,
+            carMake: _carMakeController.text.trim(),
+            carModel: _carModelController.text.trim(),
+            carColour: _carColourController.text.trim(),
+            year: int.parse(_yearController.text.trim()),
+            licensePlate: _licensePlateController.text.trim(),
+            nationalId: _nationalIdController.text.trim(),
+            driverLicenseNumber: _licenseController.text.trim(),
             licensePhoto: _licensePhoto!,
             nationalIdPhoto: _nationalIdPhoto!,
           );
@@ -114,7 +130,8 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
     );
   }
 
-  Widget _buildImagePicker(String title, String subtitle, IconData icon, XFile? currentFile, bool isLicense) {
+  Widget _buildImagePicker(
+      String title, String subtitle, IconData icon, XFile? currentFile, bool isLicense) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,12 +303,82 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
               ),
               const SizedBox(height: 40),
 
+              // Vehicle Details
+              const _SectionHeader(title: 'Vehicle Details'),
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _carMakeController,
+                      decoration: _inputDecoration('Make', 'Toyota'),
+                      style: const TextStyle(fontSize: 16, color: Colors.black87),
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _carModelController,
+                      decoration: _inputDecoration('Model', 'Camry'),
+                      style: const TextStyle(fontSize: 16, color: Colors.black87),
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _carColourController,
+                      decoration: _inputDecoration('Colour', 'Silver'),
+                      style: const TextStyle(fontSize: 16, color: Colors.black87),
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _yearController,
+                      decoration: _inputDecoration('Year', '2020'),
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 16, color: Colors.black87),
+                      validator: (v) {
+                        if (v!.trim().isEmpty) return 'Required';
+                        final y = int.tryParse(v.trim());
+                        if (y == null || y < 1980 || y > DateTime.now().year + 1) {
+                          return 'Invalid year';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _licensePlateController,
+                decoration: _inputDecoration('License Plate', 'ABC 1234'),
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+              ),
+              const SizedBox(height: 32),
+
+              // Documents
+              const _SectionHeader(title: 'Documents'),
+              const SizedBox(height: 16),
+
               // National ID Number
               TextFormField(
                 controller: _nationalIdController,
                 decoration: _inputDecoration('National ID Number', '12-345678-A-00'),
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 20),
 
@@ -300,7 +387,7 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
                 controller: _licenseController,
                 decoration: _inputDecoration('Driver License Number', 'DL987654'),
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 32),
 
@@ -330,7 +417,7 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _teal,
+                    backgroundColor: RideBaseTheme.primaryContainer,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(27),
@@ -353,6 +440,24 @@ class _DriverSetupScreenState extends ConsumerState<DriverSetupScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey.shade500,
+        letterSpacing: 1.0,
       ),
     );
   }

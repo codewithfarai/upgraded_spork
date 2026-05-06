@@ -245,7 +245,7 @@ class _MapScreenState extends State<MapScreen> {
                             const SizedBox(width: 16),
                             Icon(
                               Icons.search,
-                              color: Colors.teal.shade700,
+                              color: RideBaseTheme.primaryContainer,
                               size: 28,
                             ),
                             const SizedBox(width: 12),
@@ -296,9 +296,9 @@ class _MapScreenState extends State<MapScreen> {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: Colors.teal.shade50,
+              backgroundColor: RideBaseTheme.secondaryContainer,
               radius: 20,
-              child: Icon(icon, color: Colors.teal.shade700, size: 20),
+              child: Icon(icon, color: RideBaseTheme.primaryContainer, size: 20),
             ),
             const SizedBox(width: 16),
             Expanded(

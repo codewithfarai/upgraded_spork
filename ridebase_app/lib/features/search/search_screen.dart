@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme.dart';
 import 'providers/search_provider.dart';
 import 'models/search_models.dart';
 
@@ -102,7 +103,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.teal.shade900,
+                          color: RideBaseTheme.teal,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -257,18 +258,18 @@ class _ActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.teal.shade50,
+          color: RideBaseTheme.secondaryContainer,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: Colors.teal.shade800),
+            Icon(icon, size: 18, color: RideBaseTheme.teal),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                color: Colors.teal.shade800,
+                color: RideBaseTheme.teal,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),

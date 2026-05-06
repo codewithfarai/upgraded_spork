@@ -101,6 +101,20 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     }
   }
 
+  /// Update phone_number and/or city, then refresh the cached profile.
+  Future<void> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? city,
+  }) async {
+    await _onboardingService.updateProfile(
+      fullName: fullName,
+      phoneNumber: phoneNumber,
+      city: city,
+    );
+    await _fetchProfile();
+  }
+
   /// Reload onboarding state (e.g. after a step is completed)
   Future<void> refresh() async {
     state = const OnboardingState(step: OnboardingStep.loading);
@@ -110,7 +124,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
 final onboardingServiceProvider = Provider<OnboardingService>((ref) {
   final authService = ref.watch(authServiceProvider);
-  return OnboardingService(tokenStorage: authService.tokenStorage);
+  return OnboardingService(
+    tokenStorage: authService.tokenStorage,
+    onRefreshToken: () async {
+      final result = await authService.tryRefresh();
+      return result?.success == true;
+    },
+  );
 });
 
 final onboardingProvider = StateNotifierProvider<OnboardingNotifier, OnboardingState>((ref) {

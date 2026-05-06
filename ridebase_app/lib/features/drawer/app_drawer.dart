@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/providers/auth_provider.dart';
@@ -356,6 +357,10 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
   // ── Menu Section ──────────────────────────────────────────────────
 
   Widget _buildMenuSection(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final currentPath = GoRouterState.of(context).matchedLocation;
+
     return Expanded(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -374,15 +379,93 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
             ),
           ),
 
-          // Home
           _DrawerMenuItem(
             icon: Icons.home_rounded,
             label: 'Home',
-            isSelected: true,
-            onTap: () => Navigator.of(context).pop(),
+            isSelected: currentPath == '/home',
+            onTap: () {
+              Navigator.of(context).pop();
+              context.go('/home');
+            },
           ),
 
-          // Support
+          if (authState.isAuthenticated) ...[
+            _DrawerMenuItem(
+              icon: Icons.person_outline_rounded,
+              label: 'Profile',
+              isSelected: currentPath == '/profile',
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/profile');
+              },
+            ),
+
+            _DrawerMenuItem(
+              icon: Icons.receipt_long_outlined,
+              label: 'Activity',
+              isSelected: currentPath == '/activity',
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/activity');
+              },
+            ),
+
+            if (user?.isDriver == true) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                child: Text(
+                  'DRIVER',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: RideBaseTheme.textSecondary,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              _DrawerMenuItem(
+                icon: Icons.dashboard_rounded,
+                label: 'Driver Dashboard',
+                isSelected: currentPath == '/driver_dashboard',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/driver_dashboard');
+                },
+              ),
+              _DrawerMenuItem(
+                icon: Icons.directions_car_rounded,
+                label: 'My Fleet',
+                isSelected: currentPath == '/fleet',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/fleet');
+                },
+              ),
+              _DrawerMenuItem(
+                icon: Icons.bar_chart_rounded,
+                label: 'Earnings',
+                isSelected: currentPath == '/earnings',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/earnings');
+                },
+              ),
+            ],
+          ],
+
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: Text(
+              'OTHER',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: RideBaseTheme.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+
           _DrawerMenuItem(
             icon: Icons.help_outline_rounded,
             label: 'Support',

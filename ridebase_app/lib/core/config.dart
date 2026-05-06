@@ -49,6 +49,12 @@ class RideBaseConfig {
   /// Fallback onboarding API for offline development
   static const String onboardingApiBaseLocal = 'http://localhost:8080/api/v1/onboarding';
 
+  // ── Fleet API ────────────────────────────────────────────────────────
+  static const String fleetApiBase = 'https://fleet.ridebase.tech/api/v1/fleet';
+
+  /// Fallback fleet API for offline development
+  static const String fleetApiBaseLocal = 'http://localhost:8081/api/v1/fleet';
+
   // ── Map Style ─────────────────────────────────────────────────────
   /// Bundled asset path for the MapLibre style JSON.
   static const String mapStyleAsset = 'assets/styles/ridebase_style.json';

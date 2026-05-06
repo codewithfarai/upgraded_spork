@@ -330,7 +330,7 @@ _(empty body)_
 Verifies the 6-digit OTP code sent to the user's email during profile creation. On success, sets `email_verified=true` on the profile and syncs the attribute to Authentik.
 
 ```bash
-curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/verify-email \
+curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/verify_email \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"code": "482301"}'
@@ -373,7 +373,7 @@ curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/verify-email \
 Resends a new 6-digit OTP code to the user's email. The previous code is replaced.
 
 ```bash
-curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/resend-otp \
+curl -X POST https://onboarding.ridebase.tech/api/v1/onboarding/resend_otp \
   -H "Authorization: Bearer <token>"
 ```
 

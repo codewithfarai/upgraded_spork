@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/theme.dart';
+import '../../../core/utils/zw_validators.dart';
 import '../providers/onboarding_provider.dart';
 
-const Color _teal = Color(0xFF044C44);
+const Color _teal = RideBaseTheme.teal;
 
 class BasicProfileScreen extends ConsumerStatefulWidget {
   const BasicProfileScreen({super.key});
@@ -16,7 +18,7 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _cityController = TextEditingController();
+  String? _selectedCity;
   String _selectedRole = 'RIDER';
   bool _isLoading = false;
 
@@ -24,7 +26,6 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
   void dispose() {
     _fullNameController.dispose();
     _phoneController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
@@ -40,9 +41,9 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
       }
 
       await ref.read(onboardingServiceProvider).createProfile(
-            fullName: _fullNameController.text,
-            phoneNumber: _phoneController.text,
-            city: _cityController.text,
+            fullName: _fullNameController.text.trim(),
+            phoneNumber: parseZwNumber(_phoneController.text)!,
+            city: _selectedCity!,
             role: _selectedRole,
             email: user.email!,
           );
@@ -154,19 +155,29 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
               // Phone Number
               TextFormField(
                 controller: _phoneController,
-                decoration: _inputDecoration('Phone Number', '+263 77 123 4567'),
+                decoration: _inputDecoration('Phone Number', '077 123 4567 or +263 77 123 4567'),
                 keyboardType: TextInputType.phone,
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Required';
+                  if (parseZwNumber(v) == null) return zwPhoneError;
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
 
               // City
-              TextFormField(
-                controller: _cityController,
-                decoration: _inputDecoration('City', 'Harare'),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCity,
+                decoration: _inputDecoration('City', ''),
+                hint: const Text('Select your city',
+                    style: TextStyle(color: Colors.black26, fontSize: 16)),
+                items: zwCities
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedCity = v),
+                validator: (v) => v == null ? 'Required' : null,
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 32),
 
@@ -280,7 +291,7 @@ class _BasicProfileScreenState extends ConsumerState<BasicProfileScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _teal,
+                    backgroundColor: RideBaseTheme.primaryContainer,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(27),

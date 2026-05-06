@@ -12,6 +12,12 @@ import 'features/onboarding/presentation/basic_profile_screen.dart';
 import 'features/onboarding/presentation/email_verification_screen.dart';
 import 'features/onboarding/presentation/driver_setup_screen.dart';
 import 'features/auth/presentation/auth_loading_screen.dart';
+import 'features/profile/presentation/profile_screen.dart';
+import 'features/activity/presentation/activity_screen.dart';
+import 'features/driver/presentation/driver_dashboard_screen.dart';
+import 'features/driver/presentation/earnings_screen.dart';
+import 'features/fleet/presentation/fleet_screen.dart';
+import 'features/ride_options/presentation/ride_options_screen.dart';
 
 /// Top-level MaterialApp with GoRouter navigation and RideBase theming.
 class RideBaseApp extends ConsumerStatefulWidget {
@@ -137,6 +143,37 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding/driver_setup',
         builder: (context, state) => const DriverSetupScreen(),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/activity',
+        builder: (context, state) => const ActivityScreen(),
+      ),
+      GoRoute(
+        path: '/driver_dashboard',
+        builder: (context, state) => const DriverDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/earnings',
+        builder: (context, state) => const EarningsScreen(),
+      ),
+      GoRoute(
+        path: '/fleet',
+        builder: (context, state) => const FleetScreen(),
+      ),
+      GoRoute(
+        path: '/ride_options',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return RideOptionsScreen(
+            pickup: extra?['pickup'] as String?,
+            destination: extra?['destination'] as String?,
+            distanceKm: extra?['distanceKm'] as double?,
+          );
+        },
       ),
     ],
   );
