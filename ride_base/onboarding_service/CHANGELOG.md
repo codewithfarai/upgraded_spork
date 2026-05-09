@@ -1,3 +1,9 @@
+## onboarding_service-v0.22.0 (2026-05-09)
+
+### feat
+
+- add is_public parameter to upload_file_to_s3 to support configurable bucket ACLs
+
 ## onboarding_service-v0.21.0 (2026-05-09)
 
 ### feat
