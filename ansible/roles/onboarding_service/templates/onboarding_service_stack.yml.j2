@@ -54,8 +54,6 @@ services:
       placement:
         constraints:
           - node.labels.role == worker
-        preferences:
-          - spread: node.id
       labels:
         - traefik.enable=true
         - traefik.http.routers.onboarding.rule=Host(`{{ onboarding_service_full_domain }}`)

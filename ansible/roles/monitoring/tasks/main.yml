@@ -1,34 +1,74 @@
 ---
-- name: Run Swarm Manager specific tasks
+# ==============================================================================
+# Monitoring Role - Task Configuration
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Prepare Directories (All Monitoring Nodes: Managers + Workers)
+# ------------------------------------------------------------------------------
+- name: Create Monitoring stack directories on all nodes
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/docker/stacks/monitoring/prometheus
+    - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data
+    - /opt/docker/stacks/monitoring/grafana/provisioning/datasources
+    - /opt/docker/stacks/monitoring/configs
+    - /opt/docker/stacks/monitoring/secrets
+  when: "inventory_hostname in groups['managers'] or inventory_hostname in groups['workers']"
+
+# ------------------------------------------------------------------------------
+# 2. Sync Configuration Templates (All Monitoring Nodes)
+# ------------------------------------------------------------------------------
+- name: Sync Monitoring configuration templates to all nodes
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode | default('0644') }}"
+  loop:
+    - { src: 'prometheus.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/prometheus.yml' }
+    - { src: 'alert_rules.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/alert_rules.yml' }
+    - { src: 'alertmanager.yml.j2', dest: '/opt/docker/stacks/monitoring/secrets/alertmanager.yml', mode: '0600' }
+    - { src: 'grafana_provisioning.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/dashboard_config.yml' }
+    - { src: 'grafana_datasources.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/datasources/datasource_config.yml' }
+    - { src: 'loki.yml.j2', dest: '/opt/docker/stacks/monitoring/configs/loki.yml' }
+    - { src: 'promtail.yml.j2', dest: '/opt/docker/stacks/monitoring/configs/promtail.yml' }
+  register: monitoring_configs
+  when: "inventory_hostname in groups['managers'] or inventory_hostname in groups['workers']"
+
+# ------------------------------------------------------------------------------
+# 3. Sync Dashboards (All Monitoring Nodes)
+# ------------------------------------------------------------------------------
+- name: Sync automated dashboards to all nodes
+  copy:
+    src: dashboards/
+    dest: /opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/
+    mode: '0644'
+  when: "inventory_hostname in groups['managers'] or inventory_hostname in groups['workers']"
+
+- name: Download community dashboards to all nodes
+  get_url:
+    url: "{{ item.url }}"
+    dest: "/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/{{ item.name }}.json"
+    mode: '0644'
+  loop:
+    - { name: 'postgres', url: 'https://grafana.com/api/dashboards/9628/revisions/1/download' }
+    - { name: 'redis', url: 'https://grafana.com/api/dashboards/763/revisions/6/download' }
+    - { name: 'etcd', url: 'https://grafana.com/api/dashboards/3070/revisions/1/download' }
+    - { name: 'pgpool', url: 'https://grafana.com/api/dashboards/12693/revisions/1/download' }
+    - { name: 'traefik', url: 'https://grafana.com/api/dashboards/17346/revisions/latest/download' }
+    - { name: 'authentik', url: 'https://grafana.com/api/dashboards/13838/revisions/1/download' }
+    - { name: 'rabbitmq', url: 'https://grafana.com/api/dashboards/10991/revisions/latest/download' }
+  when: "inventory_hostname in groups['managers'] or inventory_hostname in groups['workers']"
+
+# ------------------------------------------------------------------------------
+# 4. Deployment (Manager Only)
+# ------------------------------------------------------------------------------
+- name: Deploy Monitoring Stack (Manager Only)
   block:
-    - name: Create Monitoring stack directory
-      file:
-        path: "{{ item }}"
-        state: directory
-        mode: '0755'
-      loop:
-        - /opt/docker/stacks/monitoring/prometheus
-        - /opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data
-        - /opt/docker/stacks/monitoring/grafana/provisioning/datasources
-        - /opt/docker/stacks/monitoring/configs
-        - /opt/docker/stacks/monitoring/secrets
-
-    - name: Sync Monitoring configuration templates
-      template:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
-        mode: "{{ item.mode | default('0644') }}"
-      loop:
-        - { src: 'prometheus.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/prometheus.yml' }
-        - { src: 'alert_rules.yml.j2', dest: '/opt/docker/stacks/monitoring/prometheus/alert_rules.yml' }
-        - { src: 'alertmanager.yml.j2', dest: '/opt/docker/stacks/monitoring/secrets/alertmanager.yml', mode: '0600' }
-        - { src: 'grafana_provisioning.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/dashboard_config.yml' }
-        - { src: 'grafana_datasources.yml.j2', dest: '/opt/docker/stacks/monitoring/grafana/provisioning/datasources/datasource_config.yml' }
-        - { src: 'loki.yml.j2', dest: '/opt/docker/stacks/monitoring/configs/loki.yml' }
-        - { src: 'promtail.yml.j2', dest: '/opt/docker/stacks/monitoring/configs/promtail.yml' }
-      register: monitoring_configs
-
-    - name: Set config hashes
+    - name: Set config hashes for stack definition
       set_fact:
         alertmanager_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'alertmanager.yml.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
         prometheus_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'prometheus.yml.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
@@ -36,41 +76,6 @@
         grafana_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'grafana_datasources.yml.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
         loki_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'loki.yml.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
         promtail_config_hash: "{{ (monitoring_configs.results | selectattr('item.src', 'equalto', 'promtail.yml.j2') | map(attribute='checksum') | first) | default('0') | truncate(10, True, '') }}"
-
-    - name: Sync automated dashboards
-      copy:
-        src: dashboards/
-        dest: /opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/
-        mode: '0644'
-
-    - name: Download community database dashboards
-      get_url:
-        url: "{{ item.url }}"
-        dest: "/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/{{ item.name }}.json"
-        mode: '0644'
-      loop:
-        - { name: 'postgres', url: 'https://grafana.com/api/dashboards/9628/revisions/1/download' }
-        - { name: 'redis', url: 'https://grafana.com/api/dashboards/763/revisions/6/download' }
-        - { name: 'etcd', url: 'https://grafana.com/api/dashboards/3070/revisions/1/download' }
-        - { name: 'pgpool', url: 'https://grafana.com/api/dashboards/12693/revisions/1/download' }
-        - { name: 'traefik', url: 'https://grafana.com/api/dashboards/17346/revisions/latest/download' }
-        - { name: 'authentik', url: 'https://grafana.com/api/dashboards/13838/revisions/1/download' }
-        - { name: 'rabbitmq', url: 'https://grafana.com/api/dashboards/10991/revisions/latest/download' }
-
-    - name: Patch dynamic datasource variables in downloaded dashboards
-      replace:
-        path: "/opt/docker/stacks/monitoring/grafana/provisioning/dashboards/json_data/{{ item.name }}.json"
-        regexp: '\$\{DS_[A-Z0-9_]+\}'
-        replace: 'prometheus'
-      loop:
-        - { name: 'postgres' }
-        - { name: 'redis' }
-        - { name: 'etcd' }
-        - { name: 'pgpool' }
-        - { name: 'traefik' }
-        - { name: 'authentik' }
-        - { name: 'rabbitmq' }
-      ignore_errors: true
 
     - name: Generate Monitoring stack definition
       template:

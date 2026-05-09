@@ -16,7 +16,7 @@ services:
       AUTHENTIK_ISSUER: "https://{{ authentik_full_domain }}/application/o/ridebase/"
       AUTHENTIK_AUDIENCE: "ridebase"
       # RabbitMQ (via shared-backend overlay)
-      RABBITMQ_URL: "amqp://admin:{{ effective_rabbitmq_password }}@db_ha_rabbitmq-0:5672/"
+      RABBITMQ_URL: "amqp://admin:{{ effective_rabbitmq_password }}@db_ha_pgpool:5672/"
       RABBITMQ_EXCHANGE: "ridebase.events"
       # Stripe price (non-secret config)
       STRIPE_PRICE_ID_DRIVER: "{{ stripe_price_id_driver }}"
@@ -44,8 +44,6 @@ services:
       placement:
         constraints:
           - node.labels.role == worker
-        preferences:
-          - spread: node.id
       labels:
         - traefik.enable=true
         - traefik.http.routers.payment.rule=Host(`{{ payment_service_full_domain }}`)

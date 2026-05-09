@@ -166,16 +166,26 @@
         dest: /opt/docker/stacks/database_ha/docker-compose.yml
         mode: '0644'
 
+    - name: Ensure Redis image is present on all nodes
+      command: docker pull redis:7-alpine
+      when: inventory_hostname in groups['database'] or inventory_hostname in groups['workers']
+
     - name: Deploy Database HA stack
       command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/database_ha/docker-compose.yml db_ha
       register: stack_deploy
 
     - name: Force restart Redis Sentinel to clear stale quorum IP state
-      command: docker service update --force db_ha_redis-sentinel
+      shell: |
+        docker service update --force db_ha_redis-sentinel
+      register: sentinel_restart
+      until: sentinel_restart.rc == 0
+      retries: 5
+      delay: 10
       when: >
-        'Updating service db_ha_redis-0' in stack_deploy.stdout or
+        ('Updating service db_ha_redis-0' in stack_deploy.stdout or
         'Updating service db_ha_redis-1' in stack_deploy.stdout or
-        'Creating service db_ha_redis-' in stack_deploy.stdout
+        'Creating service db_ha_redis-' in stack_deploy.stdout) and
+        inventory_hostname == groups['managers'][0]
 
     - name: Wait for PostgreSQL Master to be ready via pgpool
       command: >

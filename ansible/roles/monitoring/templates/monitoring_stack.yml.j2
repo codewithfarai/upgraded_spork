@@ -26,7 +26,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.role == worker
       labels:
         - traefik.enable=true
         - traefik.http.routers.prometheus.rule=Host(`{{ prometheus_domain }}`)
@@ -52,7 +52,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.role == worker
 
   grafana:
     image: grafana/grafana:latest
@@ -72,7 +72,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.role == worker
       labels:
         - traefik.enable=true
         - traefik.http.routers.grafana.rule=Host(`{{ grafana_domain }}`)
@@ -98,7 +98,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.labels.role == worker
       labels:
         - loki.config.hash={{ loki_config_hash }}
 

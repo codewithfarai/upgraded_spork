@@ -1,9 +1,12 @@
 ---
-# ===========================================================================
-# Map Service Ansible Role (OSRM + Martin)
-# Deploys tile server and routing engine
-# ===========================================================================
-- name: Run Map Service deployment tasks
+# ==============================================================================
+# Map Service Role - Task Configuration
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Data Setup (Worker 1 Only)
+# ------------------------------------------------------------------------------
+- name: Map Data Setup (Worker 1)
   block:
     - name: Create map service stack directories
       file:
@@ -21,7 +24,7 @@
         dest: /opt/docker/stacks/map_service/setup_map_data.sh
         mode: '0755'
 
-    - name: Run map data setup script (one-time process, could take 10-30 minutes)
+    - name: Run map data setup script (This can take 10-30 minutes)
       shell: |
         set -e
         /opt/docker/stacks/map_service/setup_map_data.sh
@@ -31,68 +34,53 @@
       environment:
         SETUPDONE_FILE: "/opt/docker/stacks/map_service/data/.setup_done"
       register: map_setup_result
-      # This can take 10-30 minutes for Zimbabwe extract, give it enough time
       async: 3600
       poll: 30
       changed_when: "'Setup completed successfully' in map_setup_result.stdout"
 
-    - name: Verify OSRM data file was created
+    - name: Verify Map Data Files
       stat:
-        path: /opt/docker/stacks/map_service/data/zimbabwe-latest.osrm
-      register: osrm_file
-      failed_when: not osrm_file.stat.exists
-      retries: 5
-      delay: 10
+        path: "{{ item }}"
+      register: map_data_files
+      failed_when: not map_data_files.stat.exists
+      loop:
+        - /opt/docker/stacks/map_service/data/combined-regions.osrm
+        - /opt/docker/stacks/map_service/tiles/combined.mbtiles
 
-    - name: Verify MBTiles file was created
-      stat:
-        path: /opt/docker/stacks/map_service/tiles/zimbabwe.mbtiles
-      register: mbtiles_file
-      failed_when: not mbtiles_file.stat.exists
-      retries: 5
-      delay: 10
+  when: "inventory_hostname == groups['workers'][0]"
+
+# ------------------------------------------------------------------------------
+# 2. Deployment (Manager Only)
+# ------------------------------------------------------------------------------
+- name: Deploy Map Stack (Manager Only)
+  block:
+    - name: Create stack directory on manager
+      file:
+        path: /opt/docker/stacks/map_service
+        state: directory
+        mode: '0755'
 
     - name: Generate map service stack definition
       template:
         src: map_service_stack.yml.j2
         dest: /opt/docker/stacks/map_service/docker-compose.yml
         mode: '0644'
-      notify: deploy_map_services
 
-    - name: Deploy map service stack (via handler)
-      meta: flush_handlers
+    - name: Deploy map service stack
+      command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/map_service/docker-compose.yml map
+      register: map_deploy_result
+      changed_when: "'Creating' in map_deploy_result.stdout or 'Updating' in map_deploy_result.stdout"
 
-    - name: Wait for OSRM service to be healthy
+    - name: Wait for Map services to be healthy
       shell: |
-        docker service ls --filter name=map_osrm --format '{{ "{{" }}.Replicas{{ "}}" }}'
-      register: osrm_status
-      until: "osrm_status.stdout.split('/')[0] | int >= 1"
+        docker service ls --filter name=map_{{ item }} --format '{{ "{{" }}.Replicas{{ "}}" }}'
+      register: map_status
+      until: "map_status.stdout.split('/')[0] | int >= 1"
       retries: 60
-      delay: 10
+      delay: 15
+      loop:
+        - osrm
+        - martin
       changed_when: false
-
-    - name: Wait for Martin service to be healthy
-      shell: |
-        docker service ls --filter name=map_martin --format '{{ "{{" }}.Replicas{{ "}}" }}'
-      register: martin_status
-      until: "martin_status.stdout.split('/')[0] | int >= 1"
-      retries: 60
-      delay: 10
-      changed_when: false
-
-
-
-    - name: Display deployment summary
-      debug:
-        msg:
-          - "✓ Map services deployed successfully"
-          - "OSRM routing endpoint: https://route.{{ domain_name }}"
-          - "Martin tile server: https://tiles.{{ domain_name }}"
-          - "Martin Web UI: https://tiles.{{ domain_name }}/"
 
   when: "inventory_hostname == groups['managers'][0]"
-  rescue:
-    - name: Deployment failed
-      debug:
-        msg: "Map service deployment failed. Please check the logs above."
-      changed_when: true

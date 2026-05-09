@@ -3,7 +3,7 @@ version: '3.8'
 services:
   osrm:
     image: osrm/osrm-backend:latest
-    command: "osrm-routed --algorithm mld /data/zimbabwe-latest.osrm"
+    command: "osrm-routed --algorithm mld /data/combined-regions.osrm"
     volumes:
       - /opt/docker/stacks/map_service/data:/data
     networks:
@@ -14,7 +14,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname == upgraded-spork-manager-{{ target_env }}-1
+          - node.hostname == upgraded-spork-worker-{{ target_env }}-1
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.osrm.rule=Host(`route.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)"
@@ -37,7 +37,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.hostname == upgraded-spork-manager-{{ target_env }}-1
+          - node.hostname == upgraded-spork-worker-{{ target_env }}-1
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.martin.rule=Host(`tiles.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}`)"

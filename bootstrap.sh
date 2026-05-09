@@ -23,17 +23,14 @@ echo "🚀 Starting Full $(echo $ENV | tr '[:lower:]' '[:upper:]') Deployment...
 ROOT_DIR=$(pwd)
 
 # ------------------------------------------------------------------------------
-# Step 1: Build & Push Service Images
+# Step 1: Build & Push Service Images (Parallelized)
 # ------------------------------------------------------------------------------
-echo "🔨 Building and pushing service images..."
-cd "$ROOT_DIR/ride_base/payment_service"
-make build && make push
+echo "🔨 Building and pushing service images in parallel..."
+(cd "$ROOT_DIR/ride_base/payment_service" && make build) &
+(cd "$ROOT_DIR/ride_base/onboarding_service" && make build) &
+(cd "$ROOT_DIR/ride_base/admin_service" && make build) &
 
-cd "$ROOT_DIR/ride_base/onboarding_service"
-make build && make push
-
-cd "$ROOT_DIR/ride_base/admin_service"
-make build && make push
+wait # Wait for all builds to finish
 
 # ------------------------------------------------------------------------------
 # Step 2: Terraform Infrastructure
@@ -42,52 +39,62 @@ echo "🔨 Deploying Terraform Infrastructure ($ENV)..."
 cd "$ROOT_DIR/terraform"
 make apply ENV=$ENV ARGS="-auto-approve"
 
-echo "⏳ Sleeping 10m for SSH and cloud-init to finish..."
-# sleep 1
-
 # ------------------------------------------------------------------------------
-# Step 3: SSH Keyscan
+# Step 3: SSH Keyscan & Verification
 # ------------------------------------------------------------------------------
 echo "🔑 Running keyscan..."
 make keyscan ENV=$ENV
-# sleep 60
+sleep 60
 
-# ------------------------------------------------------------------------------
-# Step 4: Verify Nodes
-# ------------------------------------------------------------------------------
 echo "🔍 Verifying node health..."
 make verify ENV=$ENV
-sleep 300
+echo "⏳ Waiting 60s for cloud-init and networking to settle..."
+sleep 60
 
 # ------------------------------------------------------------------------------
-# Step 2: Ansible Initial Deploy (without services — Authentik not ready yet)
-# Single Authentik replica to avoid migration lock race condition on fresh DB.
+# Step 4: Ansible Initial Deploy (Pass 1 - Infrastructure Only)
 # ------------------------------------------------------------------------------
-echo "🐝 Deploying Swarm (Pass 1 - Bootstrap, services disabled)..."
+echo "🐝 Deploying Swarm (Pass 1 - Database & Core Infra)..."
 cd "$ROOT_DIR/ansible"
-AUTHENTIK_BOOTSTRAP_REPLICAS=1 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false map_service_enabled=false"
-# sleep 60
+
+# Retry loop for initial swarm setup (handles transient join/label races)
+for i in {1..3}; do
+    if AUTHENTIK_BOOTSTRAP_REPLICAS=1 make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false map_service_enabled=false monitoring_enabled=false"; then
+        echo "✅ Pass 1 successful."
+        break
+    else
+        if [ $i -eq 3 ]; then echo "❌ Pass 1 failed after 3 attempts."; exit 1; fi
+        echo "⚠️ Pass 1 failed. Retrying in 30s..."
+        sleep 30
+    fi
+done
 
 # ------------------------------------------------------------------------------
-# Step 6: Ansible Second Deploy (still without services — stabilization)
+# Step 5: Wait for Database HA Stability
 # ------------------------------------------------------------------------------
-echo "🔁 Redeploying Swarm (Pass 2 - Stabilization, services disabled)..."
-make swarm ENV=$ENV EXTRA_VARS="payment_service_enabled=false onboarding_service_enabled=false admin_service_enabled=false map_service_enabled=false"
-# sleep 60
+echo "⏳ Waiting for Database HA to stabilize..."
+sleep 30
 
 # ------------------------------------------------------------------------------
-# Step 7: Authentik Setup
+# Step 6: Authentik Setup (Terraform)
 # ------------------------------------------------------------------------------
-echo "🔐 Deploying Authentik Configuration..."
+echo "🔐 Configuring Authentik Identity Provider..."
 cd "$ROOT_DIR/terraform_authentik"
-make apply ENV=$ENV ARGS="-auto-approve"
-# sleep 60
-
+for i in {1..3}; do
+    if make apply ENV=$ENV ARGS="-auto-approve"; then
+        echo "✅ Authentik configuration applied."
+        break
+    else
+        if [ $i -eq 3 ]; then echo "❌ Authentik config failed after 3 attempts."; exit 1; fi
+        echo "⚠️ Authentik not ready yet. Retrying in 60s..."
+        sleep 60
+    fi
+done
 
 # ------------------------------------------------------------------------------
-# Step 8: Ansible Third Deploy (with services — Authentik token now exists)
+# Step 7: Final Ansible Deploy (Full Scale)
 # ------------------------------------------------------------------------------
-echo "🚀 Deploying Swarm (Pass 3 - Full deploy with services)..."
+echo "🚀 Deploying Swarm (Pass 2 - Scaling up all services)..."
 cd "$ROOT_DIR/ansible"
 make swarm ENV=$ENV
 

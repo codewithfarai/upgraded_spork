@@ -179,6 +179,19 @@ ssh_manager:
 		-o ProxyCommand="ssh -i $$RAW_KEY -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV) -W %h:%p provision@$$BASTION_IP" \
 		provision@$$MANAGER_IP
 
+ssh_edge:
+	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
+	BASTION_IP=$$(terraform output -raw bastion_public_ip); \
+	EDGE_IP=$$(terraform output -json internal_ips | jq -r ".edge[$(NODE)][0]"); \
+	SSH_KEY_NAME=$(GET_SSH_KEY_NAME); \
+	SSH_KEY=$${SSH_KEY:-~/.ssh/$$SSH_KEY_NAME}; \
+	RAW_KEY=$$(eval echo $$SSH_KEY); \
+	echo "🔌 Connecting to Edge Node ($$EDGE_IP) [index $(NODE)] via Bastion..."; \
+	ssh -i $$RAW_KEY \
+		-o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV) \
+		-o ProxyCommand="ssh -i $$RAW_KEY -o UserKnownHostsFile=~/.ssh/known_hosts_$(ENV) -W %h:%p provision@$$BASTION_IP" \
+		provision@$$EDGE_IP
+
 ssh_worker:
 	@$(MAKE) init ENV=$(ENV) LOCK=false >/dev/null; \
 	BASTION_IP=$$(terraform output -raw bastion_public_ip); \

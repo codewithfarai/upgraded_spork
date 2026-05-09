@@ -47,8 +47,6 @@ services:
       placement:
         constraints:
           - node.labels.role == worker
-        preferences:
-          - spread: node.id
       labels:
         - traefik.enable=true
         - traefik.http.routers.authentik.rule=Host(`{{ authentik_full_domain }}`)
@@ -102,9 +100,6 @@ services:
       placement:
         constraints:
           - node.labels.role == worker
-        preferences:
-          - spread: node.id
-
 networks:
   traefik-public:
     external: true

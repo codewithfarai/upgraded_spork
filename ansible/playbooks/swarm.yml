@@ -236,7 +236,7 @@
 # Play 12: Deploy Map Service (OSRM + Martin)
 # ==============================================================================
 - name: Deploy Map Service
-  hosts: managers[0]
+  hosts: workers,managers[0]
   become: yes
   tasks:
     - name: Configure Map Service

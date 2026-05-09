@@ -4,7 +4,7 @@
   "sources": {
     "openmaptiles": {
       "type": "vector",
-      "tiles": ["https://tiles.ridebase.tech/zimbabwe/{z}/{x}/{y}"],
+      "tiles": ["https://tiles.ridebase.tech/combined/{z}/{x}/{y}"],
       "maxzoom": 14
     }
   },
