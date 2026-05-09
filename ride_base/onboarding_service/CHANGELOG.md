@@ -1,3 +1,9 @@
+## onboarding_service-v0.17.1 (2026-05-09)
+
+### chore
+
+- regenerate migration to add profile_photo_url and remove driver_details columns
+
 ## onboarding_service-v0.17.0 (2026-05-09)
 
 ### feat
