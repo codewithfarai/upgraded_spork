@@ -1,3 +1,9 @@
+## onboarding_service-v0.19.1 (2026-05-09)
+
+### fix
+
+- update S3_BUCKET_NAME to use hyphenated naming convention
+
 ## onboarding_service-v0.19.0 (2026-05-09)
 
 ### feat
