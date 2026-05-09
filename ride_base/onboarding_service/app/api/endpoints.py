@@ -8,7 +8,7 @@ from app.middleware.auth import get_current_user
 from app.db.database import get_db
 from app.models.profile import UserProfile, RoleIntentEnum
 from app.models.vehicle import DriverDetails
-from app.services.s3 import upload_file_to_s3
+from app.services.s3 import upload_file_to_s3, delete_file_from_s3
 from app.services.rabbitmq import publisher
 from app.services.otp import generate_otp, verify_otp
 
@@ -83,6 +83,9 @@ async def update_my_profile(
             raise HTTPException(status_code=400, detail="Invalid role_intent. Must be RIDER or DRIVER.")
 
     if profile_photo is not None:
+        # Keep track of the old photo URL for cleanup
+        old_photo_url = profile.profile_photo_url
+
         # 1. Validate file types
         allowed = ["image/jpeg", "image/png"]
         if profile_photo.content_type not in allowed:
@@ -112,6 +115,10 @@ async def update_my_profile(
                 "full_name": profile.full_name
             },
         )
+
+        # 5. Cleanup: Delete the old photo if it exists
+        if old_photo_url:
+            await delete_file_from_s3(old_photo_url)
 
     # Always ensure these are confirmed from the app flow
     profile.location_enabled = True

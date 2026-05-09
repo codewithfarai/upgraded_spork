@@ -84,3 +84,40 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
     except Exception as e:
         logger.error(f"Failed to upload file to S3: {e}")
         raise e # Reraise for tenacity
+
+async def delete_file_from_s3(file_url: str) -> bool:
+    """
+    Deletes a file from S3 given its full URL.
+    Returns True if successful.
+    """
+    if not file_url:
+        return False
+
+    # Extract the key from the URL: https://endpoint/bucket/profiles/user-15_hash.jpg
+    # We expect: profiles/user-15_hash.jpg
+    try:
+        # Split by bucket name to get everything after it
+        parts = file_url.split(f"/{settings.S3_BUCKET_NAME}/")
+        if len(parts) < 2:
+            return False
+
+        object_key = parts[1]
+        session = aioboto3.Session()
+
+        async with session.client(
+            "s3",
+            endpoint_url=settings.S3_ENDPOINT_URL,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
+            region_name=settings.S3_REGION_NAME,
+            config=Config(
+                signature_version='s3v4',
+                s3={'addressing_style': 'path'}
+            )
+        ) as s3_client:
+            await s3_client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+            logger.info(f"Successfully deleted old file from S3: {object_key}")
+            return True
+    except Exception as e:
+        logger.error(f"Failed to delete file from S3: {e}")
+        return False

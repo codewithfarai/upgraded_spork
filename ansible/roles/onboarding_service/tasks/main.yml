@@ -60,16 +60,21 @@
         content: "{{ onboarding_service_s3_secret_key | default('mock-secret') }}"
         dest: /opt/docker/stacks/onboarding_service/secrets/s3_secret_key
         mode: '0600'
-      when: not s3_secret_key_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool)
       no_log: true
       register: s3_secret_key_file
 
+    - name: Slurp existing Onboarding DB password if it exists
+      slurp:
+        src: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
+      register: existing_onboarding_db_pass
+      ignore_errors: true
+      no_log: true
+
     - name: Write Onboarding DB password
       copy:
-        content: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') if not onboarding_db_pass_stat.stat.exists else lookup('file', '/opt/docker/stacks/onboarding_service/secrets/onboarding_db_password') }}"
+        content: "{{ existing_onboarding_db_pass['content'] | b64decode if not existing_onboarding_db_pass.failed else lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
         dest: /opt/docker/stacks/onboarding_service/secrets/onboarding_db_password
         mode: '0600'
-      when: not onboarding_db_pass_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool)
       no_log: true
       register: onboarding_db_pass_file
 
@@ -78,7 +83,7 @@
         content: "{{ onboarding_service_resend_api_key }}"
         dest: /opt/docker/stacks/onboarding_service/secrets/resend_api_key
         mode: '0600'
-      when: (onboarding_service_resend_api_key | default('') != '') and (not resend_api_key_stat.stat.exists or (onboarding_service_rotate_secrets | default(false) | bool))
+      when: (onboarding_service_resend_api_key | default('') != '')
       no_log: true
       register: resend_api_key_file
 
