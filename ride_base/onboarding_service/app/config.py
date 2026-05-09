@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     S3_ENDPOINT_URL: str = ""
     S3_ACCESS_KEY: str = ""
     S3_SECRET_KEY: str = ""
-    S3_BUCKET_NAME: str = "ridebase_driver_docs"
+    S3_BUCKET_NAME: str = "ridebase-driver-docs"
     S3_REGION_NAME: str = "eu-central"
 
     # RabbitMQ
