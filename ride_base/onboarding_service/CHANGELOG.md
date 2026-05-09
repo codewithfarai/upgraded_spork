@@ -1,3 +1,9 @@
+## onboarding_service-v0.21.0 (2026-05-09)
+
+### feat
+
+- add S3 file deletion logic and improve Ansible secret management persistence
+
 ## onboarding_service-v0.20.1 (2026-05-09)
 
 ### fix
