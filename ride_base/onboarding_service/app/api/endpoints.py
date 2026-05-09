@@ -88,12 +88,30 @@ async def update_my_profile(
         if profile_photo.content_type not in allowed:
             raise HTTPException(status_code=400, detail="Invalid file type for profile_photo. Only JPEG or PNG are allowed.")
 
-        # 2. Upload to S3
+        # 2. Enforce 5MB limit
+        MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+        content = await profile_photo.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Profile photo must be smaller than 5MB")
+        await profile_photo.seek(0)
+
+        # 3. Upload to S3
         photo_url = await upload_file_to_s3(profile_photo, directory="profiles", user_id=auth_id)
         if not photo_url:
             raise HTTPException(status_code=500, detail="Failed to upload profile photo.")
 
         profile.profile_photo_url = photo_url
+
+        # 4. Notify other services via RabbitMQ
+        await publisher.publish(
+            routing_key="onboarding.profile_updated",
+            message={
+                "event_type": "onboarding.profile_updated",
+                "authentik_user_id": auth_id,
+                "profile_photo_url": photo_url,
+                "full_name": profile.full_name
+            },
+        )
 
     # Always ensure these are confirmed from the app flow
     profile.location_enabled = True
