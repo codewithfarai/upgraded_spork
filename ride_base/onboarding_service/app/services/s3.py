@@ -34,7 +34,10 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
             aws_access_key_id=settings.S3_ACCESS_KEY,
             aws_secret_access_key=settings.S3_SECRET_KEY,
             region_name=settings.S3_REGION_NAME,
-            config=Config(signature_version='s3v4')
+            config=Config(
+                signature_version='s3v4',
+                s3={'addressing_style': 'path'}
+            )
         ) as s3_client:
 
             # 1. Ensure the bucket exists (Fail-safe)
