@@ -2,15 +2,23 @@ import uuid
 import logging
 import aioboto3
 from fastapi import UploadFile
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type(Exception),
+    reraise=True
+)
 async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_id: str | None = None) -> str | None:
     """Uploads a FastApi UploadFile to S3/MinIO and returns the URL.
 
     Automates bucket creation if it doesn't exist and handles ACL fallbacks.
+    Uses exponential backoff retries for robustness.
     """
     session = aioboto3.Session()
 
@@ -40,6 +48,8 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
                     # Continue anyway, put_object might give a better error
 
             # 2. Upload file
+            # Important: Since we might retry, we must seek(0) in case a previous attempt partially read it
+            await file.seek(0)
             content = await file.read()
 
             try:
@@ -68,4 +78,4 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
 
     except Exception as e:
         logger.error(f"Failed to upload file to S3: {e}")
-        return None
+        raise e # Reraise for tenacity
