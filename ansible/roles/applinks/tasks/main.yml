@@ -1,0 +1,165 @@
+---
+# ===========================================================================
+# App Links / Universal Links Static-File Service
+# Runs on managers[0] — deploys a tiny Caddy stack that serves the four
+# files needed to verify app.<env>.ridebase.tech:
+#
+#   /.well-known/assetlinks.json              (Android App Links)
+#   /.well-known/apple-app-site-association   (iOS Universal Links)
+#   /mobile/callback        -> index.html     (browser fallback)
+#   /mobile/logout-callback -> index.html     (browser fallback)
+#
+# The .well-known files are public verification metadata. They are NOT
+# secrets — they declare which app is allowed to claim this domain. We
+# still use Docker Configs (with hash-based rotation) because Swarm
+# distributes them to all nodes and the rotation pattern matches how
+# the rest of the stack handles config updates.
+#
+# Soft-skip behaviour: if APPLE_TEAM_ID or ANDROID_RELEASE_SIGNING_SHA256
+# are missing, the role logs a warning and exits cleanly so a fresh
+# cluster bootstrap (which may not have these yet) doesn't fail. Set the
+# env vars and re-run when you have them.
+#
+# See docs/applink_migration.md for the full deployment reference.
+# ===========================================================================
+- name: Run App Links deployment tasks
+  when:
+    - inventory_hostname == groups['managers'][0]
+    - applinks_enabled | default(true) | bool
+  block:
+    - name: Compute applinks full domain
+      set_fact:
+        applinks_full_domain: "{{ applinks_domain }}.{{ target_env + '.' if target_env != 'prod' else '' }}{{ domain_name }}"
+
+    - name: Detect missing signing identifiers
+      set_fact:
+        applinks_skip_reason: >-
+          {{
+            'APPLE_TEAM_ID env var not set' if applinks_apple_team_id == ''
+            else 'ANDROID_RELEASE_SIGNING_SHA256 env var not set' if applinks_android_signing_sha256 == ''
+            else ''
+          }}
+
+    - name: Warn that applinks deployment is being skipped
+      debug:
+        msg:
+          - "⚠️  Skipping applinks deployment: {{ applinks_skip_reason }}"
+          - "    Universal Links / App Links will not work until this is set."
+          - "    Export the env var and re-run, or set applinks_enabled: false"
+          - "    in group_vars/all/applinks.yml to suppress this warning."
+      when: applinks_skip_reason != ''
+
+    - name: Deploy applinks stack
+      when: applinks_skip_reason == ''
+      block:
+        - name: Create applinks stack directories
+          file:
+            path: "{{ item }}"
+            state: directory
+            mode: '0755'
+          loop:
+            - /opt/docker/stacks/applinks
+            - /opt/docker/stacks/applinks/files
+
+        # -------------------------------------------------------------------
+        # Render the four hosted files + Caddyfile from templates
+        # -------------------------------------------------------------------
+        - name: Render Caddyfile
+          template:
+            src: Caddyfile.j2
+            dest: /opt/docker/stacks/applinks/files/Caddyfile
+            mode: '0644'
+
+        - name: Render assetlinks.json
+          template:
+            src: assetlinks.json.j2
+            dest: /opt/docker/stacks/applinks/files/assetlinks.json
+            mode: '0644'
+
+        - name: Render apple-app-site-association
+          template:
+            src: apple-app-site-association.j2
+            # No .json extension — Apple is strict about this.
+            dest: /opt/docker/stacks/applinks/files/apple-app-site-association
+            mode: '0644'
+
+        - name: Render fallback index.html
+          template:
+            src: index.html.j2
+            dest: /opt/docker/stacks/applinks/files/index.html
+            mode: '0644'
+
+        # -------------------------------------------------------------------
+        # Compute hashes for Docker Config rotation
+        # -------------------------------------------------------------------
+        - name: Stat the rendered files for hash computation
+          stat:
+            path: "/opt/docker/stacks/applinks/files/{{ item }}"
+          loop:
+            - Caddyfile
+            - assetlinks.json
+            - apple-app-site-association
+            - index.html
+          register: applinks_file_stats
+
+        - name: Set Config hash facts
+          set_fact:
+            applinks_caddyfile_hash: "{{ applinks_file_stats.results[0].stat.checksum | truncate(10, True, '') }}"
+            applinks_assetlinks_hash: "{{ applinks_file_stats.results[1].stat.checksum | truncate(10, True, '') }}"
+            applinks_aasa_hash: "{{ applinks_file_stats.results[2].stat.checksum | truncate(10, True, '') }}"
+            applinks_index_hash: "{{ applinks_file_stats.results[3].stat.checksum | truncate(10, True, '') }}"
+
+        # -------------------------------------------------------------------
+        # Render the stack file and deploy
+        # -------------------------------------------------------------------
+        - name: Generate applinks stack definition
+          template:
+            src: applinks_stack.yml.j2
+            dest: /opt/docker/stacks/applinks/docker-compose.yml
+            mode: '0644'
+
+        - name: Deploy applinks stack
+          command: docker stack deploy --with-registry-auth -c /opt/docker/stacks/applinks/docker-compose.yml applinks
+          register: applinks_deploy
+
+        - name: Wait for applinks service to be healthy
+          shell: |
+            docker service ls --filter name=applinks_applinks --format '{{ "{{" }}.Replicas{{ "}}" }}'
+          register: applinks_status
+          until: "applinks_status.stdout.split('/')[0] | int >= 1"
+          retries: 30
+          delay: 5
+          changed_when: false
+
+        # -------------------------------------------------------------------
+        # Smoke test the served paths via Traefik
+        # -------------------------------------------------------------------
+        - name: Smoke-test assetlinks.json endpoint
+          uri:
+            url: "https://{{ applinks_full_domain }}/.well-known/assetlinks.json"
+            return_content: true
+            status_code: 200
+          register: applinks_smoke_assetlinks
+          until: applinks_smoke_assetlinks.status == 200
+          retries: 12
+          delay: 5
+          ignore_errors: true
+
+        - name: Smoke-test apple-app-site-association endpoint
+          uri:
+            url: "https://{{ applinks_full_domain }}/.well-known/apple-app-site-association"
+            return_content: true
+            status_code: 200
+          register: applinks_smoke_aasa
+          until: applinks_smoke_aasa.status == 200
+          retries: 12
+          delay: 5
+          ignore_errors: true
+
+        - name: Report smoke-test results
+          debug:
+            msg:
+              - "assetlinks.json            : {{ applinks_smoke_assetlinks.status | default('FAIL') }}"
+              - "apple-app-site-association : {{ applinks_smoke_aasa.status | default('FAIL') }}"
+              - "Domain: https://{{ applinks_full_domain }}"
+              - "If a smoke test fails, the stack is still up — check DNS, Traefik logs."

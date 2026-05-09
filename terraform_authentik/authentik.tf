@@ -67,11 +67,12 @@ resource "authentik_stage_user_logout" "ridebase_logout" {
 }
 
 # Stage 2 — After session is destroyed, redirect back to the mobile app
-# instead of rendering Authentik's default "Signed Out" page.
+# via the App Link / Universal Link host (app.<env>.ridebase.tech). The OS
+# intercepts the URL before the browser navigates and routes to the app.
 resource "authentik_stage_redirect" "ridebase_logout_redirect" {
   name          = "ridebase-logout-redirect"
   mode          = "static"
-  target_static = "ridebase://logout-callback"
+  target_static = "https://app.${local.env_subdomain}${var.domain_name}/mobile/logout-callback"
 }
 
 resource "authentik_flow_stage_binding" "invalidation_logout" {
@@ -619,9 +620,14 @@ resource "authentik_provider_oauth2" "ridebase" {
   # refresh token can be replayed.
   refresh_token_threshold = "days=7"
 
+  # OIDC redirect URIs are App Link / Universal Link HTTPS URLs only.
+  # The host follows the env-subdomain pattern: app.dev.ridebase.tech (dev),
+  # app.ridebase.tech (prod). The verification files served at those hosts
+  # (.well-known/assetlinks.json + apple-app-site-association) are deployed
+  # by the `applinks` Ansible role.
   allowed_redirect_uris = [
-    { matching_mode = "strict", url = "ridebase://callback" },
-    { matching_mode = "strict", url = "ridebase://logout-callback" }
+    { matching_mode = "strict", url = "https://app.${local.env_subdomain}${var.domain_name}/mobile/callback" },
+    { matching_mode = "strict", url = "https://app.${local.env_subdomain}${var.domain_name}/mobile/logout-callback" }
   ]
   property_mappings = [
     data.authentik_property_mapping_provider_scope.openid.id,
@@ -724,6 +730,11 @@ resource "authentik_brand" "ridebase" {
   branding_favicon    = "/static/dist/assets/icons/icon.png"
   flow_authentication = authentik_flow.ridebase_authentication.uuid
   flow_invalidation   = authentik_flow.ridebase_invalidation.uuid
+  branding_custom_css = local.ridebase_css
+
+  lifecycle {
+    ignore_changes = [branding_custom_css]
+  }
 
   attributes = jsonencode({
     settings = {

@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../application/ride_provider.dart';
-import '../data/ride_api_service.dart';
-import '../domain/ride_actions.dart';
+import '../providers/active_ride_provider.dart';
+import '../providers/ride_rest_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
-/// Post-trip rating screen.
 class RideRatingScreen extends ConsumerStatefulWidget {
   const RideRatingScreen({super.key});
 
@@ -26,43 +25,46 @@ class _RideRatingScreenState extends ConsumerState<RideRatingScreen> {
   }
 
   Future<void> _submit() async {
-    final rideState = ref.read(rideProvider);
-    final session = rideState.session;
-    if (session == null) return;
+    final ride = ref.read(activeRideProvider);
+    final user = ref.read(currentUserProvider);
+    if (ride.rideId == null || user == null) {
+      _dismiss();
+      return;
+    }
 
     setState(() => _loading = true);
     try {
-      await RideApiService.submitRating(
-        RideRatingRequest(
-          rideId: session.rideId,
-          riderId: session.riderId,
-          driverId: session.driverId ?? '',
-          rating: _rating,
-          feedback: _feedbackCtrl.text.trim(),
-          submittedAtUtc: DateTime.now().toUtc().toIso8601String(),
-        ),
-      );
-      ref.read(rideProvider.notifier).reset();
-      if (mounted) context.go('/home');
+      await ref.read(rideRestServiceProvider).rateDriver(
+            rideId: ride.rideId!,
+            riderId: user.sub,
+            driverId: ride.driver?.driverId ?? '',
+            rating: _rating,
+            feedback: _feedbackCtrl.text.trim().isEmpty ? null : _feedbackCtrl.text.trim(),
+          );
+      _dismiss();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  void _dismiss() {
+    ref.read(activeRideProvider.notifier).clear();
+    if (mounted) context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(rideProvider).session;
+    final ride = ref.watch(activeRideProvider);
 
     return Scaffold(
       body: Stack(
         children: [
-          // Content
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Column(
@@ -76,17 +78,18 @@ class _RideRatingScreenState extends ConsumerState<RideRatingScreen> {
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                if (session != null) ...[
+                if (ride.driver != null) ...[
                   Text(
-                    'Driver: ${session.driverName ?? "Driver"}',
+                    'Driver: ${ride.driver!.name}',
                     style: const TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   const SizedBox(height: 4),
+                ],
+                if (ride.acceptedAmount > 0 || ride.distanceKm > 0)
                   Text(
-                    '\$${session.acceptedAmount.toStringAsFixed(2)}  •  ${session.distanceKm.toStringAsFixed(1)} km',
+                    '\$${ride.acceptedAmount.toStringAsFixed(2)}  •  ${ride.distanceKm.toStringAsFixed(1)} km',
                     style: const TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                ],
                 const SizedBox(height: 48),
                 const Text(
                   'How was your ride?',
@@ -130,10 +133,7 @@ class _RideRatingScreenState extends ConsumerState<RideRatingScreen> {
                         ? const CircularProgressIndicator(strokeWidth: 2)
                         : const Text(
                             'Submit Rating',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                   ),
                 ),
@@ -141,8 +141,6 @@ class _RideRatingScreenState extends ConsumerState<RideRatingScreen> {
               ],
             ),
           ),
-
-          // Floating Close Button
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             right: 16,
@@ -153,10 +151,7 @@ class _RideRatingScreenState extends ConsumerState<RideRatingScreen> {
               color: Theme.of(context).cardColor,
               child: IconButton(
                 icon: const Icon(Icons.close, size: 28),
-                onPressed: () {
-                  ref.read(rideProvider.notifier).reset();
-                  context.go('/home');
-                },
+                onPressed: _dismiss,
               ),
             ),
           ),

@@ -7,6 +7,7 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme.dart';
 import '../../../core/utils/zw_validators.dart';
 import '../../onboarding/providers/onboarding_provider.dart';
+import 'package:image_picker/image_picker.dart';
 
 Future<void> _editPhone(
     BuildContext context, WidgetRef ref, String? current) async {
@@ -209,6 +210,66 @@ Future<void> _editCity(
 // Returns the value, or '—' for null/empty strings.
 String _orDash(String? v) => (v == null || v.trim().isEmpty) ? '—' : v;
 
+Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
+  final picker = ImagePicker();
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: const Icon(Icons.photo_library_rounded, color: RideBaseTheme.teal),
+            title: Text('Photo Gallery', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt_rounded, color: RideBaseTheme.teal),
+            title: Text('Camera', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+
+  if (source != null) {
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 75,
+    );
+
+    if (image != null && context.mounted) {
+      try {
+        await ref.read(onboardingProvider.notifier).updateProfile(profilePhoto: image);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to upload photo: $e')),
+          );
+        }
+      }
+    }
+  }
+}
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -278,67 +339,105 @@ class ProfileScreen extends ConsumerWidget {
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            border:
-                                Border.all(color: Colors.white, width: 4),
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    Colors.black.withValues(alpha: 0.12),
-                                blurRadius: 20,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
+                        GestureDetector(
+                          onTap: () => _pickImage(context, ref),
+                          child: Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border:
+                                  Border.all(color: Colors.white, width: 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: profile?.profilePhotoUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(48),
+                                    child: Image.network(
+                                      profile!.profilePhotoUrl!,
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Center(
+                                        child: Text(
+                                          initial,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 40,
+                                            fontWeight: FontWeight.w700,
+                                            color: RideBaseTheme.teal,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Center(
+                                    child: Text(
+                                      initial,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.w700,
+                                        color: RideBaseTheme.teal,
+                                      ),
+                                    ),
+                                  ),
                           ),
-                          child: Center(
-                            child: Text(
-                              initial,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 40,
-                                fontWeight: FontWeight.w700,
+                        ),
+                        // Edit overlay
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: () => _pickImage(context, ref),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
                                 color: RideBaseTheme.teal,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                color: Colors.white,
+                                size: 18,
                               ),
                             ),
                           ),
                         ),
-                        if (isVerified)
-                          Positioned(
-                            bottom: 2,
-                            right: 2,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                color: RideBaseTheme.primaryContainer,
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: const Icon(
-                                Icons.verified_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
 
                     const SizedBox(height: 14),
 
                     // Name
-                    Text(
-                      displayName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: RideBaseTheme.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          displayName,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: RideBaseTheme.textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 4),
@@ -355,14 +454,27 @@ class ProfileScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
 
                     // Verified label
-                    Text(
-                      isVerified ? 'VERIFIED RIDER' : 'RIDER',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: RideBaseTheme.textSecondary,
-                        letterSpacing: 1.2,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (isVerified) ...[
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: RideBaseTheme.teal,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          isVerified ? 'VERIFIED RIDER' : 'RIDER',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: RideBaseTheme.textSecondary,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 28),

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../models/onboarding_profile.dart';
 import '../services/onboarding_service.dart';
@@ -89,7 +90,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
         profile: profile,
       );
     } catch (e) {
-      debugPrint('[OnboardingNotifier] Profile fetch failed: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingNotifier] Profile fetch failed: $e');
+      }
       // Do NOT set step=unauthenticated here — that creates an impossible
       // auth=true + step=unauthenticated state that confuses the GoRouter.
       // Fall through to 'complete' so the user lands on the home map and
@@ -106,11 +109,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     String? fullName,
     String? phoneNumber,
     String? city,
+    XFile? profilePhoto,
   }) async {
     await _onboardingService.updateProfile(
       fullName: fullName,
       phoneNumber: phoneNumber,
       city: city,
+      profilePhoto: profilePhoto,
     );
     await _fetchProfile();
   }

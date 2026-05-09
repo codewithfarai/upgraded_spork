@@ -1,0 +1,65 @@
+# Static-file server config for the App Links / Universal Links service.
+# TLS is terminated upstream at the Hetzner Load Balancer, so we only
+# listen on plain :80 inside the cluster (Traefik handles ingress).
+
+{
+    # We never need Caddy's own TLS — Hetzner LB terminates TLS upstream.
+    auto_https off
+
+    # Suppress admin endpoint (we never connect to it)
+    admin off
+}
+
+:80 {
+    root * /srv
+
+    # ── Apple App Site Association ─────────────────────────────────
+    # Apple is strict: this path must serve application/json, with no
+    # .json extension on the URL. Caddy by default would serve a file
+    # without an extension as text/plain, so we override the header.
+    @aasa path /.well-known/apple-app-site-association
+    handle @aasa {
+        header Content-Type application/json
+        file_server
+    }
+
+    # ── Android Asset Links ────────────────────────────────────────
+    @assetlinks path /.well-known/assetlinks.json
+    handle @assetlinks {
+        # .json extension already maps to application/json automatically
+        file_server
+    }
+
+    # ── Mobile callback fallback pages ─────────────────────────────
+    # When OS verification fails (offline, not-yet-installed app, opened
+    # in a desktop browser), the redirect URL actually loads in a
+    # browser. We render a small "open the app" page rather than 404.
+    @mobile_callback path /mobile/callback /mobile/callback/*
+    handle @mobile_callback {
+        rewrite * /index.html
+        file_server
+    }
+    @mobile_logout path /mobile/logout-callback /mobile/logout-callback/*
+    handle @mobile_logout {
+        rewrite * /index.html
+        file_server
+    }
+
+    # ── Everything else ────────────────────────────────────────────
+    handle {
+        respond "Not Found" 404
+    }
+
+    # Hardening headers (defence-in-depth on top of Traefik's)
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+
+    # JSON access log — picked up by Promtail/Loki the same way Traefik's is
+    log {
+        output stdout
+        format json
+    }
+}

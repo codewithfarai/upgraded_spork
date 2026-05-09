@@ -245,6 +245,18 @@
       when: map_service_enabled | default(true) | bool
 
 # ==============================================================================
+# Play 12b: Deploy App Links / Universal Links static-file service
+# ==============================================================================
+- name: Deploy App Links / Universal Links service
+  hosts: managers[0]
+  become: yes
+  tasks:
+    - name: Configure App Links service
+      include_role:
+        name: applinks
+      when: applinks_enabled | default(true) | bool
+
+# ==============================================================================
 # Play 13: Deploy Standalone Monitoring on Bastion
 # ==============================================================================
 - name: Deploy Standalone Monitoring on Bastion

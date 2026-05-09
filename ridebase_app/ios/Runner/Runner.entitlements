@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Universal Links for OIDC redirect.
+
+        Requires CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements on the
+        Runner target (set this in Xcode → Signing & Capabilities → +
+        Capability → Associated Domains, which wires it automatically).
+
+        Pairs with the apple-app-site-association file served at
+        https://app.ridebase.tech/.well-known/apple-app-site-association
+        by the `applinks` Ansible role.
+    -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:app.ridebase.tech</string>
+    </array>
+</dict>
+</plist>

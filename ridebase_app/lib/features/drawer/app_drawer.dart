@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/providers/auth_provider.dart';
+import '../onboarding/providers/onboarding_provider.dart';
+import '../onboarding/models/onboarding_profile.dart';
 
 /// Navigation drawer matching the MAUI app design:
 ///   • Teal header with circular avatar
@@ -62,13 +64,15 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final onboarding = ref.watch(onboardingProvider);
+    final profile = onboarding.profile;
 
     return Drawer(
       child: Column(
         children: [
           // ── Teal Header ─────────────────────────────────────────
           authState.isAuthenticated
-              ? _buildAuthenticatedHeader(context, authState)
+              ? _buildAuthenticatedHeader(context, authState, profile)
               : _buildUnauthenticatedHeader(context, authState),
 
           // ── Menu Items ──────────────────────────────────────────
@@ -83,6 +87,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
   Widget _buildAuthenticatedHeader(
     BuildContext context,
     AuthState authState,
+    OnboardingProfile? profile,
   ) {
     final topPadding = MediaQuery.of(context).padding.top;
     final user = authState.user;
@@ -115,23 +120,43 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
                 width: 2,
               ),
             ),
-            child: Center(
-              child: Text(
-                (user?.displayName ?? 'U')[0].toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+            child: profile?.profilePhotoUrl != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(36),
+                    child: Image.network(
+                      profile!.profilePhotoUrl!,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Text(
+                          (user?.displayName ?? 'U')[0].toUpperCase(),
+                          style: GoogleFonts.inter(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      (user?.displayName ?? 'U')[0].toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
           ),
 
           const SizedBox(height: 20),
 
           // Username
           Text(
-            user?.displayName ?? 'User',
+            profile?.fullName ?? user?.displayName ?? 'User',
             style: GoogleFonts.inter(
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -153,25 +178,7 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
               ),
             ),
 
-          // Role badge
-          if (user != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                user.isDriver ? '🚗 Driver' : '🧑 Rider',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
+          const SizedBox(height: 12),
 
           const SizedBox(height: 20),
 
@@ -231,7 +238,6 @@ class _AppDrawerState extends ConsumerState<AppDrawer>
     );
   }
 
-  // ── Unauthenticated Header ────────────────────────────────────────
 
   Widget _buildUnauthenticatedHeader(
     BuildContext context,

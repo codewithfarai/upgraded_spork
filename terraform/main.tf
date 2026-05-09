@@ -689,3 +689,24 @@ resource "hcloud_zone_rrset" "environment_wildcard" {
     hcloud_load_balancer.main
   ]
 }
+
+# CAA records — restrict certificate issuance for the entire ridebase.tech zone to
+# Let's Encrypt only. issuewild covers wildcard SANs; issue covers individual names;
+# iodef routes violation reports to the ops inbox.
+#
+# count = 0 for dev/stage: the zone apex (@) is shared across all environments.
+# Managing this record from multiple workspaces would cause state conflicts. Only
+# the prod workspace owns this record; dev/stage inherit it by DNS delegation.
+resource "hcloud_zone_rrset" "caa" {
+  count = var.environment == "prod" ? 1 : 0
+
+  zone = data.hcloud_zone.main.id
+  name = "@"
+  type = "CAA"
+  records = [
+    { value = "0 issue \"letsencrypt.org\"" },
+    { value = "0 issuewild \"letsencrypt.org\"" },
+    { value = "0 iodef \"mailto:ops@ridebase.tech\"" },
+  ]
+  ttl = 3600
+}

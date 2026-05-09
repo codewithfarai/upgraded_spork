@@ -47,6 +47,7 @@ async def get_my_profile(
         "is_driver": profile.is_driver,
         "role_intent": profile.role_intent.value,
         "email_verified": profile.email_verified,
+        "profile_photo_url": profile.profile_photo_url,
     }
 
 
@@ -56,6 +57,7 @@ async def update_my_profile(
     phone_number: str | None = Form(None),
     city: str | None = Form(None),
     role_intent: str | None = Form(None),
+    profile_photo: UploadFile | None = File(None),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -80,6 +82,19 @@ async def update_my_profile(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid role_intent. Must be RIDER or DRIVER.")
 
+    if profile_photo is not None:
+        # 1. Validate file types
+        allowed = ["image/jpeg", "image/png"]
+        if profile_photo.content_type not in allowed:
+            raise HTTPException(status_code=400, detail="Invalid file type for profile_photo. Only JPEG or PNG are allowed.")
+
+        # 2. Upload to S3
+        photo_url = await upload_file_to_s3(profile_photo, directory="profiles", user_id=auth_id)
+        if not photo_url:
+            raise HTTPException(status_code=500, detail="Failed to upload profile photo.")
+
+        profile.profile_photo_url = photo_url
+
     # Always ensure these are confirmed from the app flow
     profile.location_enabled = True
     profile.details_confirmed = True
@@ -94,6 +109,7 @@ async def update_my_profile(
         "is_rider": profile.is_rider,
         "is_driver": profile.is_driver,
         "role_intent": profile.role_intent.value,
+        "profile_photo_url": profile.profile_photo_url,
     }
 
 

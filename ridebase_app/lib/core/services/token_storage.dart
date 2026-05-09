@@ -15,6 +15,13 @@ class TokenStorage {
   TokenStorage()
       : _storage = const FlutterSecureStorage(
           aOptions: AndroidOptions(encryptedSharedPreferences: true),
+          // first_unlock_this_device: tokens are readable after the first
+          // unlock following boot, but never sync to iCloud Keychain. This
+          // is the right tradeoff for session credentials — they are
+          // device-bound and shouldn't follow the user across devices.
+          iOptions: IOSOptions(
+            accessibility: KeychainAccessibility.first_unlock_this_device,
+          ),
         );
 
   // ── Write ──────────────────────────────────────────────────────────

@@ -23,8 +23,20 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
       await ref.read(driverAvailabilityProvider.notifier).toggle();
     } catch (e) {
       if (mounted) {
+        final isSubError = e.toString().contains('Subscription required');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update availability: $e')),
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: isSubError ? Colors.red.shade800 : null,
+            action: isSubError
+                ? SnackBarAction(
+                    label: 'RENEW',
+                    textColor: Colors.white,
+                    onPressed: () => context.push('/subscription'),
+                  )
+                : null,
+          ),
         );
       }
     } finally {
@@ -79,6 +91,63 @@ class _DriverDashboardScreenState extends ConsumerState<DriverDashboardScreen> {
                 color: RideBaseTheme.textSecondary,
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // ── Subscription Status Card ─────────────────────────────
+            if (user != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: user.isSubscribed
+                      ? RideBaseTheme.teal.withValues(alpha: 0.1)
+                      : Colors.red.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: user.isSubscribed
+                        ? RideBaseTheme.teal.withValues(alpha: 0.2)
+                        : Colors.red.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      user.isSubscribed ? Icons.verified_rounded : Icons.error_outline_rounded,
+                      color: user.isSubscribed ? RideBaseTheme.teal : Colors.red,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        user.isSubscribed
+                            ? 'Subscription Active'
+                            : 'Subscription Expired',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: user.isSubscribed ? RideBaseTheme.teal : Colors.red,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/subscription'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        user.isSubscribed ? 'VIEW' : 'RENEW',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: user.isSubscribed ? RideBaseTheme.teal : Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             const SizedBox(height: 32),
 

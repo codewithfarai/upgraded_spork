@@ -18,6 +18,11 @@ class AuthService {
 
   static const String _discoveryUrl = RideBaseConfig.oidcDiscoveryUrl;
 
+  // Single-flight guard for token refresh. Authentik rotates refresh tokens
+  // on use, so two parallel refreshes would invalidate each other and brick
+  // the session. Concurrent callers share the same in-flight Future.
+  Future<AuthResult?>? _inflightRefresh;
+
   // ── Login ────────────────────────────────────────────────────────
 
   Future<AuthResult> login() async {
@@ -33,17 +38,27 @@ class AuthService {
 
       return await _handleTokenResponse(result);
     } catch (e) {
-      debugPrint('[AuthService] Login error: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthService] Login error: $e');
+      }
       return AuthResult(success: false, error: _friendlyError(e));
     }
   }
 
   // ── Silent Refresh ───────────────────────────────────────────────
 
-  Future<AuthResult?> tryRefresh() async {
+  Future<AuthResult?> tryRefresh() {
+    return _inflightRefresh ??= _doRefresh().whenComplete(() {
+      _inflightRefresh = null;
+    });
+  }
+
+  Future<AuthResult?> _doRefresh() async {
     final storedRefreshToken = await _tokenStorage.refreshToken;
     if (storedRefreshToken == null || storedRefreshToken.isEmpty) {
-      debugPrint('[AuthService] No refresh token available.');
+      if (kDebugMode) {
+        debugPrint('[AuthService] No refresh token available.');
+      }
       return null;
     }
 
@@ -60,7 +75,9 @@ class AuthService {
 
       return await _handleTokenResponse(result);
     } catch (e) {
-      debugPrint('[AuthService] Token refresh failed: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthService] Token refresh failed: $e');
+      }
       return null;
     }
   }
@@ -87,7 +104,9 @@ class AuthService {
       } catch (e) {
         // If the user closes the browser tab early, endSession throws.
         // We still clear local tokens so the app is logged out locally.
-        debugPrint('[AuthService] Browser logout error (non-fatal): $e');
+        if (kDebugMode) {
+          debugPrint('[AuthService] Browser logout error (non-fatal): $e');
+        }
       }
     }
 
@@ -103,7 +122,9 @@ class AuthService {
     try {
       return RideBaseUser.fromJwt(idToken);
     } catch (e) {
-      debugPrint('[AuthService] Failed to decode stored ID token: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthService] Failed to decode stored ID token: $e');
+      }
       return null;
     }
   }
@@ -134,11 +155,12 @@ class AuthService {
       try {
         user = RideBaseUser.fromJwt(idToken);
       } catch (e) {
-        debugPrint('[AuthService] Failed to decode ID token: $e');
+        if (kDebugMode) {
+          debugPrint('[AuthService] Failed to decode ID token: $e');
+        }
       }
     }
 
-    debugPrint('[AuthService] Login successful: ${user?.displayName}');
     return AuthResult(success: true, user: user);
   }
 

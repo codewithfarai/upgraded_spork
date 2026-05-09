@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Disable cloud backup and device-to-device transfer of all app data.
+  RideBase stores OIDC tokens (access, refresh, id) and PII in
+  EncryptedSharedPreferences via flutter_secure_storage. Even though the
+  blob is encrypted, exporting it via adb or Auto Backup ships an attacker
+  a target they can work on offline. Tokens are session-bound and should
+  not survive a backup/restore.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

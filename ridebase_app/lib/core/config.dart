@@ -26,8 +26,17 @@ class RideBaseConfig {
   // ── Auth (Authentik OIDC) ───────────────────────────────────────────
   static const String authBase = 'https://auth.ridebase.tech';
   static const String oidcClientId = 'ridebase';
-  static const String oidcRedirectUri = 'ridebase://callback';
-  static const String oidcLogoutRedirectUri = 'ridebase://logout-callback';
+
+  // OIDC redirect URIs are App Links (Android) / Universal Links (iOS).
+  // The host is `app.ridebase.tech`, NOT `auth.ridebase.tech` — Authentik
+  // serves its own hardcoded apple-app-site-association on the auth host
+  // for Platform-SSO, which would conflict with our Universal Links file.
+  // See docs/applink_migration.md.
+  static const String _appLinkBase = 'https://app.ridebase.tech';
+  static const String oidcRedirectUri = '$_appLinkBase/mobile/callback';
+  static const String oidcLogoutRedirectUri =
+      '$_appLinkBase/mobile/logout-callback';
+
   static const String oidcRevocationUri = '$authBase/application/o/revoke/';
 
   // Explicit OIDC endpoints (from .well-known/openid-configuration).
@@ -54,6 +63,16 @@ class RideBaseConfig {
 
   /// Fallback fleet API for offline development
   static const String fleetApiBaseLocal = 'http://localhost:8081/api/v1/fleet';
+
+  // ── Ride API ─────────────────────────────────────────────────────────
+  static const String rideApiBase = 'https://ride.ridebase.tech/api';
+  static const String rideReportingBase = 'https://ride.ridebase.tech/api/reporting';
+  static const String rideWebSocketBase = 'wss://ride.ridebase.tech/ws/rides';
+
+  static const String rideApiBaseLocal = 'http://localhost:8082/api';
+  static const String rideReportingBaseLocal = 'http://localhost:8082/api/reporting';
+  static const String rideWebSocketBaseLocal = 'ws://localhost:8082/ws/rides';
+
 
   // ── Map Style ─────────────────────────────────────────────────────
   /// Bundled asset path for the MapLibre style JSON.

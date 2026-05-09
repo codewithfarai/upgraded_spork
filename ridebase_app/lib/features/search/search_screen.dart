@@ -1,24 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart' as geo;
 import '../../core/theme.dart';
 import 'providers/search_provider.dart';
 import 'models/search_models.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  final String? initialOriginAddress;
+  final double? initialOriginLat;
+  final double? initialOriginLng;
+
+  const SearchScreen({
+    super.key,
+    this.initialOriginAddress,
+    this.initialOriginLat,
+    this.initialOriginLng,
+  });
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final TextEditingController _originController =
-      TextEditingController(text: '-17.82629, 31.05037');
+  late final TextEditingController _originController;
   final TextEditingController _destinationController = TextEditingController();
-
-  // Track which field is currently active
   String _activeType = 'destination';
+  bool _isLocatingOrigin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _originController = TextEditingController(
+      text: widget.initialOriginAddress ?? 'Current Location',
+    );
+  }
 
   @override
   void dispose() {
@@ -27,21 +43,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isLocatingOrigin = true);
+    try {
+      var permission = await geo.Geolocator.checkPermission();
+      if (permission == geo.LocationPermission.denied) {
+        permission = await geo.Geolocator.requestPermission();
+      }
+      if (permission == geo.LocationPermission.deniedForever ||
+          permission == geo.LocationPermission.denied) {
+        if (mounted) setState(() => _isLocatingOrigin = false);
+        return;
+      }
+      final pos = await geo.Geolocator.getCurrentPosition(
+        locationSettings: const geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+        ),
+      ).timeout(const Duration(seconds: 8));
+
+      if (!mounted) return;
+      final address = await ref
+          .read(searchServiceProvider)
+          .reverseGeocode(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      setState(() {
+        _originController.text = address ?? 'Current Location';
+        _isLocatingOrigin = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLocatingOrigin = false);
+    }
+  }
+
   Future<void> _onSelection(AutocompleteSuggestion suggestion) async {
-    // 1. Update text field immediately
     if (_activeType == 'origin') {
       _originController.text = suggestion.description;
     } else {
       _destinationController.text = suggestion.description;
     }
 
-    // 2. Fetch coordinates
-    // We show a simple overlay or just wait (since it's fast)
     final service = ref.read(searchServiceProvider);
     final coords = await service.getPlaceCoordinates(suggestion.placeId);
 
     if (coords != null && mounted) {
-      // 3. Return result to MapScreen
       context.pop({
         'type': _activeType,
         'lat': coords['lat'],
@@ -78,12 +122,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ],
             ),
 
-            // Input Fields area
+            // Input Fields
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Row(
                 children: [
-                  // Vertical Tracking Line
                   Column(
                     children: [
                       Container(
@@ -94,11 +137,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      Container(
-                        width: 2,
-                        height: 48,
-                        color: Colors.grey.shade300,
-                      ),
+                      Container(width: 2, height: 48, color: Colors.grey.shade300),
                       Container(
                         width: 10,
                         height: 10,
@@ -110,8 +149,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ],
                   ),
                   const SizedBox(width: 16),
-
-                  // Text Fields
                   Expanded(
                     child: Column(
                       children: [
@@ -160,15 +197,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: Row(
                 children: [
                   _ActionChip(
-                    icon: Icons.my_location,
-                    label: 'Use current location',
-                    onTap: () {},
+                    icon: _isLocatingOrigin ? Icons.hourglass_empty : Icons.my_location,
+                    label: _isLocatingOrigin ? 'Locating...' : 'Use current location',
+                    onTap: _isLocatingOrigin ? null : _useCurrentLocation,
                   ),
                   const SizedBox(width: 12),
                   _ActionChip(
                     icon: Icons.location_on,
                     label: 'Choose on map',
-                    onTap: () {},
+                    onTap: () => context.pop(), // Return to map for pin-based selection
                   ),
                 ],
               ),
@@ -248,7 +285,7 @@ class _ActionChip extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -258,18 +295,18 @@ class _ActionChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: RideBaseTheme.secondaryContainer,
+          color: onTap != null ? RideBaseTheme.secondaryContainer : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: RideBaseTheme.teal),
+            Icon(icon, size: 18, color: onTap != null ? RideBaseTheme.teal : Colors.grey),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                color: RideBaseTheme.teal,
+                color: onTap != null ? RideBaseTheme.teal : Colors.grey,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),

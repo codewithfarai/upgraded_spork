@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 
-import '../application/ride_provider.dart';
-import '../data/ride_api_service.dart';
-import '../domain/ride_actions.dart';
-import '../domain/latlng.dart' as app;
+import '../providers/active_ride_provider.dart';
+import '../providers/ride_rest_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
-/// Emergency / SOS screen.
 class SosScreen extends ConsumerStatefulWidget {
   const SosScreen({super.key});
 
@@ -20,35 +19,39 @@ class _SosScreenState extends ConsumerState<SosScreen> {
   bool _sent = false;
 
   Future<void> _triggerSos() async {
-    final rideState = ref.read(rideProvider);
-    final session = rideState.session;
-    if (session == null) return;
+    final rideState = ref.read(activeRideProvider);
+    final user = ref.read(currentUserProvider);
+    if (!rideState.isActive || user == null) return;
 
     setState(() => _loading = true);
     try {
-      final pos = await LocationService.getCurrentPosition();
-      await RideApiService.triggerSos(
-        session.rideId,
-        SosRequest(
-          rideId: session.rideId,
-          triggeredBy: 'Rider',
-          riderId: session.riderId,
-          driverId: session.driverId ?? '',
-          tripStatus: rideState.status.value,
-          currentLocation: app.LatLng(
-            latitude: pos['latitude']!,
-            longitude: pos['longitude']!,
-          ),
-          timestampUtc: DateTime.now().toUtc().toIso8601String(),
-          message: 'Rider pressed SOS in app.',
-        ),
-      );
+      double? lat;
+      double? lng;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        lat = pos.latitude;
+        lng = pos.longitude;
+      } catch (_) {
+        // Location permission denied or unavailable — submit SOS without coordinates
+      }
+
+      await ref.read(rideRestServiceProvider).riderSos(
+            rideId: rideState.rideId!,
+            riderId: user.sub,
+            driverId: rideState.driver?.driverId,
+            tripStatus: rideState.status,
+            lat: lat,
+            lng: lng,
+            message: 'Rider pressed SOS in app.',
+          );
       setState(() => _sent = true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -60,7 +63,6 @@ class _SosScreenState extends ConsumerState<SosScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Content
           Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -68,18 +70,11 @@ class _SosScreenState extends ConsumerState<SosScreen> {
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.check_circle,
-                          size: 80,
-                          color: Colors.green,
-                        ),
+                        const Icon(Icons.check_circle, size: 80, color: Colors.green),
                         const SizedBox(height: 24),
                         const Text(
                           'Alert Sent Successfully',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         const Text(
@@ -101,18 +96,11 @@ class _SosScreenState extends ConsumerState<SosScreen> {
                   : Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.warning_rounded,
-                          size: 100,
-                          color: Colors.red,
-                        ),
+                        const Icon(Icons.warning_rounded, size: 100, color: Colors.red),
                         const SizedBox(height: 32),
                         const Text(
                           'In an Emergency?',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
                         const Text(
@@ -138,10 +126,7 @@ class _SosScreenState extends ConsumerState<SosScreen> {
                                   )
                                 : const Text(
                                     'TRIGGER SOS ALERT',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                           ),
                         ),
@@ -150,18 +135,13 @@ class _SosScreenState extends ConsumerState<SosScreen> {
                           onPressed: () => context.pop(),
                           child: Text(
                             'Cancel',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 16,
-                            ),
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                           ),
                         ),
                       ],
                     ),
             ),
           ),
-
-          // Floating Back Button
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,

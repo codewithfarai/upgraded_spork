@@ -1,0 +1,35 @@
+# App Links / Universal Links Configuration
+#
+# Tiny static-file service that hosts the four files needed to verify
+# `app.<env>.ridebase.tech` for OIDC redirect via App Links (Android) and
+# Universal Links (iOS). See docs/applink_migration.md.
+
+# Set to false to skip deployment (e.g. before signing keys are issued)
+applinks_enabled: true
+
+# Domain prefix — results in app.dev.ridebase.tech (dev) or app.ridebase.tech (prod)
+applinks_domain: "app"
+
+# Static-file server image. Caddy is small (~50 MB), single-binary, simple
+# config. Swap to halverneus/static-file-server for an even smaller image
+# if needed; the Caddyfile would have to be replaced accordingly.
+applinks_caddy_image: "caddy:2.8-alpine"
+
+# Replicas — single-replica is fine for a tiny static server
+applinks_replicas: 1
+
+# Apple Developer Team ID (10-char alphanumeric) — found in App Store
+# Connect → Membership. Used in apple-app-site-association.
+applinks_apple_team_id: "{{ lookup('env', 'APPLE_TEAM_ID') | default('', true) }}"
+
+# Apple bundle ID for the app
+applinks_apple_bundle_id: "{{ lookup('env', 'APPLE_BUNDLE_ID') | default('tech.ridebase.app', true) }}"
+
+# Android package name
+applinks_android_package: "{{ lookup('env', 'ANDROID_PACKAGE') | default('tech.ridebase.app', true) }}"
+
+# Android release signing-key SHA-256 (uppercase hex with colons,
+# e.g. "AA:BB:CC:..."). Get it from Play Console → App Integrity →
+# App Signing — the Google-managed signing key, NOT the upload key.
+# Required: assetlinks.json verification fails without the correct value.
+applinks_android_signing_sha256: "{{ lookup('env', 'ANDROID_RELEASE_SIGNING_SHA256') | default('', true) }}"

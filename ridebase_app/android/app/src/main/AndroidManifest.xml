@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Location permissions for GPS -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -7,7 +8,11 @@
     <application
         android:label="RideBase"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,6 +39,40 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+            App Links intent filter for OIDC redirect.
+
+            Claims https://app.ridebase.tech/mobile/* as App Links. The OS
+            verifies ownership via assetlinks.json hosted at the same host;
+            see docs/applink_migration.md for the deployment.
+
+            tools:node="replace" overrides the default RedirectUriReceiverActivity
+            that flutter_appauth merges in from its own manifest, so this
+            activity is the one Android registers for both the HTTPS host
+            here and the legacy ridebase:// scheme (declared by AppAuth's
+            manifest merger). Both still work side-by-side during rollout.
+        -->
+        <!--
+            Verified App Link for the OIDC redirect.
+            tools:node="replace" overrides the RedirectUriReceiverActivity
+            that flutter_appauth merges in from its library manifest.
+        -->
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            tools:node="replace">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="app.ridebase.tech"
+                    android:pathPrefix="/mobile/" />
+            </intent-filter>
+        </activity>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -51,7 +51,9 @@ class OnboardingService {
       if (e.response?.statusCode == 404) {
         return null;
       }
-      debugPrint('[OnboardingService] getMyProfile error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] getMyProfile error: $e');
+      }
       rethrow;
     }
   }
@@ -74,7 +76,9 @@ class OnboardingService {
       });
       await _dio.post('/profile', data: formData);
     } catch (e) {
-      debugPrint('[OnboardingService] createProfile error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] createProfile error: $e');
+      }
       rethrow;
     }
   }
@@ -85,6 +89,7 @@ class OnboardingService {
     String? phoneNumber,
     String? city,
     String? role,
+    XFile? profilePhoto,
   }) async {
     try {
       final formData = FormData.fromMap({
@@ -92,10 +97,18 @@ class OnboardingService {
         if (phoneNumber != null) 'phone_number': phoneNumber,
         if (city != null) 'city': city,
         if (role != null) 'role': role,
+        if (profilePhoto != null)
+          'profile_photo': await MultipartFile.fromFile(
+            profilePhoto.path,
+            filename: profilePhoto.name,
+            contentType: MediaType('image', 'jpeg'),
+          ),
       });
       await _dio.patch('/me', data: formData);
     } catch (e) {
-      debugPrint('[OnboardingService] updateProfile error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] updateProfile error: $e');
+      }
       rethrow;
     }
   }
@@ -105,7 +118,9 @@ class OnboardingService {
     try {
       await _dio.delete('/me');
     } catch (e) {
-      debugPrint('[OnboardingService] deleteProfile error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] deleteProfile error: $e');
+      }
       rethrow;
     }
   }
@@ -117,7 +132,9 @@ class OnboardingService {
     try {
       await _dio.post('/verify_email', data: {'code': code});
     } catch (e) {
-      debugPrint('[OnboardingService] verifyEmail error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] verifyEmail error: $e');
+      }
       rethrow;
     }
   }
@@ -127,7 +144,9 @@ class OnboardingService {
     try {
       await _dio.post('/resend_otp');
     } catch (e) {
-      debugPrint('[OnboardingService] resendOtp error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] resendOtp error: $e');
+      }
       rethrow;
     }
   }
@@ -173,7 +192,9 @@ class OnboardingService {
 
       await _dio.post('/driver_setup', data: formData);
     } catch (e) {
-      debugPrint('[OnboardingService] submitDriverSetup error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] submitDriverSetup error: $e');
+      }
       rethrow;
     }
   }
@@ -214,7 +235,9 @@ class OnboardingService {
       });
       await _dio.patch('/driver_setup', data: formData);
     } catch (e) {
-      debugPrint('[OnboardingService] updateDriverSetup error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] updateDriverSetup error: $e');
+      }
       rethrow;
     }
   }
@@ -224,7 +247,9 @@ class OnboardingService {
     try {
       await _dio.delete('/driver_setup');
     } catch (e) {
-      debugPrint('[OnboardingService] deleteDriverSetup error: $e');
+      if (kDebugMode) {
+        debugPrint('[OnboardingService] deleteDriverSetup error: $e');
+      }
       rethrow;
     }
   }

@@ -7,6 +7,7 @@ class OnboardingProfile {
   final bool isDriver;
   final String roleIntent;
   final bool emailVerified;
+  final String? profilePhotoUrl;
 
   OnboardingProfile({
     required this.fullName,
@@ -17,6 +18,7 @@ class OnboardingProfile {
     required this.isDriver,
     required this.roleIntent,
     required this.emailVerified,
+    this.profilePhotoUrl,
   });
 
   factory OnboardingProfile.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class OnboardingProfile {
       isDriver: json['is_driver'] ?? false,
       roleIntent: json['role_intent'] ?? 'RIDER',
       emailVerified: json['email_verified'] ?? false,
+      profilePhotoUrl: json['profile_photo_url'],
     );
   }
 }

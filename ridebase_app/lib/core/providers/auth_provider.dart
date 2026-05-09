@@ -49,21 +49,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final storedUser = await _authService.getCurrentUser();
       if (storedUser != null) {
-        debugPrint('[AuthNotifier] initialize: Found stored user: ${storedUser.displayName}');
+        // Optimistically mark authenticated from the stored ID token so the UI
+        // doesn't flash an unauthenticated state, then verify with a refresh.
         state = AuthState(isLoading: false, isAuthenticated: true, user: storedUser);
 
-        try {
-          final refreshResult = await _authService.tryRefresh();
-          if (refreshResult != null && refreshResult.success) {
-            state = AuthState(
-              isLoading: false,
-              isAuthenticated: true,
-              user: refreshResult.user ?? storedUser,
-            );
+        final refreshResult = await _authService.tryRefresh();
+        if (refreshResult == null || !refreshResult.success) {
+          // Refresh token is gone, expired, or rotation race lost. The stored
+          // tokens cannot be trusted — wipe them and force a clean re-login
+          // rather than leaving the user in a half-authenticated state where
+          // every API call 401s with no recovery path.
+          if (kDebugMode) {
+            debugPrint('[AuthNotifier] init: refresh failed, forcing logout');
           }
-        } catch (e) {
-          debugPrint('[AuthNotifier] Silent refresh failed during init: $e');
+          await _authService.logout();
+          state = AuthState.unauthenticated;
+          return;
         }
+        state = AuthState(
+          isLoading: false,
+          isAuthenticated: true,
+          user: refreshResult.user ?? storedUser,
+        );
         return;
       }
 
@@ -73,10 +80,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return;
       }
 
-      debugPrint('[AuthNotifier] initialize: No session found');
       state = AuthState.unauthenticated;
     } catch (e) {
-      debugPrint('[AuthNotifier] initialize: Error during init: $e');
+      if (kDebugMode) {
+        debugPrint('[AuthNotifier] initialize: $e');
+      }
       if (!state.isAuthenticated) {
         state = AuthState.unauthenticated;
       }
@@ -89,10 +97,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final result = await _authService.login();
 
     if (result.success) {
-      debugPrint('[AuthNotifier] login: Success');
       state = AuthState(isLoading: false, isAuthenticated: true, user: result.user);
     } else {
-      debugPrint('[AuthNotifier] login: Failed: ${result.error}');
+      if (kDebugMode) {
+        debugPrint('[AuthNotifier] login failed: ${result.error}');
+      }
       state = state.copyWith(isLoading: false, error: result.error);
     }
   }

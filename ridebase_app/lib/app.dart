@@ -19,6 +19,10 @@ import 'features/driver/presentation/earnings_screen.dart';
 import 'features/fleet/presentation/fleet_screen.dart';
 import 'features/ride_options/presentation/ride_options_screen.dart';
 
+import 'features/ride/models/ride_websocket_models.dart' as import_models;
+import 'features/ride/providers/ride_websocket_provider.dart' as import_ws_provider;
+import 'features/ride/presentation/driver_request_overlay.dart' as import_driver_overlay;
+
 /// Top-level MaterialApp with GoRouter navigation and RideBase theming.
 class RideBaseApp extends ConsumerStatefulWidget {
   const RideBaseApp({super.key});
@@ -122,7 +126,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/search',
-        builder: (context, state) => const SearchScreen(),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return SearchScreen(
+            initialOriginAddress: extra?['originAddress'] as String?,
+            initialOriginLat: extra?['originLat'] as double?,
+            initialOriginLng: extra?['originLng'] as double?,
+          );
+        },
       ),
       GoRoute(
         path: '/sos',
@@ -197,6 +208,27 @@ class _RideBaseAppState extends ConsumerState<RideBaseApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+
+    // Global listener for incoming driver requests
+    ref.listen<AsyncValue<import_models.RideWsEvent>>(
+      import_ws_provider.rideWebSocketEventsProvider,
+      (previous, next) {
+        final event = next.value;
+        if (event is import_models.DriverRideRequestReceivedEvent) {
+          // Show the incoming request overlay
+          final navContext = router.routerDelegate.navigatorKey.currentContext;
+          if (navContext != null) {
+            showGeneralDialog(
+              context: navContext,
+              barrierDismissible: false,
+              barrierColor: Colors.black87,
+              transitionDuration: const Duration(milliseconds: 300),
+              pageBuilder: (ctx, anim1, anim2) => import_driver_overlay.DriverRequestOverlay(requestEvent: event),
+            );
+          }
+        }
+      },
+    );
 
     return MaterialApp.router(
       title: 'RideBase',

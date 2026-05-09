@@ -22,23 +22,23 @@ class Vehicle {
   factory Vehicle.fromJson(Map<String, dynamic> json) {
     return Vehicle(
       id: json['id']?.toString() ?? '',
-      make: json['make'] ?? '',
-      model: json['model'] ?? '',
+      make: json['make'] ?? json['car_make'] ?? '',
+      model: json['model'] ?? json['car_model'] ?? '',
       year: json['year'] as int? ?? 0,
-      plateNumber: json['plate_number'] ?? json['plateNumber'] ?? '',
-      color: json['color'] ?? '',
+      // Backend returns 'plate' (admin service shorthand)
+      plateNumber: json['plate_number'] ?? json['plateNumber'] ?? json['plate'] ?? json['license_plate'] ?? '',
+      color: json['color'] ?? json['car_colour'] ?? '',
       vehicleType: json['vehicle_type'] ?? json['vehicleType'] ?? 'STANDARD',
       isActive: json['is_active'] ?? json['isActive'] ?? true,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'make': make,
-        'model': model,
+        'car_make': make,
+        'car_model': model,
         'year': year,
-        'plate_number': plateNumber,
-        'color': color,
-        'vehicle_type': vehicleType,
+        'license_plate': plateNumber,
+        'car_colour': color,
       };
 }
 
@@ -48,6 +48,7 @@ class DriverStats {
   final double totalEarnings;
   final double earningsToday;
   final double rating;
+  /// Managed locally by DriverAvailabilityNotifier; not returned by stats endpoint.
   final bool isOnline;
 
   const DriverStats({
@@ -59,14 +60,19 @@ class DriverStats {
     required this.isOnline,
   });
 
-  factory DriverStats.fromJson(Map<String, dynamic> json) {
+  /// [stats] is from GET /driver/stats.
+  /// [today] is from GET /driver/earnings?period=today.
+  factory DriverStats.fromJson(
+    Map<String, dynamic> stats, {
+    Map<String, dynamic>? today,
+  }) {
     return DriverStats(
-      totalTrips: json['total_trips'] as int? ?? 0,
-      tripsToday: json['trips_today'] as int? ?? 0,
-      totalEarnings: (json['total_earnings'] as num?)?.toDouble() ?? 0.0,
-      earningsToday: (json['earnings_today'] as num?)?.toDouble() ?? 0.0,
-      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
-      isOnline: json['is_online'] as bool? ?? false,
+      totalTrips: stats['total_rides_completed'] as int? ?? 0,
+      tripsToday: today != null ? (today['rides_completed'] as int? ?? 0) : 0,
+      totalEarnings: (stats['total_earnings'] as num?)?.toDouble() ?? 0.0,
+      earningsToday: today != null ? (today['total_earnings'] as num?)?.toDouble() ?? 0.0 : 0.0,
+      rating: (stats['average_rating'] as num?)?.toDouble() ?? 5.0,
+      isOnline: false,
     );
   }
 }
@@ -91,14 +97,19 @@ class RideRecord {
   });
 
   factory RideRecord.fromJson(Map<String, dynamic> json) {
+    // Accepted amount may be null if ride was cancelled before offer accepted
+    final fare = (json['accepted_amount'] as num?)?.toDouble() ??
+        (json['rider_offer_amount'] as num?)?.toDouble() ??
+        0.0;
+
     return RideRecord(
-      id: json['id']?.toString() ?? '',
-      pickupAddress: json['pickup_address'] ?? json['origin'] ?? 'Unknown',
-      dropoffAddress: json['dropoff_address'] ?? json['destination'] ?? 'Unknown',
-      fare: (json['fare'] as num?)?.toDouble() ?? 0.0,
+      id: json['ride_id']?.toString() ?? json['id']?.toString() ?? '',
+      pickupAddress: json['pickup_address'] ?? json['startAddress'] ?? 'Unknown',
+      dropoffAddress: json['destination_address'] ?? json['dropoff_address'] ?? 'Unknown',
+      fare: fare,
       status: json['status'] ?? 'completed',
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+      createdAt: json['requested_at'] != null
+          ? DateTime.tryParse(json['requested_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
       rideType: json['ride_type'] ?? json['vehicle_type'] ?? 'STANDARD',
     );

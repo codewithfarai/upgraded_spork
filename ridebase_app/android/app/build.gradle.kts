@@ -26,8 +26,13 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // Required by flutter_appauth for OAuth2 redirect
-        manifestPlaceholders["appAuthRedirectScheme"] = "ridebase"
+        // Required by flutter_appauth's library manifest merger — it
+        // references ${appAuthRedirectScheme} in the RedirectUriReceiverActivity
+        // it contributes. We override that activity in AndroidManifest.xml
+        // via tools:node="replace" with App Link intent filters, so this
+        // placeholder value is never actually used at runtime. The placeholder
+        // just has to exist so the manifest merger doesn't fail.
+        manifestPlaceholders["appAuthRedirectScheme"] = "unused-replaced-by-applinks"
     }
 
     buildTypes {

@@ -44,7 +44,9 @@ class TileService {
       }
       return _isHealthy;
     } catch (e) {
-      debugPrint('Tile server health check failed: $e');
+      if (kDebugMode) {
+        debugPrint('Tile server health check failed: $e');
+      }
       _fallbackToLocal();
       return false;
     }
@@ -53,7 +55,9 @@ class TileService {
   void _fallbackToLocal() {
     _isHealthy = false;
     _activeTileSource = RideBaseConfig.tileSourceUrlLocal;
-    debugPrint('Falling back to local tile server: $_activeTileSource');
+    if (kDebugMode) {
+      debugPrint('Falling back to local tile server: $_activeTileSource');
+    }
   }
 
   bool get isHealthy => _isHealthy;

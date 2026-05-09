@@ -21,6 +21,7 @@ class UserProfile(Base):
     city = Column(String, nullable=False)
     email = Column(String, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
+    profile_photo_url = Column(String, nullable=True)
 
     # Multi-role support
     # is_rider is True for everyone by default (Drivers can also book rides).

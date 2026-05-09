@@ -1,5 +1,5 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 
 class GooglePlacesService {
   GooglePlacesService(this._dio);
@@ -20,31 +20,31 @@ class GooglePlacesService {
     if (query.isEmpty) return [];
 
     try {
-      debugPrint('GooglePlacesService: Searching for "$query" with key: ${_apiKey.isNotEmpty ? "SET" : "EMPTY"}');
+      if (_apiKey.isEmpty) {
+        debugPrint('[GooglePlacesService] WARNING: GOOGLE_MAPS_API_KEY is empty. Search will not work.');
+      }
       final response = await _dio.get(_autocompleteUrl, queryParameters: {
         'input': query,
         'key': _apiKey,
         'components': 'country:zw',
-        'sessiontoken': ?sessionToken,
+        'location': '-17.8248,31.0530', // Harare center bias
+        'radius': '50000',
+        'sessiontoken': sessionToken,
       });
 
       if (response.statusCode == 200) {
         final data = response.data;
-        debugPrint('GooglePlacesService: Status: ${data['status']}');
-
         if (data['status'] == 'OK') {
           return List<Map<String, dynamic>>.from(data['predictions']);
         } else if (data['status'] == 'ZERO_RESULTS') {
           return [];
         } else {
-          debugPrint('GooglePlacesService: Error: ${data['error_message']}');
           throw Exception(data['error_message'] ?? 'Failed to fetch predictions');
         }
       } else {
         throw Exception('Failed to communicate with Google.');
       }
-    } catch (e) {
-      debugPrint('GooglePlacesService: Exception: $e');
+    } catch (_) {
       return [];
     }
   }
@@ -69,7 +69,27 @@ class GooglePlacesService {
         }
       }
       return null;
-    } catch (e) {
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Reverse geocode Lat/Lng into a human-readable address.
+  Future<String?> reverseGeocode(double lat, double lng) async {
+    try {
+      final response = await _dio.get(_geocodeUrl, queryParameters: {
+        'latlng': '$lat,$lng',
+        'key': _apiKey,
+      });
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          return data['results'][0]['formatted_address'];
+        }
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }

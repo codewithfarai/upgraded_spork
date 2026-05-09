@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["{{ applinks_apple_team_id }}.{{ applinks_apple_bundle_id }}"],
+        "components": [
+          {
+            "/": "/mobile/callback*",
+            "comment": "OIDC login callback"
+          },
+          {
+            "/": "/mobile/logout-callback*",
+            "comment": "OIDC logout callback"
+          }
+        ]
+      }
+    ]
+  }
+}
