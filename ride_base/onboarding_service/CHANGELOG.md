@@ -1,3 +1,9 @@
+## onboarding_service-v0.19.0 (2026-05-09)
+
+### feat
+
+- add tenacity retry logic to S3 file uploads with seek support
+
 ## onboarding_service-v0.18.0 (2026-05-09)
 
 ### feat
