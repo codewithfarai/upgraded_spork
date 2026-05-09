@@ -1,3 +1,9 @@
+## onboarding_service-v0.20.0 (2026-05-09)
+
+### feat
+
+- configure s3v4 signature version for s3 client connections
+
 ## onboarding_service-v0.19.1 (2026-05-09)
 
 ### fix
