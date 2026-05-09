@@ -1,3 +1,9 @@
+## onboarding_service-v0.17.0 (2026-05-09)
+
+### feat
+
+- implement ride booking infrastructure, app-link support, and robust auth token handling
+
 ## onboarding_service-v0.16.0 (2026-05-05)
 
 ### feat
