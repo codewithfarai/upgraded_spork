@@ -3,6 +3,7 @@ import logging
 import aioboto3
 from fastapi import UploadFile
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from botocore.config import Config
 
 from app.config import settings
 
@@ -32,7 +33,8 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
             endpoint_url=settings.S3_ENDPOINT_URL,
             aws_access_key_id=settings.S3_ACCESS_KEY,
             aws_secret_access_key=settings.S3_SECRET_KEY,
-            region_name=settings.S3_REGION_NAME
+            region_name=settings.S3_REGION_NAME,
+            config=Config(signature_version='s3v4')
         ) as s3_client:
 
             # 1. Ensure the bucket exists (Fail-safe)
