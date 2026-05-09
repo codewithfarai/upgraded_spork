@@ -99,7 +99,12 @@ async def update_my_profile(
         await profile_photo.seek(0)
 
         # 3. Upload to S3
-        photo_url = await upload_file_to_s3(profile_photo, directory="profiles", user_id=auth_id)
+        photo_url = await upload_file_to_s3(
+            profile_photo,
+            directory="profiles",
+            user_id=auth_id,
+            is_public=True
+        )
         if not photo_url:
             raise HTTPException(status_code=500, detail="Failed to upload profile photo.")
 

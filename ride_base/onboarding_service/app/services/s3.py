@@ -15,7 +15,12 @@ logger = logging.getLogger(__name__)
     retry=retry_if_exception_type(Exception),
     reraise=True
 )
-async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_id: str | None = None) -> str | None:
+async def upload_file_to_s3(
+    file: UploadFile,
+    directory: str = "licenses",
+    user_id: str | None = None,
+    is_public: bool = False
+) -> str | None:
     """Uploads a FastApi UploadFile to S3/MinIO and returns the URL.
 
     Automates bucket creation if it doesn't exist and handles ACL fallbacks.
@@ -57,18 +62,20 @@ async def upload_file_to_s3(file: UploadFile, directory: str = "licenses", user_
             await file.seek(0)
             content = await file.read()
 
+            acl = "public-read" if is_public else "private"
+
             try:
-                # Try with public-read first
+                # Try with requested ACL
                 await s3_client.put_object(
                     Bucket=settings.S3_BUCKET_NAME,
                     Key=unique_filename,
                     Body=content,
                     ContentType=file.content_type,
-                    ACL="public-read"
+                    ACL=acl
                 )
             except Exception as acl_err:
-                logger.warning(f"Failed to set public-read ACL (common on some providers), retrying without ACL: {acl_err}")
-                # Retry without explicit ACL (use bucket defaults)
+                logger.warning(f"Failed to set {acl} ACL, retrying without explicit ACL: {acl_err}")
+                # Fallback: Upload without explicit ACL (use bucket defaults)
                 await s3_client.put_object(
                     Bucket=settings.S3_BUCKET_NAME,
                     Key=unique_filename,
