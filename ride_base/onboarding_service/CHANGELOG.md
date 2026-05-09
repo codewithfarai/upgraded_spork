@@ -1,3 +1,9 @@
+## onboarding_service-v0.17.2 (2026-05-09)
+
+### chore
+
+- update S3_BUCKET_NAME to use underscore naming convention
+
 ## onboarding_service-v0.17.1 (2026-05-09)
 
 ### chore
