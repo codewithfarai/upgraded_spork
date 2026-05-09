@@ -1,3 +1,9 @@
+## onboarding_service-v0.20.1 (2026-05-09)
+
+### fix
+
+- update S3 client configuration to use path-style addressing
+
 ## onboarding_service-v0.20.0 (2026-05-09)
 
 ### feat
