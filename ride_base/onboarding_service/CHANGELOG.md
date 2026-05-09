@@ -1,3 +1,9 @@
+## onboarding_service-v0.18.0 (2026-05-09)
+
+### feat
+
+- add 5MB file size validation and RabbitMQ profile update notification to onboarding endpoint
+
 ## onboarding_service-v0.17.2 (2026-05-09)
 
 ### chore
