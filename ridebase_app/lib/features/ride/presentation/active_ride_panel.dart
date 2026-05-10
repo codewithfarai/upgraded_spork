@@ -151,7 +151,7 @@ class ActiveRidePanel extends ConsumerWidget {
                           Icon(Icons.star_rounded, size: 18, color: Colors.amber.shade600),
                           const SizedBox(width: 4),
                           Text(
-                            (driver.rating ?? 5.0).toStringAsFixed(1),
+                            (driver.rating ?? 5.0).toStringAsFixed(2),
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,

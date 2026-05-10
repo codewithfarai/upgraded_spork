@@ -316,7 +316,7 @@ class _StatsRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: _StatCard(label: 'Rating', value: rating > 0 ? rating.toStringAsFixed(1) : '—', icon: Icons.star_rounded)),
+        Expanded(child: _StatCard(label: 'Rating', value: rating > 0 ? rating.toStringAsFixed(2) : '—', icon: Icons.star_rounded)),
       ],
     );
   }

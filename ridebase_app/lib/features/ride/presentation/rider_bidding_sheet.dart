@@ -275,7 +275,7 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
                                   const SizedBox(width: 6),
                                   Icon(Icons.star_rounded, size: 16, color: Colors.amber[700]),
                                   Text(
-                                    (offer.driver.rating ?? 5.0).toStringAsFixed(1),
+                                    (offer.driver.rating ?? 5.0).toStringAsFixed(2),
                                     style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                                   ),
                                 ],

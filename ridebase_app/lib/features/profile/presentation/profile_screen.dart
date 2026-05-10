@@ -683,7 +683,7 @@ class _StatsBar extends ConsumerWidget {
           children: [
             Expanded(
               child: _StatCell(
-                value: stats.rating.toStringAsFixed(1),
+                value: stats.rating.toStringAsFixed(2),
                 icon: Icons.star_rounded,
                 label: 'Rating',
               ),
