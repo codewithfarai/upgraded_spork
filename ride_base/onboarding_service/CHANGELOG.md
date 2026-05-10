@@ -1,3 +1,9 @@
+## onboarding_service-v0.23.0 (2026-05-10)
+
+### chore
+
+- remove empty migration file 71cd58472fda
+
 ## onboarding_service-v0.22.0 (2026-05-09)
 
 ### feat
