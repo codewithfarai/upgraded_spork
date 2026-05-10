@@ -11,7 +11,7 @@ services:
       - shared-backend
 
     deploy:
-      replicas: 1
+      replicas: 2
       placement:
         constraints:
           - node.hostname == upgraded-spork-worker-{{ target_env }}-1
@@ -34,7 +34,7 @@ services:
       - shared-backend
 
     deploy:
-      replicas: 1
+      replicas: 2
       placement:
         constraints:
           - node.hostname == upgraded-spork-worker-{{ target_env }}-1

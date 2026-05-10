@@ -270,7 +270,7 @@
 # Play 14: Deploy Monitoring Stack
 # ==============================================================================
 - name: Deploy Monitoring Stack
-  hosts: managers[0]
+  hosts: managers,workers
   become: yes
   tasks:
     - name: Configure Monitoring Stack
