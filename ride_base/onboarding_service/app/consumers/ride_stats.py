@@ -30,13 +30,15 @@ async def process_ride_completed(message: aio_pika.IncomingMessage):
         rider_id = data.get("riderId")
 
         async with _db() as db:
+            to_sync = []
+
             if driver_id:
                 result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == str(driver_id)))
                 driver = result.scalar_one_or_none()
                 if driver:
                     driver.driver_rides_count += 1
                     logger.info("Incremented driver rides for %s (Total: %s)", driver_id, driver.driver_rides_count)
-                    await sync_user_stats_to_redis(str(driver_id), "DRIVER", driver.driver_rating_avg, driver.driver_rides_count)
+                    to_sync.append((str(driver_id), "DRIVER", driver.driver_rating_avg, driver.driver_rides_count))
 
             if rider_id:
                 result = await db.execute(select(UserProfile).where(UserProfile.authentik_user_id == str(rider_id)))
@@ -44,9 +46,13 @@ async def process_ride_completed(message: aio_pika.IncomingMessage):
                 if rider:
                     rider.rider_rides_count += 1
                     logger.info("Incremented rider rides for %s (Total: %s)", rider_id, rider.rider_rides_count)
-                    await sync_user_stats_to_redis(str(rider_id), "RIDER", rider.rider_rating_avg, rider.rider_rides_count)
+                    to_sync.append((str(rider_id), "RIDER", rider.rider_rating_avg, rider.rider_rides_count))
 
             await db.commit()
+
+            # Sync to Redis only after successful DB commit
+            for user_id, role, rating, rides in to_sync:
+                await sync_user_stats_to_redis(user_id, role, rating, rides)
 
 async def process_ride_rated(message: aio_pika.IncomingMessage):
     async with message.process(requeue=True):
@@ -75,17 +81,19 @@ async def process_ride_rated(message: aio_pika.IncomingMessage):
                     old_sum = profile.driver_rating_avg * (profile.driver_rating_count - 1)
                     profile.driver_rating_avg = (old_sum + rating_value) / profile.driver_rating_count
 
-                await sync_user_stats_to_redis(str(rated_user_id), "DRIVER", profile.driver_rating_avg, profile.driver_rides_count)
-
             elif role == "RIDER":
                 profile.rider_rating_count += 1
                 if profile.rider_rides_count >= COLD_START_THRESHOLD:
                     old_sum = profile.rider_rating_avg * (profile.rider_rating_count - 1)
                     profile.rider_rating_avg = (old_sum + rating_value) / profile.rider_rating_count
 
-                await sync_user_stats_to_redis(str(rated_user_id), "RIDER", profile.rider_rating_avg, profile.rider_rides_count)
-
             await db.commit()
+
+            # Sync to Redis only after successful DB commit
+            final_rating = profile.driver_rating_avg if role == "DRIVER" else profile.rider_rating_avg
+            final_rides = profile.driver_rides_count if role == "DRIVER" else profile.rider_rides_count
+            await sync_user_stats_to_redis(str(rated_user_id), role, final_rating, final_rides)
+
             logger.info("Updated %s rating for %s: %s (after %s rated rides)",
-                        role, rated_user_id, profile.driver_rating_avg if role == "DRIVER" else profile.rider_rating_avg,
+                        role, rated_user_id, final_rating,
                         profile.driver_rating_count if role == "DRIVER" else profile.rider_rating_count)
