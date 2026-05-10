@@ -9,6 +9,7 @@ from app.api import endpoints
 from app.config import settings
 from app.services.rabbitmq import publisher
 from app.consumers.authentik_sync import process_driver_role_sync, process_email_verified_sync, process_send_otp_email
+from app.consumers.ride_stats import process_ride_completed, process_ride_rated
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -73,6 +74,13 @@ async def lifespan(app: FastAPI):
             otp_queue = await channel.declare_queue("onboarding_service.send_otp_email", durable=True)
             await otp_queue.bind(exchange, routing_key="onboarding.send_otp_email")
             await otp_queue.consume(process_send_otp_email)
+
+            # 5. Setup Ride Stats Queue
+            stats_queue = await channel.declare_queue("onboarding_service.ride_stats", durable=True)
+            await stats_queue.bind(exchange, routing_key="ride.completed")
+            await stats_queue.bind(exchange, routing_key="ride.rated")
+            await stats_queue.consume(process_ride_completed)
+            await stats_queue.consume(process_ride_rated)
         except Exception:
             logger.exception("RabbitMQ connection established but failed to setup queues/consumers.")
 

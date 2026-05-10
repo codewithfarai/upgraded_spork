@@ -79,6 +79,9 @@ async def request_ride(
     # Cache ride → rider mapping for GPS relay (no Postgres lookup per ping)
     await redis_service.set_ride_rider_mapping(ride.ride_guid, ride.rider_id)
 
+    # Fetch real rider stats from Redis (synced by Onboarding)
+    rider_stats = await redis_service.get_rider_stats(ride.rider_id)
+
     # Broadcast to nearby drivers via H3 proximity (fallback: all connected)
     event = {
         "type": "DriverRideRequestReceived",
@@ -88,6 +91,8 @@ async def request_ride(
             "riderId": ride.rider_id,
             "riderName": ride.rider_name,
             "riderPhoneNumber": ride.rider_phone_number,
+            "riderRating": rider_stats["rating"],
+            "riderRidesCompleted": rider_stats["rides"],
             "offerAmount": float(ride.rider_offer_amount),
             "recommendedAmount": float(ride.recommended_amount),
             "pickupAddress": ride.start_address,
@@ -312,7 +317,7 @@ async def rider_sos(
     return {"incidentId": incident.incident_id, "status": incident.status, "receivedAtUtc": now}
 
 
-@router.post("/rides/rating")
+@router.post("/rides/rider/rating")
 async def rate_driver(
     data: RatingRequest,
     current_user: dict = Depends(get_current_user),
@@ -321,5 +326,15 @@ async def rate_driver(
     rider_id = _user_id(current_user)
     if data.riderId != rider_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
-    await ride_service.submit_rating(db, data, rider_id)
+
+    rating = await ride_service.submit_rating(db, data, rider_id, role="RIDER")
+
+    await publisher.publish("ride.rated", {
+        "event_type": "ride.rated",
+        "rideId": data.rideId,
+        "ratedUserId": data.driverId,
+        "role": "DRIVER",
+        "rating": data.rating,
+    })
+
     return {"rideId": data.rideId, "ratingSaved": True}

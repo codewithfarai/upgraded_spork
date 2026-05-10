@@ -18,6 +18,7 @@ import '../../core/providers/app_role_provider.dart';
 import '../ride/providers/active_ride_provider.dart';
 import '../../core/providers/routing_provider.dart';
 import '../search/providers/search_provider.dart';
+import '../onboarding/providers/onboarding_provider.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -26,7 +27,7 @@ class MapScreen extends ConsumerStatefulWidget {
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen> {
+class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   MapController? _mapController;
   bool _isMapLoading = true;
@@ -42,6 +43,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Set Harare as default immediately so the map has a starting position
     _currentPosition = geo.Position(
       latitude: RideBaseConfig.defaultLat,
@@ -353,6 +355,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         zoom: 15,
         nativeDuration: const Duration(milliseconds: 1200),
       );
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Proactively refresh profile to warm up Redis stats cache
+      // This ensures ratings are ready even if the app was in background for >24h
+      ref.read(onboardingProvider.notifier).refresh();
     }
   }
 

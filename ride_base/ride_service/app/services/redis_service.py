@@ -133,6 +133,28 @@ async def get_driver_location(driver_id: str) -> Optional[dict]:
         "etaMinutes": int(data.get("eta", 0)),
         "rideId": data.get("ride_id", ""),
         "updatedAt": data.get("updated_at", ""),
+        "rating": float(data.get("rating", 5.0)),
+        "rides": int(data.get("rides", 0)),
+    }
+
+
+async def get_driver_stats_for_offer(driver_id: str) -> dict:
+    """Read stats from Redis location hash. Used when an offer is created."""
+    redis = await get_redis()
+    data = await redis.hmget(f"driver:loc:{driver_id}", "rating", "rides")
+    return {
+        "rating": float(data[0]) if data[0] is not None else 5.0,
+        "rides": int(data[1]) if data[1] is not None else 0,
+    }
+
+
+async def get_rider_stats(rider_id: str) -> dict:
+    """Read rider stats from the unified user:stats hash."""
+    redis = await get_redis()
+    data = await redis.hmget(f"user:stats:{rider_id}", "rider_rating", "rider_rides")
+    return {
+        "rating": float(data[0]) if data[0] is not None else 5.0,
+        "rides": int(data[1]) if data[1] is not None else 0,
     }
 
 

@@ -21,16 +21,16 @@ class WsDriverInfo {
   final String driverId;
   final String name;
   final String phoneNumber;
-  final double rating;
-  final int ridesCompleted;
+  final double? rating;         // Server-side populated
+  final int? ridesCompleted;   // Server-side populated
   final String vehicle;
 
   WsDriverInfo({
     required this.driverId,
     required this.name,
     required this.phoneNumber,
-    required this.rating,
-    required this.ridesCompleted,
+    this.rating,
+    this.ridesCompleted,
     required this.vehicle,
   });
 
@@ -39,8 +39,8 @@ class WsDriverInfo {
       driverId: json['driverId'] as String,
       name: json['name'] as String,
       phoneNumber: json['phoneNumber'] as String,
-      rating: (json['rating'] as num).toDouble(),
-      ridesCompleted: json['ridesCompleted'] as int,
+      rating: (json['rating'] as num?)?.toDouble(),
+      ridesCompleted: json['ridesCompleted'] as int?,
       vehicle: json['vehicle'] as String,
     );
   }
@@ -49,8 +49,8 @@ class WsDriverInfo {
         'driverId': driverId,
         'name': name,
         'phoneNumber': phoneNumber,
-        'rating': rating,
-        'ridesCompleted': ridesCompleted,
+        if (rating != null) 'rating': rating,
+        if (ridesCompleted != null) 'ridesCompleted': ridesCompleted,
         'vehicle': vehicle,
       };
 }
@@ -63,7 +63,7 @@ abstract class RideWsEvent {
 
   factory RideWsEvent.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String;
-    final data = json['data'] as Map<String, dynamic>? ?? json; // Sometimes data is nested, sometimes top-level
+    final data = json['data'] as Map<String, dynamic>? ?? json;
 
     switch (type) {
       case 'RiderOfferReceived':
@@ -233,7 +233,7 @@ class DriverLocationUpdatedEvent extends RideWsEvent {
 
 class DriverRideRequestReceivedEvent extends RideWsEvent {
   final String rideId;
-  final String? driverId; // Can be null if broadcast to all nearby
+  final String? driverId;
   final String riderId;
   final String riderName;
   final String riderPhoneNumber;

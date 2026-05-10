@@ -109,7 +109,7 @@ class Ride(Base):
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
     offers = relationship("RideOffer", back_populates="ride", lazy="select")
-    rating = relationship("RideRating", back_populates="ride", uselist=False, lazy="select")
+    ratings = relationship("RideRating", back_populates="ride", lazy="select")
 
 
 class RideOffer(Base):
@@ -176,12 +176,18 @@ class RideRating(Base):
     __tablename__ = "ride_ratings"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ride_id = Column(PGUUID(as_uuid=True), ForeignKey("rides.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
-    rider_id = Column(String, nullable=False)
-    driver_id = Column(String, nullable=False)
+    ride_id = Column(PGUUID(as_uuid=True), ForeignKey("rides.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Who is giving the rating
+    rated_by_id = Column(String, nullable=False)
+    rated_by_role = Column(String, nullable=False)  # "RIDER" | "DRIVER"
+
+    # Who is receiving the rating
+    rated_user_id = Column(String, nullable=False)
+
     rating = Column(Integer, nullable=False)  # 1–5
     feedback = Column(Text, nullable=True)
     submitted_at_utc = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
 
-    ride = relationship("Ride", back_populates="rating")
+    ride = relationship("Ride", back_populates="ratings")

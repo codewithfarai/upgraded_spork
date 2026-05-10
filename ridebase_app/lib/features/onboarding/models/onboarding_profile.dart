@@ -1,3 +1,17 @@
+class UserStats {
+  final double rating;
+  final int ridesCompleted;
+
+  UserStats({required this.rating, required this.ridesCompleted});
+
+  factory UserStats.fromJson(Map<String, dynamic> json) {
+    return UserStats(
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      ridesCompleted: json['rides_completed'] as int? ?? 0,
+    );
+  }
+}
+
 class OnboardingProfile {
   final String fullName;
   final String phoneNumber;
@@ -8,6 +22,8 @@ class OnboardingProfile {
   final String roleIntent;
   final bool emailVerified;
   final String? profilePhotoUrl;
+  final UserStats driverStats;
+  final UserStats riderStats;
 
   OnboardingProfile({
     required this.fullName,
@@ -19,6 +35,8 @@ class OnboardingProfile {
     required this.roleIntent,
     required this.emailVerified,
     this.profilePhotoUrl,
+    required this.driverStats,
+    required this.riderStats,
   });
 
   factory OnboardingProfile.fromJson(Map<String, dynamic> json) {
@@ -32,6 +50,8 @@ class OnboardingProfile {
       roleIntent: json['role_intent'] ?? 'RIDER',
       emailVerified: json['email_verified'] ?? false,
       profilePhotoUrl: json['profile_photo_url'],
+      driverStats: UserStats.fromJson(json['driver_stats'] ?? {}),
+      riderStats: UserStats.fromJson(json['rider_stats'] ?? {}),
     );
   }
 }

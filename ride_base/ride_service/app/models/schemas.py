@@ -20,8 +20,6 @@ class DriverInfo(BaseModel):
     driverId: str
     name: str
     phoneNumber: str
-    rating: Optional[float] = None
-    ridesCompleted: Optional[int] = None
     vehicle: Optional[str] = None
 
 

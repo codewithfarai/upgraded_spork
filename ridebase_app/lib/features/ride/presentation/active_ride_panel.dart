@@ -151,7 +151,7 @@ class ActiveRidePanel extends ConsumerWidget {
                           Icon(Icons.star_rounded, size: 18, color: Colors.amber.shade600),
                           const SizedBox(width: 4),
                           Text(
-                            driver.rating.toStringAsFixed(1),
+                            (driver.rating ?? 5.0).toStringAsFixed(1),
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -162,7 +162,7 @@ class ActiveRidePanel extends ConsumerWidget {
                           Icon(Icons.check_circle_rounded, size: 16, color: RideBaseTheme.teal),
                           const SizedBox(width: 4),
                           Text(
-                            '${driver.ridesCompleted} rides',
+                            '${driver.ridesCompleted ?? 0} rides',
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               color: Colors.grey.shade600,

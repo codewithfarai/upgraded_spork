@@ -14,6 +14,7 @@ from app.models.schemas import (
     DriverLocationUpdateRequest,
     DriverSosRequest,
     DriverStatusUpdate,
+    RatingRequest,
 )
 from app.services import redis_service, ride_service
 from app.services.rabbitmq import publisher
@@ -292,3 +293,26 @@ async def get_open_requests(
         }
         for r in rides
     ]
+
+
+@router.post("/rides/driver/rating")
+async def rate_rider(
+    data: RatingRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    driver_id = _user_id(current_user)
+    if data.driverId != driver_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+
+    await ride_service.submit_rating(db, data, driver_id, role="DRIVER")
+
+    await publisher.publish("ride.rated", {
+        "event_type": "ride.rated",
+        "rideId": data.rideId,
+        "ratedUserId": data.riderId,
+        "role": "RIDER",
+        "rating": data.rating,
+    })
+
+    return {"rideId": data.rideId, "ratingSaved": True}

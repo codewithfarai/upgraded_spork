@@ -11,6 +11,7 @@ from app.models.vehicle import DriverDetails
 from app.services.s3 import upload_file_to_s3, delete_file_from_s3
 from app.services.rabbitmq import publisher
 from app.services.otp import generate_otp, verify_otp
+from app.services.redis_service import sync_user_stats_to_redis
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ async def get_my_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found, please onboard.")
 
-    return {
+    response_data = {
         "full_name": profile.full_name,
         "phone_number": profile.phone_number,
         "city": profile.city,
@@ -48,7 +49,22 @@ async def get_my_profile(
         "role_intent": profile.role_intent.value,
         "email_verified": profile.email_verified,
         "profile_photo_url": profile.profile_photo_url,
+        "driver_stats": {
+            "rating": profile.driver_rating_avg,
+            "rides_completed": profile.driver_rides_count,
+        },
+        "rider_stats": {
+            "rating": profile.rider_rating_avg,
+            "rides_completed": profile.rider_rides_count,
+        }
     }
+
+    # Proactively warm up the Redis stats cache for the Ride service
+    await sync_user_stats_to_redis(auth_id, "RIDER", profile.rider_rating_avg, profile.rider_rides_count)
+    if profile.is_driver:
+        await sync_user_stats_to_redis(auth_id, "DRIVER", profile.driver_rating_avg, profile.driver_rides_count)
+
+    return response_data
 
 
 @router.patch("/me")

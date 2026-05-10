@@ -104,8 +104,8 @@ class ActiveRideNotifier extends StateNotifier<ActiveRideState> {
         driverId: 'mock-driver',
         name: 'Simulated Driver',
         phoneNumber: '+263770000000',
-        rating: 4.8,
-        ridesCompleted: 1250,
+        rating: 5.0,
+        ridesCompleted: 0,
         vehicle: 'Toyota Aqua (Silver)',
       ),
     );

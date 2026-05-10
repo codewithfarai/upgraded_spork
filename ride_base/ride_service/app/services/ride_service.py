@@ -216,11 +216,19 @@ async def create_rider_sos(db: AsyncSession, ride_id: str, data: RiderSosRequest
     return incident
 
 
-async def submit_rating(db: AsyncSession, data: RatingRequest, requester_id: str) -> RideRating:
-    """Persist a rider rating. Idempotent: second save updates the existing rating."""
+async def submit_rating(
+    db: AsyncSession,
+    data: RatingRequest,
+    requester_id: str,
+    role: str = "RIDER"
+) -> RideRating:
+    """Persist a rating (either Rider -> Driver or Driver -> Rider)."""
     ride = await _get_ride_by_guid(db, data.rideId)
 
-    if ride.rider_id != requester_id:
+    # Validate requester is part of the ride
+    if role == "RIDER" and ride.rider_id != requester_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
+    if role == "DRIVER" and ride.driver_id != requester_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden")
 
     if ride.status != RideStatus.TRIP_COMPLETED.value:
@@ -229,8 +237,17 @@ async def submit_rating(db: AsyncSession, data: RatingRequest, requester_id: str
             detail="invalid_status_transition",
         )
 
-    result = await db.execute(select(RideRating).where(RideRating.ride_id == ride.id))
+    # Check if this specific role has already rated this ride
+    result = await db.execute(
+        select(RideRating).where(
+            RideRating.ride_id == ride.id,
+            RideRating.rated_by_role == role
+        )
+    )
     existing = result.scalar_one_or_none()
+
+    rated_user_id = ride.driver_id if role == "RIDER" else ride.rider_id
+
     if existing:
         existing.rating = data.rating
         existing.feedback = data.feedback
@@ -241,14 +258,19 @@ async def submit_rating(db: AsyncSession, data: RatingRequest, requester_id: str
 
     rating = RideRating(
         ride_id=ride.id,
-        rider_id=data.riderId,
-        driver_id=data.driverId,
+        rated_by_id=requester_id,
+        rated_by_role=role,
+        rated_user_id=rated_user_id,
         rating=data.rating,
         feedback=data.feedback,
         submitted_at_utc=data.submittedAtUtc,
     )
-    ride.rider_rating = data.rating
-    ride.rider_feedback = data.feedback
+
+    # Legacy field on Ride table (stays for convenience)
+    if role == "RIDER":
+        ride.rider_rating = data.rating
+        ride.rider_feedback = data.feedback
+
     db.add(rating)
     await db.commit()
     await db.refresh(rating)
@@ -542,6 +564,10 @@ async def create_offer_from_ws(
         existing.offer_time_utc = now
         offer_uuid = existing.id
     else:
+        # Fetch real stats from Redis (synced by Onboarding service)
+        # Fallback to 5.0 rating and 0 rides for new drivers
+        stats = await redis_service.get_driver_stats_for_offer(driver_id)
+
         new_offer = RideOffer(
             id=offer_uuid,
             ride_id=ride.id,
@@ -560,8 +586,8 @@ async def create_offer_from_ws(
             destination_longitude=float(dest_loc.get("longitude", 0)),
             driver_name=driver.get("name", ""),
             driver_phone_number=driver.get("phoneNumber", ""),
-            driver_rating=driver.get("rating"),
-            driver_rides_completed=driver.get("ridesCompleted"),
+            driver_rating=stats["rating"],
+            driver_rides_completed=stats["rides"],
             driver_vehicle=driver.get("vehicle"),
             offer_time_utc=now,
         )

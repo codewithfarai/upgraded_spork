@@ -67,8 +67,6 @@ class _DriverRequestOverlayState extends ConsumerState<DriverRequestOverlay> {
           driverId: user.sub,
           name: profile?.fullName ?? user.displayName,
           phoneNumber: profile?.phoneNumber ?? '',
-          rating: stats?.rating ?? 5.0,
-          ridesCompleted: stats?.totalTrips ?? 0,
           vehicle: vehicleDesc,
         ),
       );

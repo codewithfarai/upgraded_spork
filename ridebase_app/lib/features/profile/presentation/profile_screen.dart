@@ -5,11 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/theme.dart';
-import '../../../core/utils/zw_validators.dart';
-import '../../onboarding/providers/onboarding_provider.dart';
-import 'package:image_picker/image_picker.dart';
-
-Future<void> _editPhone(
     BuildContext context, WidgetRef ref, String? current) async {
   final controller = TextEditingController(
       text: (current == null || current == '—') ? '' : current);
@@ -646,9 +641,19 @@ class ProfileScreen extends ConsumerWidget {
 
 // ── Stats bar ─────────────────────────────────────────────────────────────────
 
-class _StatsBar extends StatelessWidget {
+class _StatsBar extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final onboarding = ref.watch(onboardingProvider);
+    final profile = onboarding.profile;
+
+    if (profile == null) return const SizedBox.shrink();
+
+    // Show stats based on intent or role.
+    // If they are in driver mode, show driver stats.
+    final currentRole = ref.watch(appRoleProvider);
+    final stats = currentRole == AppRole.driver ? profile.driverStats : profile.riderStats;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -669,9 +674,21 @@ class _StatsBar extends StatelessWidget {
       child: IntrinsicHeight(
         child: Row(
           children: [
-            Expanded(child: _StatCell(value: '4.9', icon: Icons.star_rounded, label: 'Rating')),
+            Expanded(
+              child: _StatCell(
+                value: stats.rating.toStringAsFixed(1),
+                icon: Icons.star_rounded,
+                label: 'Rating',
+              ),
+            ),
             VerticalDivider(width: 1, color: Colors.black.withValues(alpha: 0.06)),
-            Expanded(child: _StatCell(value: '24', icon: Icons.directions_car_rounded, label: 'Rides')),
+            Expanded(
+              child: _StatCell(
+                value: stats.ridesCompleted.toString(),
+                icon: Icons.directions_car_rounded,
+                label: 'Rides',
+              ),
+            ),
           ],
         ),
       ),
