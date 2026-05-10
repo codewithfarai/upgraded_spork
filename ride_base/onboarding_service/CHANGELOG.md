@@ -1,3 +1,9 @@
+## onboarding_service-v0.25.2 (2026-05-10)
+
+### refactor
+
+- defer Redis stats synchronization until after successful database commit in ride consumption logic
+
 ## onboarding_service-v0.25.1 (2026-05-10)
 
 ### refactor
