@@ -75,12 +75,14 @@ async def lifespan(app: FastAPI):
             await otp_queue.bind(exchange, routing_key="onboarding.send_otp_email")
             await otp_queue.consume(process_send_otp_email)
 
-            # 5. Setup Ride Stats Queue
-            stats_queue = await channel.declare_queue("onboarding_service.ride_stats", durable=True)
-            await stats_queue.bind(exchange, routing_key="ride.completed")
-            await stats_queue.bind(exchange, routing_key="ride.rated")
-            await stats_queue.consume(process_ride_completed)
-            await stats_queue.consume(process_ride_rated)
+            # 5. Setup Ride Stats Queues (Separate queues to ensure both events are processed correctly)
+            completed_queue = await channel.declare_queue("onboarding_service.ride_completed", durable=True)
+            await completed_queue.bind(exchange, routing_key="ride.completed")
+            await completed_queue.consume(process_ride_completed)
+
+            rated_queue = await channel.declare_queue("onboarding_service.ride_rated", durable=True)
+            await rated_queue.bind(exchange, routing_key="ride.rated")
+            await rated_queue.consume(process_ride_rated)
         except Exception:
             logger.exception("RabbitMQ connection established but failed to setup queues/consumers.")
 
