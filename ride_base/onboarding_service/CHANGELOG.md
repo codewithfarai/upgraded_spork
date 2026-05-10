@@ -1,3 +1,9 @@
+## onboarding_service-v0.24.0 (2026-05-10)
+
+### fix
+
+- add server_default to stats columns to allow migration of existing users
+
 ## onboarding_service-v0.23.0 (2026-05-10)
 
 ### chore
