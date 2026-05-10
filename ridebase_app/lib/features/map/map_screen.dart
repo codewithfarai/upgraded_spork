@@ -369,7 +369,7 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
     if (state == AppLifecycleState.resumed) {
       // Proactively refresh profile to warm up Redis stats cache
       // This ensures ratings are ready even if the app was in background for >24h
-      ref.read(onboardingProvider.notifier).refresh();
+      ref.read(onboardingProvider.notifier).refresh(silent: true);
     }
   }
 

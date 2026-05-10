@@ -145,8 +145,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   }
 
   /// Reload onboarding state (e.g. after a step is completed)
-  Future<void> refresh() async {
-    state = const OnboardingState(step: OnboardingStep.loading);
+  Future<void> refresh({bool silent = false}) async {
+    if (!silent) {
+      state = OnboardingState(
+        step: OnboardingStep.loading,
+        profile: state.profile,
+      );
+    }
     await _fetchProfile();
   }
 }
