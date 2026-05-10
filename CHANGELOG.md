@@ -1,3 +1,23 @@
+## v0.50.0 (2026-05-10)
+
+### feat
+
+- implement mutual ride rating system with persistent stats and Redis synchronization
+- add loading state to profile update process with blocking overlay
+- implement ride options screen, add fleet management modules, and update UI theme colors
+- redesign driver verification screen with updated UI components and improved document uploading flow
+
+### refactor
+
+- update map service deployment workflow, add coordinate validation to routing service, and parallelize infrastructure bootstrap process.
+- simplify auth notifier logic and add resume cooldown to AppDrawer to mitigate ghost taps
+- improve auth logout flow, add user refresh capability, and clean up map/service logging and dependencies
+
+### chore
+
+- scale map service replicas to 2 and update monitoring stack host targeting
+- update configuration settings and environment variables in core config
+
 ## v0.49.0 (2026-05-05)
 
 ### feat
