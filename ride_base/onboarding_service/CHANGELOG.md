@@ -1,3 +1,9 @@
+## onboarding_service-v0.25.0 (2026-05-10)
+
+### feat
+
+- sync model server_defaults with migration fix
+
 ## onboarding_service-v0.24.0 (2026-05-10)
 
 ### fix
