@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import Boolean, Column, String, Enum, DateTime, Float, Integer, func
+from sqlalchemy import Boolean, Column, String, Enum, DateTime, Float, Integer, func, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.database import Base
@@ -36,14 +36,14 @@ class UserProfile(Base):
     details_confirmed = Column(Boolean, default=False, nullable=False)
 
     # Driver Stats (Calculated after 5 rides)
-    driver_rating_avg = Column(Float, default=5.0, nullable=False)
-    driver_rating_count = Column(Integer, default=0, nullable=False)
-    driver_rides_count = Column(Integer, default=0, nullable=False)
+    driver_rating_avg = Column(Float, default=5.0, server_default=text("5.0"), nullable=False)
+    driver_rating_count = Column(Integer, default=0, server_default=text("0"), nullable=False)
+    driver_rides_count = Column(Integer, default=0, server_default=text("0"), nullable=False)
 
     # Rider Stats (Calculated after 5 rides)
-    rider_rating_avg = Column(Float, default=5.0, nullable=False)
-    rider_rating_count = Column(Integer, default=0, nullable=False)
-    rider_rides_count = Column(Integer, default=0, nullable=False)
+    rider_rating_avg = Column(Float, default=5.0, server_default=text("5.0"), nullable=False)
+    rider_rating_count = Column(Integer, default=0, server_default=text("0"), nullable=False)
+    rider_rides_count = Column(Integer, default=0, server_default=text("0"), nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
