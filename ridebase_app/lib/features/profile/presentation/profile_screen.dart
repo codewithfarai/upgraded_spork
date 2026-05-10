@@ -3,8 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/app_role_provider.dart';
 import '../../../core/theme.dart';
+import '../../../core/utils/zw_validators.dart';
+import '../../onboarding/providers/onboarding_provider.dart';
+import '../../onboarding/models/onboarding_profile.dart';
+
+Future<void> _editPhone(
     BuildContext context, WidgetRef ref, String? current) async {
   final controller = TextEditingController(
       text: (current == null || current == '—') ? '' : current);
@@ -494,7 +501,7 @@ class ProfileScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Personal Information
-                  _SectionLabel(
+                  const _SectionLabel(
                     title: 'Personal Information',
                   ),
                   const SizedBox(height: 10),
