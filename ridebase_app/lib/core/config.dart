@@ -12,10 +12,10 @@ class RideBaseConfig {
 
   // ── Tile Server (Martin) ──────────────────────────────────────────
   static const String tileServerBase = 'https://tiles.ridebase.tech';
-  static const String tileSourceUrl = '$tileServerBase/zimbabwe';
+  static const String tileSourceUrl = '$tileServerBase/combined';
 
   /// Fallback tile source for offline development (localhost)
-  static const String tileSourceUrlLocal = 'http://localhost:3000/zimbabwe';
+  static const String tileSourceUrlLocal = 'http://localhost:3000/combined';
 
   // ── Routing (OSRM) ───────────────────────────────────────────────
   static const String routingBase = 'https://route.ridebase.tech';
