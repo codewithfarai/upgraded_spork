@@ -1,3 +1,9 @@
+## onboarding_service-v0.25.1 (2026-05-10)
+
+### refactor
+
+- split ride stats queue into dedicated queues for completed and rated events
+
 ## onboarding_service-v0.25.0 (2026-05-10)
 
 ### feat
