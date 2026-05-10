@@ -18,11 +18,13 @@ class OnboardingState {
   final OnboardingStep step;
   final OnboardingProfile? profile;
   final String? error;
+  final bool isUpdating;
 
   const OnboardingState({
     required this.step,
     this.profile,
     this.error,
+    this.isUpdating = false,
   });
 }
 
@@ -111,13 +113,35 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     String? city,
     XFile? profilePhoto,
   }) async {
-    await _onboardingService.updateProfile(
-      fullName: fullName,
-      phoneNumber: phoneNumber,
-      city: city,
-      profilePhoto: profilePhoto,
+    state = OnboardingState(
+      step: state.step,
+      profile: state.profile,
+      error: null,
+      isUpdating: true,
     );
-    await _fetchProfile();
+    try {
+      await _onboardingService.updateProfile(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        city: city,
+        profilePhoto: profilePhoto,
+      );
+      await _fetchProfile();
+    } catch (e) {
+      state = OnboardingState(
+        step: state.step,
+        profile: state.profile,
+        error: e.toString(),
+        isUpdating: false,
+      );
+      rethrow;
+    }
+    state = OnboardingState(
+      step: state.step,
+      profile: state.profile,
+      error: null,
+      isUpdating: false,
+    );
   }
 
   /// Reload onboarding state (e.g. after a step is completed)

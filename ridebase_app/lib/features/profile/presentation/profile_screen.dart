@@ -285,6 +285,7 @@ class ProfileScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final onboarding = ref.watch(onboardingProvider);
     final profile = onboarding.profile;
+    final isUpdating = onboarding.isUpdating;
 
     // Guard: if user is null mid-render, show nothing — the listener above
     // will redirect to /home before the next frame.
@@ -298,12 +299,14 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: RideBaseTheme.surface,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Hero zone — gradient fades into surface ─────────────
-            Container(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Hero zone — gradient fades into surface ─────────────
+                Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -625,8 +628,17 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+          if (isUpdating)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       ),
     );
   }
