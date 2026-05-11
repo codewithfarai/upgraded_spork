@@ -71,6 +71,7 @@ async def create_ride_request(
             "recommendedAmount": float(ride.recommended_amount),
             "pickupAddress": ride.start_address,
             "destinationAddress": ride.destination_address,
+            "comments": ride.comments,
             "etaToPickupMinutes": None,
             "distanceToPickupKm": None,
             "status": ride.status,
@@ -78,7 +79,9 @@ async def create_ride_request(
             "destinationLocation": {"latitude": ride.destination_latitude, "longitude": ride.destination_longitude},
         },
     }
-    await manager.broadcast_ride_request_to_drivers(ws_event)
+    await manager.broadcast_to_nearby_drivers(
+        float(ride.start_latitude), float(ride.start_longitude), ws_event
+    )
 
     # Publish to RabbitMQ for cross-service visibility
     await publisher.publish(

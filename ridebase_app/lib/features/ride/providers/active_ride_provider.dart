@@ -6,6 +6,7 @@ import 'ride_websocket_provider.dart';
 class ActiveRideState {
   final String? rideId;
   final String? riderId;
+  final String? riderName;
   final String status;
   final WsLocation? driverLocation;
   final int etaMinutes;
@@ -17,6 +18,7 @@ class ActiveRideState {
   const ActiveRideState({
     this.rideId,
     this.riderId,
+    this.riderName,
     this.status = '',
     this.driverLocation,
     this.etaMinutes = 0,
@@ -32,6 +34,7 @@ class ActiveRideState {
   ActiveRideState copyWith({
     String? rideId,
     String? riderId,
+    String? riderName,
     String? status,
     WsLocation? driverLocation,
     int? etaMinutes,
@@ -43,6 +46,7 @@ class ActiveRideState {
     return ActiveRideState(
       rideId: rideId ?? this.rideId,
       riderId: riderId ?? this.riderId,
+      riderName: riderName ?? this.riderName,
       status: status ?? this.status,
       driverLocation: driverLocation ?? this.driverLocation,
       etaMinutes: etaMinutes ?? this.etaMinutes,
@@ -64,12 +68,14 @@ class ActiveRideNotifier extends StateNotifier<ActiveRideState> {
     required WsDriverInfo driver,
     String status = 'DriverEnRoute',
     String? riderId,
+    String? riderName,
     double acceptedAmount = 0.0,
     double distanceKm = 0.0,
   }) {
     state = state.copyWith(
       rideId: rideId,
       riderId: riderId,
+      riderName: riderName,
       driver: driver,
       status: status,
       acceptedAmount: acceptedAmount,
@@ -160,6 +166,17 @@ final activeRideProvider =
           notifier.updateLocation(event);
         } else if (event is RideStatusUpdatedEvent) {
           notifier.updateStatus(event);
+        } else if (event is RideAssignedToDriverEvent) {
+          // Rider confirmed our offer — update status so isActive stays true
+          if (notifier.currentRideId == event.rideId) {
+            notifier.updateStatus(RideStatusUpdatedEvent(
+              rideId: event.rideId,
+              status: event.status,
+              statusMessage: '',
+              etaMinutes: 0,
+              updatedAt: event.acceptedAtUtc,
+            ));
+          }
         } else if (event is RideCancelledEvent) {
           if (notifier.currentRideId == event.rideId) {
             notifier.clear();

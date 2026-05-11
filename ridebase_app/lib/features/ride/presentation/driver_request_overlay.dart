@@ -7,6 +7,7 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../features/onboarding/providers/onboarding_provider.dart';
 import '../../../features/fleet/providers/fleet_provider.dart';
 import '../models/ride_websocket_models.dart';
+import '../providers/active_ride_provider.dart';
 import '../providers/ride_rest_provider.dart';
 import '../providers/ride_websocket_provider.dart';
 
@@ -40,35 +41,65 @@ class _DriverRequestOverlayState extends ConsumerState<DriverRequestOverlay> {
           ? '${vehicles.first.make} ${vehicles.first.model}'
           : user.displayName;
 
-      // REST confirmation
-      await restService.driverAccept(
-        rideId: widget.requestEvent.rideId,
-        driverId: user.sub,
-        offerAmount: amount,
-      );
+      final isCounter = amount != widget.requestEvent.offerAmount;
 
-      wsService.submitDriverOffer(
-        rideOfferId: const Uuid().v4(),
+      if (isCounter) {
+        // Counter-offer: REST only — backend sends RiderOfferReceived via WS directly
+        await restService.driverCounterOffer(
+          rideOfferId: const Uuid().v4(),
+          rideId: widget.requestEvent.rideId,
+          driverId: user.sub,
+          offerAmount: amount,
+          riderOfferAmount: widget.requestEvent.offerAmount,
+          recommendedAmount: widget.requestEvent.recommendedAmount,
+          pickupAddress: widget.requestEvent.pickupAddress,
+          destinationAddress: widget.requestEvent.destinationAddress,
+        );
+      } else {
+        // Direct accept: REST to finalize + WS to notify rider of the offer
+        await restService.driverAccept(
+          rideId: widget.requestEvent.rideId,
+          driverId: user.sub,
+          offerAmount: amount,
+        );
+
+        wsService.submitDriverOffer(
+          rideOfferId: const Uuid().v4(),
+          rideId: widget.requestEvent.rideId,
+          offerAmount: amount,
+          riderOfferAmount: widget.requestEvent.offerAmount,
+          recommendedAmount: widget.requestEvent.recommendedAmount,
+          isCounterOffer: false,
+          etaToPickupMinutes: widget.requestEvent.etaToPickupMinutes ?? 5,
+          distance: widget.requestEvent.distanceToPickupKm ?? 2.5,
+          pickupAddress: widget.requestEvent.pickupAddress,
+          destinationAddress: widget.requestEvent.destinationAddress,
+          pickupLat: widget.requestEvent.startLocation.latitude,
+          pickupLng: widget.requestEvent.startLocation.longitude,
+          destLat: widget.requestEvent.destinationLocation.latitude,
+          destLng: widget.requestEvent.destinationLocation.longitude,
+          offerTime: DateTime.now(),
+          driver: WsDriverInfo(
+            driverId: user.sub,
+            name: profile?.fullName ?? user.displayName,
+            phoneNumber: profile?.phoneNumber ?? '',
+            vehicle: vehicleDesc,
+          ),
+        );
+      }
+
+      // Mark ride as active for the driver so trip completion triggers rating
+      ref.read(activeRideProvider.notifier).setActiveRide(
         rideId: widget.requestEvent.rideId,
-        offerAmount: amount,
-        riderOfferAmount: widget.requestEvent.offerAmount,
-        recommendedAmount: widget.requestEvent.recommendedAmount,
-        isCounterOffer: amount != widget.requestEvent.offerAmount,
-        etaToPickupMinutes: widget.requestEvent.etaToPickupMinutes ?? 5,
-        distance: widget.requestEvent.distanceToPickupKm ?? 2.5,
-        pickupAddress: widget.requestEvent.pickupAddress,
-        destinationAddress: widget.requestEvent.destinationAddress,
-        pickupLat: widget.requestEvent.startLocation.latitude,
-        pickupLng: widget.requestEvent.startLocation.longitude,
-        destLat: widget.requestEvent.destinationLocation.latitude,
-        destLng: widget.requestEvent.destinationLocation.longitude,
-        offerTime: DateTime.now(),
         driver: WsDriverInfo(
           driverId: user.sub,
           name: profile?.fullName ?? user.displayName,
           phoneNumber: profile?.phoneNumber ?? '',
           vehicle: vehicleDesc,
         ),
+        riderId: widget.requestEvent.riderId,
+        riderName: widget.requestEvent.riderName,
+        acceptedAmount: amount,
       );
 
       if (mounted) {
@@ -189,6 +220,31 @@ class _DriverRequestOverlayState extends ConsumerState<DriverRequestOverlay> {
                         Text('\$${req.offerAmount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w900)),
                       ],
                     ),
+                    if (req.comments != null && req.comments!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.grey.shade500),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                req.comments!,
+                                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

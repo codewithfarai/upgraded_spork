@@ -292,12 +292,14 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
     final startLat = _currentPosition?.latitude ?? RideBaseConfig.defaultLat;
     final startLng = _currentPosition?.longitude ?? RideBaseConfig.defaultLng;
 
-    final tierId = await context.push('/ride_options', extra: {
+    final result = await context.push<Map<String, dynamic>>('/ride_options', extra: {
       'destination': dest['address'],
       'distanceKm': dest['distanceKm'],
     });
 
-    if (tierId != null && mounted) {
+    if (result != null && mounted) {
+      final offerAmount = result['offerAmount'] as double;
+      final comments = result['comments'] as String?;
       await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
@@ -316,6 +318,8 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
             estimatedDistanceKm: dest['distanceKm'] as double,
             estimatedMinutes: dest['durationMinutes'] as int,
             recommendedAmount: dest['fare'] as double,
+            offerAmount: offerAmount,
+            comments: comments,
           ),
         ),
       );
@@ -392,6 +396,14 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
           try { await _mapController!.style!.removeLayer('driver-layer'); } catch (_) {}
           try { await _mapController!.style!.removeSource('driver-source'); } catch (_) {}
           _driverSymbolAdded = false;
+        }
+        // Navigate to rating when a trip completes (not when cancelled)
+        if (previous != null && previous.isActive && next.status == 'TripCompleted') {
+          final role = ref.read(appRoleProvider);
+          final destination = role == AppRole.driver ? '/driver-rating' : '/rating';
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.go(destination);
+          });
         }
         return;
       }

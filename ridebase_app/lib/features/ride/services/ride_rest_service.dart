@@ -51,6 +51,7 @@ class RideRestService {
     required double recommendedAmount,
     required double estimatedDistanceKm,
     required int estimatedMinutes,
+    String? comments,
   }) async {
     try {
       final response = await _dio.post('rides/request', data: {
@@ -69,7 +70,7 @@ class RideRestService {
         'isOrderingForSomeoneElse': false,
         'requestedForName': '',
         'requestedAtUtc': DateTime.now().toUtc().toIso8601String(),
-        'comments': '',
+        'comments': ?comments,
       });
       return response.data['rideRequestId'] as String;
     } catch (e) {
@@ -114,6 +115,34 @@ class RideRestService {
   }
 
   /// Driver optionally confirms they accepted an offer directly.
+  Future<void> driverCounterOffer({
+    required String rideOfferId,
+    required String rideId,
+    required String driverId,
+    required double offerAmount,
+    required double riderOfferAmount,
+    required double recommendedAmount,
+    required String pickupAddress,
+    required String destinationAddress,
+  }) async {
+    try {
+      await _dio.post('rides/driver-counter-offer', data: {
+        'rideOfferId': rideOfferId,
+        'rideId': rideId,
+        'driverId': driverId,
+        'offerAmount': offerAmount,
+        'riderOfferAmount': riderOfferAmount,
+        'recommendedAmount': recommendedAmount,
+        'pickupAddress': pickupAddress,
+        'destinationAddress': destinationAddress,
+        'offerTimeUtc': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      if (kDebugMode) debugPrint('[RideRestService] driverCounterOffer error: $e');
+      rethrow;
+    }
+  }
+
   Future<void> driverAccept({
     required String rideId,
     required String driverId,
@@ -196,6 +225,28 @@ class RideRestService {
       });
     } catch (e) {
       if (kDebugMode) debugPrint('[RideRestService] rateDriver error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> rateRider({
+    required String rideId,
+    required String riderId,
+    required String driverId,
+    required int rating,
+    String? feedback,
+  }) async {
+    try {
+      await _dio.post('rides/driver/rating', data: {
+        'rideId': rideId,
+        'riderId': riderId,
+        'driverId': driverId,
+        'rating': rating,
+        'feedback': feedback,
+        'submittedAtUtc': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      if (kDebugMode) debugPrint('[RideRestService] rateRider error: $e');
       rethrow;
     }
   }

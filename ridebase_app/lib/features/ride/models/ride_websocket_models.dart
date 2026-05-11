@@ -241,6 +241,7 @@ class DriverRideRequestReceivedEvent extends RideWsEvent {
   final double recommendedAmount;
   final String pickupAddress;
   final String destinationAddress;
+  final String? comments;
   final int? etaToPickupMinutes;
   final double? distanceToPickupKm;
   final String status;
@@ -257,6 +258,7 @@ class DriverRideRequestReceivedEvent extends RideWsEvent {
     required this.recommendedAmount,
     required this.pickupAddress,
     required this.destinationAddress,
+    this.comments,
     this.etaToPickupMinutes,
     this.distanceToPickupKm,
     required this.status,
@@ -275,6 +277,7 @@ class DriverRideRequestReceivedEvent extends RideWsEvent {
       recommendedAmount: (json['recommendedAmount'] as num).toDouble(),
       pickupAddress: json['pickupAddress'] as String,
       destinationAddress: json['destinationAddress'] as String,
+      comments: json['comments'] as String?,
       etaToPickupMinutes: json['etaToPickupMinutes'] as int?,
       distanceToPickupKm: (json['distanceToPickupKm'] as num?)?.toDouble(),
       status: json['status'] as String,

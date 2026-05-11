@@ -21,6 +21,8 @@ class RiderBiddingSheet extends ConsumerStatefulWidget {
   final double estimatedDistanceKm;
   final int estimatedMinutes;
   final double recommendedAmount;
+  final double offerAmount;
+  final String? comments;
 
   const RiderBiddingSheet({
     super.key,
@@ -33,6 +35,8 @@ class RiderBiddingSheet extends ConsumerStatefulWidget {
     required this.estimatedDistanceKm,
     required this.estimatedMinutes,
     required this.recommendedAmount,
+    required this.offerAmount,
+    this.comments,
   });
 
   @override
@@ -60,7 +64,7 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
 
       final rideId = await restService.requestRide(
         rideGuid: rideGuid,
-        riderId: user.sub, // Using user sub string (Authentik sub)
+        riderId: user.sub,
         riderName: user.displayName,
         riderPhoneNumber: ref.read(onboardingProvider).profile?.phoneNumber ?? '',
         startLat: widget.startLat,
@@ -69,10 +73,11 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
         destLat: widget.destLat,
         destLng: widget.destLng,
         destAddress: widget.destAddress,
-        offerAmount: widget.recommendedAmount,
+        offerAmount: widget.offerAmount,
         recommendedAmount: widget.recommendedAmount,
         estimatedDistanceKm: widget.estimatedDistanceKm,
         estimatedMinutes: widget.estimatedMinutes,
+        comments: widget.comments,
       );
 
       setState(() {
@@ -212,7 +217,7 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    biddingState.offers.isEmpty ? 'Finding drivers nearby...' : 'Review driver offers',
+                    biddingState.offers.isEmpty ? 'Finding drivers nearby...' : 'Driver offers — tap to accept',
                     style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -245,11 +250,19 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
                 separatorBuilder: (context, index) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final offer = biddingState.offers[index];
+                  final isCounter = offer.isCounterOffer;
+                  final priceHigher = offer.offerAmount > offer.riderOfferAmount;
+
                   return Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      border: Border.all(color: RideBaseTheme.teal.withValues(alpha: 0.3), width: 1.5),
+                      border: Border.all(
+                        color: isCounter
+                            ? Colors.orange.withValues(alpha: 0.5)
+                            : RideBaseTheme.teal.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
@@ -259,60 +272,109 @@ class _RiderBiddingSheetState extends ConsumerState<RiderBiddingSheet> {
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Driver Info
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    offer.driver.name,
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+                        if (isCounter)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.orange.shade200),
                                   ),
-                                  const SizedBox(width: 6),
-                                  Icon(Icons.star_rounded, size: 16, color: Colors.amber[700]),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.swap_horiz_rounded, size: 14, color: Colors.orange.shade700),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Counter Offer',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.orange.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Your offer: \$${offer.riderOfferAmount.toStringAsFixed(2)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            // Driver Info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        offer.driver.name,
+                                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Icon(Icons.star_rounded, size: 16, color: Colors.amber[700]),
+                                      Text(
+                                        (offer.driver.rating ?? 5.0).toStringAsFixed(2),
+                                        style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    (offer.driver.rating ?? 5.0).toStringAsFixed(2),
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                                    offer.driver.vehicle,
+                                    style: GoogleFonts.inter(color: Colors.grey[700], fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${offer.etaToPickupMinutes} min away',
+                                    style: GoogleFonts.inter(color: RideBaseTheme.teal, fontSize: 13, fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                offer.driver.vehicle,
-                                style: GoogleFonts.inter(color: Colors.grey[700], fontSize: 13),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${offer.etaToPickupMinutes} min away',
-                                style: GoogleFonts.inter(color: RideBaseTheme.teal, fontSize: 13, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Price & Accept
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '\$${offer.offerAmount.toStringAsFixed(2)}',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 20),
                             ),
-                            const SizedBox(height: 8),
-                            ElevatedButton(
-                              onPressed: _isAccepting ? null : () => _acceptOffer(offer),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: RideBaseTheme.teal,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                              ),
-                              child: _isAccepting
-                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                  : const Text('Accept', style: TextStyle(fontWeight: FontWeight.w600)),
+                            // Price & Accept
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '\$${offer.offerAmount.toStringAsFixed(2)}',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 20,
+                                    color: isCounter && priceHigher ? Colors.orange.shade700 : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton(
+                                  onPressed: _isAccepting ? null : () => _acceptOffer(offer),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: RideBaseTheme.teal,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                  ),
+                                  child: _isAccepting
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                      : const Text('Accept', style: TextStyle(fontWeight: FontWeight.w600)),
+                                ),
+                              ],
                             ),
                           ],
                         ),

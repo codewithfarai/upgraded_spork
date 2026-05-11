@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme.dart';
 
@@ -76,6 +77,10 @@ class RideOptionsScreen extends StatefulWidget {
 
 class _RideOptionsScreenState extends State<RideOptionsScreen> {
   String _selectedId = 'STANDARD';
+  late final TextEditingController _fareController;
+  final TextEditingController _commentController = TextEditingController();
+
+  static const double _minFare = 2.00;
 
   double _estimateFare(RideTier tier) {
     final km = widget.distanceKm ?? 5.0;
@@ -83,6 +88,31 @@ class _RideOptionsScreenState extends State<RideOptionsScreen> {
   }
 
   RideTier get _selected => _tiers.firstWhere((t) => t.id == _selectedId);
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = _estimateFare(_tiers.firstWhere((t) => t.id == _selectedId));
+    _fareController = TextEditingController(text: initial.toStringAsFixed(2));
+  }
+
+  @override
+  void dispose() {
+    _fareController.dispose();
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  void _onTierTap(String tierId) {
+    setState(() => _selectedId = tierId);
+    final fare = _estimateFare(_tiers.firstWhere((t) => t.id == tierId));
+    _fareController.text = fare.toStringAsFixed(2);
+  }
+
+  double get _parsedFare {
+    final v = double.tryParse(_fareController.text) ?? _minFare;
+    return v < _minFare ? _minFare : v;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,21 +161,109 @@ class _RideOptionsScreenState extends State<RideOptionsScreen> {
                   tier: tier,
                   estimatedFare: fare,
                   isSelected: selected,
-                  onTap: () => setState(() => _selectedId = tier.id),
+                  onTap: () => _onTierTap(tier.id),
                 );
               },
             ),
           ),
 
+          // ── Offer & Comment ────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Divider(height: 24),
+                // Fare input
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Your offer',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: RideBaseTheme.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _fareController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                            ],
+                            style: GoogleFonts.inter(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: RideBaseTheme.teal,
+                            ),
+                            decoration: InputDecoration(
+                              prefixText: 'USD ',
+                              prefixStyle: GoogleFonts.inter(
+                                fontSize: 16,
+                                color: RideBaseTheme.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              helperText: 'Min USD ${_minFare.toStringAsFixed(2)}',
+                              helperStyle: GoogleFonts.inter(fontSize: 12, color: RideBaseTheme.textSecondary),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: RideBaseTheme.teal, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Comment input
+                TextField(
+                  controller: _commentController,
+                  maxLines: 2,
+                  maxLength: 200,
+                  style: GoogleFonts.inter(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Add a note for your driver... (optional)',
+                    hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade400),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: RideBaseTheme.teal, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    counterStyle: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade400),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // ── Book Button ────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             child: SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).pop(_selected.id);
+                  Navigator.of(context).pop({
+                    'offerAmount': _parsedFare,
+                    'comments': _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: RideBaseTheme.primaryContainer,
@@ -159,7 +277,7 @@ class _RideOptionsScreenState extends State<RideOptionsScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Book ${_selected.name}',
+                      'Find ${_selected.name} drivers',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -167,7 +285,7 @@ class _RideOptionsScreenState extends State<RideOptionsScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '· USD ${_estimateFare(_selected).toStringAsFixed(2)}',
+                      '· USD ${_parsedFare.toStringAsFixed(2)}',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,

@@ -7,6 +7,7 @@ import 'features/map/map_screen.dart';
 import 'features/search/search_screen.dart';
 import 'features/ride/presentation/sos_screen.dart';
 import 'features/ride/presentation/ride_rating_screen.dart';
+import 'features/ride/presentation/driver_rating_screen.dart';
 import 'features/onboarding/providers/onboarding_provider.dart';
 import 'features/onboarding/presentation/basic_profile_screen.dart';
 import 'features/onboarding/presentation/email_verification_screen.dart';
@@ -142,6 +143,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/rating',
         builder: (context, state) => const RideRatingScreen(),
+      ),
+      GoRoute(
+        path: '/driver-rating',
+        builder: (context, state) => const DriverRatingScreen(),
       ),
       GoRoute(
         path: '/onboarding/profile',
