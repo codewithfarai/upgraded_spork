@@ -103,8 +103,8 @@ class FleetService {
   Future<DriverStats> getDriverStats() async {
     try {
       final results = await Future.wait([
-        _reportingDio.get('/driver/stats'),
-        _reportingDio.get('/driver/earnings', queryParameters: {'period': 'today'}),
+        _reportingDio.get('driver/stats'),
+        _reportingDio.get('driver/earnings', queryParameters: {'period': 'today'}),
       ]);
       return DriverStats.fromJson(
         results[0].data as Map<String, dynamic>,
@@ -119,7 +119,7 @@ class FleetService {
   Future<List<RideRecord>> getDriverRides({int page = 1, int pageSize = 20}) async {
     try {
       final response = await _reportingDio.get(
-        '/driver/rides',
+        'driver/rides',
         queryParameters: {'page': page, 'page_size': pageSize},
       );
       final body = response.data as Map<String, dynamic>;

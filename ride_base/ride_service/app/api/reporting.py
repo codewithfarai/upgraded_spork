@@ -64,6 +64,8 @@ class RideHistoryItem(BaseModel):
     accepted_amount: Optional[float]
     rider_offer_amount: float
     rider_name: str
+    driver_name: Optional[str]
+    driver_vehicle: Optional[str]
     requested_at: str
     completed_at: Optional[str]
     rating: Optional[int]
@@ -307,7 +309,12 @@ async def get_ride_history(
     # Fetch ratings for these rides in one query
     ride_ids = [r.id for r in rides]
     ratings_q = await db.execute(
-        select(RideRating.ride_id, RideRating.rating).where(RideRating.ride_id.in_(ride_ids))
+        select(RideRating.ride_id, RideRating.rating).where(
+            and_(
+                RideRating.ride_id.in_(ride_ids),
+                RideRating.rated_by_role == "RIDER" # Rating given BY rider (received by driver)
+            )
+        )
     )
     ratings_map = {str(r.ride_id): r.rating for r in ratings_q.all()}
 
@@ -326,6 +333,77 @@ async def get_ride_history(
                 accepted_amount=float(r.accepted_amount) if r.accepted_amount else None,
                 rider_offer_amount=float(r.rider_offer_amount),
                 rider_name=r.rider_name,
+                driver_name=r.driver_name,
+                driver_vehicle=r.vehicle_info,
+                requested_at=r.requested_at_utc.isoformat(),
+                completed_at=r.completed_at_utc.isoformat() if r.completed_at_utc else None,
+                rating=ratings_map.get(str(r.id)),
+            )
+            for r in rides
+        ],
+    )
+
+
+@router.get("/rider/rides", response_model=RideHistoryResponse)
+async def get_rider_ride_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get paginated ride history for the authenticated rider."""
+    rider_id = _user_id(current_user)
+
+    # Count total
+    count_q = select(func.count(Ride.id)).where(Ride.rider_id == rider_id)
+    if status_filter:
+        count_q = count_q.where(Ride.status == status_filter)
+    total_count = (await db.execute(count_q)).scalar() or 0
+
+    # Fetch page
+    query = (
+        select(Ride)
+        .where(Ride.rider_id == rider_id)
+        .order_by(Ride.requested_at_utc.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    if status_filter:
+        query = query.where(Ride.status == status_filter)
+
+    result = await db.execute(query)
+    rides = result.scalars().all()
+
+    # Fetch ratings for these rides in one query
+    ride_ids = [r.id for r in rides]
+    ratings_q = await db.execute(
+        select(RideRating.ride_id, RideRating.rating).where(
+            and_(
+                RideRating.ride_id.in_(ride_ids),
+                RideRating.rated_by_role == "DRIVER" # Rating given BY driver (received by rider)
+            )
+        )
+    )
+    ratings_map = {str(r.ride_id): r.rating for r in ratings_q.all()}
+
+    return RideHistoryResponse(
+        driver_id=rider_id,  # Reusing schema, field name 'driver_id' is used as 'user_id' here
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        rides=[
+            RideHistoryItem(
+                ride_id=r.ride_guid,
+                status=r.status,
+                pickup_address=r.start_address,
+                destination_address=r.destination_address,
+                distance_km=r.distance_km,
+                accepted_amount=float(r.accepted_amount) if r.accepted_amount else None,
+                rider_offer_amount=float(r.rider_offer_amount),
+                rider_name=r.rider_name,
+                driver_name=r.driver_name,
+                driver_vehicle=r.vehicle_info,
                 requested_at=r.requested_at_utc.isoformat(),
                 completed_at=r.completed_at_utc.isoformat() if r.completed_at_utc else None,
                 rating=ratings_map.get(str(r.id)),

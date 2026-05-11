@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:ridebase_app/features/ride/providers/ride_history_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/app_role_provider.dart';
 import '../../../core/theme.dart';
@@ -286,6 +288,7 @@ class ProfileScreen extends ConsumerWidget {
 
     final user = ref.watch(currentUserProvider);
     final onboarding = ref.watch(onboardingProvider);
+    final historyAsync = ref.watch(rideHistoryProvider);
     final profile = onboarding.profile;
     final isUpdating = onboarding.isUpdating;
 
@@ -555,17 +558,38 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 10),
                   _Card(
-                    children: const [
-                      _RideRow(
-                        destination: 'Avondale Shopping Centre',
-                        time: 'Today, 09:42 AM',
-                        price: r'$4.50',
-                      ),
-                      _RowDivider(),
-                      _RideRow(
-                        destination: "Sam Levy's Village",
-                        time: 'Yesterday, 14:15 PM',
-                        price: r'$8.00',
+                    children: [
+                      historyAsync.when(
+                        data: (rides) {
+                          if (rides.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(24.0),
+                              child: Center(child: Text('No recent rides')),
+                            );
+                          }
+                          // Only show top 3 on profile
+                          final top3 = rides.take(3).toList();
+                          return Column(
+                            children: [
+                              for (int i = 0; i < top3.length; i++) ...[
+                                _RideRow(
+                                  destination: top3[i].destinationAddress,
+                                  time: DateFormat('MMM d, hh:mm a').format(top3[i].requestedAt),
+                                  price: r'$' + (top3[i].acceptedAmount ?? top3[i].riderOfferAmount).toStringAsFixed(2),
+                                ),
+                                if (i < top3.length - 1) const _RowDivider(),
+                              ],
+                            ],
+                          );
+                        },
+                        loading: () => const Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Center(child: CircularProgressIndicator(color: RideBaseTheme.teal)),
+                        ),
+                        error: (err, _) => Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Center(child: Text('Error loading rides')),
+                        ),
                       ),
                     ],
                   ),

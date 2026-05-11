@@ -52,7 +52,7 @@ class RideRestService {
     required int estimatedMinutes,
   }) async {
     try {
-      final response = await _dio.post('/rides/request', data: {
+      final response = await _dio.post('rides/request', data: {
         'rideGuid': rideGuid,
         'riderId': riderId,
         'riderName': riderName,
@@ -93,7 +93,7 @@ class RideRestService {
     required double destLng,
   }) async {
     try {
-      await _dio.post('/rides/select-offer', data: {
+      await _dio.post('rides/select-offer', data: {
         'rideId': rideId,
         'rideOfferId': rideOfferId,
         'riderId': riderId,
@@ -119,7 +119,7 @@ class RideRestService {
     required double offerAmount,
   }) async {
     try {
-      await _dio.post('/rides/driver/accept', data: {
+      await _dio.post('rides/driver/accept', data: {
         'rideId': rideId,
         'driverId': driverId,
         'offerAmount': offerAmount,
@@ -138,7 +138,7 @@ class RideRestService {
     String? reasonText,
   }) async {
     try {
-      await _dio.post('/rides/$rideId/cancel', data: {
+      await _dio.post('rides/$rideId/cancel', data: {
         'cancelledBy': cancelledBy,
         'reasonCode': reasonCode,
         'reasonText': reasonText,
@@ -160,7 +160,7 @@ class RideRestService {
     String? message,
   }) async {
     try {
-      await _dio.post('/rides/$rideId/sos', data: {
+      await _dio.post('rides/$rideId/sos', data: {
         'rideId': rideId,
         'triggeredBy': 'Rider',
         'riderId': riderId,
@@ -185,16 +185,40 @@ class RideRestService {
     String? feedback,
   }) async {
     try {
-      await _dio.post('/rides/rating', data: {
+      await _dio.post('rides/rider/rating', data: {
         'rideId': rideId,
         'riderId': riderId,
         'driverId': driverId,
         'rating': rating,
-        'feedback': ?feedback,
+        'feedback': feedback,
         'submittedAtUtc': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (e) {
       if (kDebugMode) debugPrint('[RideRestService] rateDriver error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getRideHistory({
+    required String role,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      final endpoint = role.toLowerCase() == 'driver'
+          ? 'reporting/driver/rides'
+          : 'reporting/rider/rides';
+
+      final response = await _dio.get(
+        endpoint,
+        queryParameters: {
+          'page': page,
+          'page_size': pageSize,
+        },
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[RideRestService] getRideHistory error: $e');
       rethrow;
     }
   }
