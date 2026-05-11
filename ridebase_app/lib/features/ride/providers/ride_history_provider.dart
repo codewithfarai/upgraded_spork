@@ -8,7 +8,7 @@ final rideHistoryProvider = FutureProvider<List<RideHistoryItem>>((ref) async {
   final restService = ref.read(rideRestServiceProvider);
 
   final data = await restService.getRideHistory(
-    role: role == AppRole.driver ? 'driver' : 'rider',
+    role: role,
     pageSize: 10,
   );
 

@@ -13,13 +13,15 @@ class RideHistoryItem {
   final DateTime? completedAt;
   final int? rating;
 
+  double get effectiveFare => acceptedAmount ?? riderOfferAmount;
+
   RideHistoryItem({
     required this.rideId,
     required this.status,
     required this.pickupAddress,
     required this.destinationAddress,
     required this.distanceKm,
-    required this.acceptedAmount,
+    this.acceptedAmount,
     required this.riderOfferAmount,
     required this.riderName,
     this.driverName,

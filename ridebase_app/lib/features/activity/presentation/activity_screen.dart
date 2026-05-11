@@ -42,6 +42,40 @@ class ActivityScreen extends ConsumerWidget {
   }
 }
 
+String _fmtTime(DateTime dt) {
+  final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+  final min = dt.minute.toString().padLeft(2, '0');
+  final period = dt.hour >= 12 ? 'PM' : 'AM';
+  return '$hour:$min $period';
+}
+
+String _formatDateLabel(DateTime dt) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final date = DateTime(dt.year, dt.month, dt.day);
+  if (date == today) return 'TODAY';
+  if (date == today.subtract(const Duration(days: 1))) return 'YESTERDAY';
+  const months = [
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  ];
+  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+}
+
+List<dynamic> _groupByDate<T>(List<T> rides, DateTime Function(T) getDate) {
+  String? lastDate;
+  final items = <dynamic>[];
+  for (final ride in rides) {
+    final label = _formatDateLabel(getDate(ride));
+    if (label != lastDate) {
+      items.add(label);
+      lastDate = label;
+    }
+    items.add(ride);
+  }
+  return items;
+}
+
 class _DriverActivity extends StatelessWidget {
   const _DriverActivity({required this.ref});
   final WidgetRef ref;
@@ -90,7 +124,7 @@ class _RideList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupByDate(rides);
+    final grouped = _groupByDate(rides, (r) => r.createdAt);
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -115,33 +149,6 @@ class _RideList extends StatelessWidget {
       },
     );
   }
-
-  List<dynamic> _groupByDate(List<RideRecord> rides) {
-    String? lastDate;
-    final items = <dynamic>[];
-    for (final ride in rides) {
-      final label = _formatDateLabel(ride.createdAt);
-      if (label != lastDate) {
-        items.add(label);
-        lastDate = label;
-      }
-      items.add(ride);
-    }
-    return items;
-  }
-
-  String _formatDateLabel(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final date = DateTime(dt.year, dt.month, dt.day);
-    if (date == today) return 'TODAY';
-    if (date == today.subtract(const Duration(days: 1))) return 'YESTERDAY';
-    const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
-    ];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
-  }
 }
 
 class _RideTile extends StatelessWidget {
@@ -154,6 +161,7 @@ class _RideTile extends StatelessWidget {
     Color statusColor;
     IconData statusIcon;
     switch (ride.status.toLowerCase()) {
+      case 'trip_completed':
       case 'completed':
         statusColor = RideBaseTheme.teal;
         statusIcon = Icons.check_circle_outline_rounded;
@@ -242,13 +250,6 @@ class _RideTile extends StatelessWidget {
       ),
     );
   }
-
-  String _fmtTime(DateTime dt) {
-    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final min = dt.minute.toString().padLeft(2, '0');
-    final period = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$min $period';
-  }
 }
 
 class _RiderRideList extends StatelessWidget {
@@ -257,7 +258,7 @@ class _RiderRideList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupByDate(rides);
+    final grouped = _groupByDate(rides, (r) => r.requestedAt);
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -281,33 +282,6 @@ class _RiderRideList extends StatelessWidget {
         return _RideHistoryTile(ride: entry as RideHistoryItem);
       },
     );
-  }
-
-  List<dynamic> _groupByDate(List<RideHistoryItem> rides) {
-    String? lastDate;
-    final items = <dynamic>[];
-    for (final ride in rides) {
-      final label = _formatDateLabel(ride.requestedAt);
-      if (label != lastDate) {
-        items.add(label);
-        lastDate = label;
-      }
-      items.add(ride);
-    }
-    return items;
-  }
-
-  String _formatDateLabel(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final date = DateTime(dt.year, dt.month, dt.day);
-    if (date == today) return 'TODAY';
-    if (date == today.subtract(const Duration(days: 1))) return 'YESTERDAY';
-    const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
-    ];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 }
 
@@ -334,7 +308,6 @@ class _RideHistoryTile extends StatelessWidget {
         statusIcon = Icons.access_time_rounded;
     }
 
-    final fare = ride.acceptedAmount ?? ride.riderOfferAmount;
     final distanceLabel = '${ride.distanceKm.toStringAsFixed(1)} km';
 
     return Container(
@@ -401,7 +374,7 @@ class _RideHistoryTile extends StatelessWidget {
             ),
           ),
           Text(
-            'USD ${fare.toStringAsFixed(2)}',
+            'USD ${ride.effectiveFare.toStringAsFixed(2)}',
             style: GoogleFonts.inter(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -411,13 +384,6 @@ class _RideHistoryTile extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _fmtTime(DateTime dt) {
-    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final min = dt.minute.toString().padLeft(2, '0');
-    final period = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$min $period';
   }
 }
 

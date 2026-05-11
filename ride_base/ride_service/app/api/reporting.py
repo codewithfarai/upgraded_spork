@@ -293,26 +293,20 @@ async def get_ride_history(
     total_count = (await db.execute(count_q)).scalar() or 0
 
     # Fetch page
-    query = (
-        select(Ride)
-        .where(Ride.driver_id == driver_id)
-        .order_by(Ride.requested_at_utc.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    query = select(Ride).where(Ride.driver_id == driver_id)
     if status_filter:
         query = query.where(Ride.status == status_filter)
+    query = query.order_by(Ride.requested_at_utc.desc()).offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(query)
     rides = result.scalars().all()
 
-    # Fetch ratings for these rides in one query
     ride_ids = [r.id for r in rides]
     ratings_q = await db.execute(
         select(RideRating.ride_id, RideRating.rating).where(
             and_(
                 RideRating.ride_id.in_(ride_ids),
-                RideRating.rated_by_role == "RIDER" # Rating given BY rider (received by driver)
+                RideRating.rated_by_role == "RIDER"
             )
         )
     )
@@ -362,26 +356,20 @@ async def get_rider_ride_history(
     total_count = (await db.execute(count_q)).scalar() or 0
 
     # Fetch page
-    query = (
-        select(Ride)
-        .where(Ride.rider_id == rider_id)
-        .order_by(Ride.requested_at_utc.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    query = select(Ride).where(Ride.rider_id == rider_id)
     if status_filter:
         query = query.where(Ride.status == status_filter)
+    query = query.order_by(Ride.requested_at_utc.desc()).offset((page - 1) * page_size).limit(page_size)
 
     result = await db.execute(query)
     rides = result.scalars().all()
 
-    # Fetch ratings for these rides in one query
     ride_ids = [r.id for r in rides]
     ratings_q = await db.execute(
         select(RideRating.ride_id, RideRating.rating).where(
             and_(
                 RideRating.ride_id.in_(ride_ids),
-                RideRating.rated_by_role == "DRIVER" # Rating given BY driver (received by rider)
+                RideRating.rated_by_role == "DRIVER"
             )
         )
     )

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/config.dart';
+import '../../../core/providers/app_role_provider.dart';
 import '../../../core/services/token_storage.dart';
 
 class RideRestService {
@@ -200,12 +201,12 @@ class RideRestService {
   }
 
   Future<Map<String, dynamic>> getRideHistory({
-    required String role,
+    required AppRole role,
     int page = 1,
     int pageSize = 10,
   }) async {
     try {
-      final endpoint = role.toLowerCase() == 'driver'
+      final endpoint = role == AppRole.driver
           ? 'reporting/driver/rides'
           : 'reporting/rider/rides';
 

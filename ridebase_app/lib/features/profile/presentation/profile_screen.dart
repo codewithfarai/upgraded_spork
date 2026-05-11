@@ -575,7 +575,7 @@ class ProfileScreen extends ConsumerWidget {
                                 _RideRow(
                                   destination: top3[i].destinationAddress,
                                   time: DateFormat('MMM d, hh:mm a').format(top3[i].requestedAt),
-                                  price: r'$' + (top3[i].acceptedAmount ?? top3[i].riderOfferAmount).toStringAsFixed(2),
+                                  price: 'USD ${top3[i].effectiveFare.toStringAsFixed(2)}',
                                 ),
                                 if (i < top3.length - 1) const _RowDivider(),
                               ],
