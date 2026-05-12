@@ -1,21 +1,30 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme.dart';
 import '../../../core/providers/app_role_provider.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../features/onboarding/providers/onboarding_provider.dart';
 
 class ModeSwitcher extends ConsumerWidget {
   const ModeSwitcher({super.key});
+
+  void _onDriverTap(BuildContext context, WidgetRef ref) {
+    final profile = ref.read(onboardingProvider).profile;
+    if (profile == null || !profile.isDriver) {
+      context.push('/onboarding/driver_setup');
+      return;
+    }
+    ref.read(appRoleProvider.notifier).setRole(AppRole.driver);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentRole = ref.watch(appRoleProvider);
     final user = ref.watch(currentUserProvider);
 
-    // Only show if the user is authenticated and is actually a driver.
-    // If they aren't a driver yet, we don't want to show the toggle.
     if (user == null) return const SizedBox.shrink();
 
     return Center(
@@ -84,7 +93,7 @@ class ModeSwitcher extends ConsumerWidget {
                     ),
                     Expanded(
                       child: GestureDetector(
-                        onTap: () => ref.read(appRoleProvider.notifier).setRole(AppRole.driver),
+                        onTap: () => _onDriverTap(context, ref),
                         behavior: HitTestBehavior.opaque,
                         child: Center(
                           child: Text(

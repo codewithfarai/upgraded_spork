@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../config.dart';
 
 class RouteResult {
@@ -49,7 +50,8 @@ class RoutingService {
           geometry: _decodePolyline(encodedPolyline),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[OSRM] routing error: $e');
       return null;
     }
     return null;

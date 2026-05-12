@@ -274,11 +274,25 @@ Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
   }
 }
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh profile silently so rating/rides are always current.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(onboardingProvider.notifier).refresh(silent: true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Navigate to home the moment the user becomes unauthenticated (logout).
     ref.listen<AuthState>(authProvider, (_, next) {
       if (!next.isAuthenticated && context.mounted) {

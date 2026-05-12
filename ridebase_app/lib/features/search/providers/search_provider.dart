@@ -16,7 +16,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
   final GooglePlacesService _searchService;
   Timer? _debounceTimer;
 
-  void onQueryChanged(String query) {
+  void onQueryChanged(String query, {String? sessionToken}) {
     _debounceTimer?.cancel();
 
     if (query.isEmpty || query.length < 2) {
@@ -28,7 +28,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
       state = state.copyWith(isLoading: true, error: null);
 
       try {
-        final rawSuggestions = await _searchService.getAutocompletePredictions(query);
+        final rawSuggestions = await _searchService.getAutocompletePredictions(query, sessionToken: sessionToken);
         final suggestions = rawSuggestions
             .map((json) => AutocompleteSuggestion.fromJson(json))
             .toList();

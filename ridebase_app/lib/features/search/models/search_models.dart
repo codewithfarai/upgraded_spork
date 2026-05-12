@@ -11,13 +11,17 @@ class AutocompleteSuggestion {
   final String mainText;
   final String secondaryText;
 
+  /// Parses a `placePrediction` object from the Places API (New) response.
   factory AutocompleteSuggestion.fromJson(Map<String, dynamic> json) {
-    final structured = json['structured_formatting'] ?? {};
+    final structured = json['structuredFormat'] as Map<String, dynamic>? ?? {};
+    final mainText = (structured['mainText'] as Map?)?['text'] as String? ?? '';
+    final secondaryText = (structured['secondaryText'] as Map?)?['text'] as String? ?? '';
+    final fullText = (json['text'] as Map?)?['text'] as String? ?? mainText;
     return AutocompleteSuggestion(
-      placeId: json['place_id'] ?? '',
-      description: json['description'] ?? '',
-      mainText: structured['main_text'] ?? '',
-      secondaryText: structured['secondary_text'] ?? '',
+      placeId: json['placeId'] as String? ?? '',
+      description: fullText,
+      mainText: mainText,
+      secondaryText: secondaryText,
     );
   }
 }

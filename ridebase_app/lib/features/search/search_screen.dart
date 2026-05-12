@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geolocator/geolocator.dart' as geo;
+import 'package:uuid/uuid.dart';
 import '../../core/theme.dart';
 import 'providers/search_provider.dart';
 import 'models/search_models.dart';
@@ -26,7 +26,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   late final TextEditingController _originController;
   final TextEditingController _destinationController = TextEditingController();
   String _activeType = 'destination';
-  bool _isLocatingOrigin = false;
+  String _sessionToken = const Uuid().v4();
 
   @override
   void initState() {
@@ -43,38 +43,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
-  Future<void> _useCurrentLocation() async {
-    setState(() => _isLocatingOrigin = true);
-    try {
-      var permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        permission = await geo.Geolocator.requestPermission();
-      }
-      if (permission == geo.LocationPermission.deniedForever ||
-          permission == geo.LocationPermission.denied) {
-        if (mounted) setState(() => _isLocatingOrigin = false);
-        return;
-      }
-      final pos = await geo.Geolocator.getCurrentPosition(
-        locationSettings: const geo.LocationSettings(
-          accuracy: geo.LocationAccuracy.high,
-        ),
-      ).timeout(const Duration(seconds: 8));
-
-      if (!mounted) return;
-      final address = await ref
-          .read(searchServiceProvider)
-          .reverseGeocode(pos.latitude, pos.longitude);
-      if (!mounted) return;
-      setState(() {
-        _originController.text = address ?? 'Current Location';
-        _isLocatingOrigin = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _isLocatingOrigin = false);
-    }
-  }
-
   Future<void> _onSelection(AutocompleteSuggestion suggestion) async {
     if (_activeType == 'origin') {
       _originController.text = suggestion.description;
@@ -82,8 +50,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _destinationController.text = suggestion.description;
     }
 
+    // Capture current token before resetting — Place Details must send the
+    // same token that was used for autocomplete to close the session ($0.005).
+    final closingToken = _sessionToken;
+    setState(() => _sessionToken = const Uuid().v4());
+
     final service = ref.read(searchServiceProvider);
-    final coords = await service.getPlaceCoordinates(suggestion.placeId);
+    final coords = await service.getPlaceCoordinates(
+      suggestion.placeId,
+      sessionToken: closingToken,
+    );
 
     if (coords != null && mounted) {
       context.pop({
@@ -154,9 +130,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       children: [
                         TextField(
                           controller: _originController,
+                          onTap: () => setState(() => _activeType = 'origin'),
                           onChanged: (val) {
                             setState(() => _activeType = 'origin');
-                            ref.read(locationSearchProvider('origin').notifier).onQueryChanged(val);
+                            ref.read(locationSearchProvider('origin').notifier).onQueryChanged(val, sessionToken: _sessionToken);
                           },
                           decoration: InputDecoration(
                             hintText: 'Current Location',
@@ -171,9 +148,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         TextField(
                           controller: _destinationController,
                           autofocus: true,
+                          onTap: () => setState(() => _activeType = 'destination'),
                           onChanged: (val) {
                             setState(() => _activeType = 'destination');
-                            ref.read(locationSearchProvider('destination').notifier).onQueryChanged(val);
+                            ref.read(locationSearchProvider('destination').notifier).onQueryChanged(val, sessionToken: _sessionToken);
                           },
                           decoration: InputDecoration(
                             hintText: 'Where to?',
@@ -191,27 +169,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
 
-            // Action Chips
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Row(
-                children: [
-                  _ActionChip(
-                    icon: _isLocatingOrigin ? Icons.hourglass_empty : Icons.my_location,
-                    label: _isLocatingOrigin ? 'Locating...' : 'Use current location',
-                    onTap: _isLocatingOrigin ? null : _useCurrentLocation,
-                  ),
-                  const SizedBox(width: 12),
-                  _ActionChip(
-                    icon: Icons.location_on,
-                    label: 'Choose on map',
-                    onTap: () => context.pop(), // Return to map for pin-based selection
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Divider(height: 1, color: Colors.grey.shade200),
 
             // Result List
@@ -272,48 +230,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           style: TextStyle(color: Colors.grey.shade500),
         ),
       ],
-    );
-  }
-}
-
-class _ActionChip extends StatelessWidget {
-  const _ActionChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: onTap != null ? RideBaseTheme.secondaryContainer : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: onTap != null ? RideBaseTheme.teal : Colors.grey),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: onTap != null ? RideBaseTheme.teal : Colors.grey,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

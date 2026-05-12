@@ -19,6 +19,7 @@ import 'features/driver/presentation/driver_dashboard_screen.dart';
 import 'features/driver/presentation/earnings_screen.dart';
 import 'features/fleet/presentation/fleet_screen.dart';
 import 'features/ride_options/presentation/ride_options_screen.dart';
+import 'features/driver/presentation/subscription_screen.dart';
 
 import 'features/ride/models/ride_websocket_models.dart' as import_models;
 import 'features/ride/providers/ride_websocket_provider.dart' as import_ws_provider;
@@ -38,7 +39,12 @@ class RouterNotifier extends ChangeNotifier {
 
   RouterNotifier(this.ref) {
     ref.listen(authProvider, (_, _) => notifyListeners());
-    ref.listen(onboardingProvider, (_, _) => notifyListeners());
+    // Only rebuild routes when the onboarding *step* changes — not on every
+    // profile data update (e.g. silent stat refreshes), which would cause the
+    // map to re-initialize unnecessarily.
+    ref.listen<OnboardingState>(onboardingProvider, (previous, next) {
+      if (previous?.step != next.step) notifyListeners();
+    });
   }
 }
 
@@ -109,8 +115,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           return null;
 
         case OnboardingStep.complete:
-          // If they are complete and trying to go to loading or onboarding screens, send to home
-          if (state.matchedLocation == '/loading' || isGoingToOnboarding) {
+          if (state.matchedLocation == '/loading') return '/home';
+          if (isGoingToOnboarding) {
+            // A complete rider who hasn't done driver setup yet may explicitly
+            // navigate to /onboarding/driver_setup via the mode switcher.
+            if (state.matchedLocation == '/onboarding/driver_setup' &&
+                !(onboardingState.profile?.isDriver ?? true)) {
+              return null;
+            }
             return '/home';
           }
           return null;
@@ -179,6 +191,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/fleet',
         builder: (context, state) => const FleetScreen(),
+      ),
+      GoRoute(
+        path: '/subscription',
+        builder: (context, state) => const SubscriptionScreen(),
       ),
       GoRoute(
         path: '/ride_options',

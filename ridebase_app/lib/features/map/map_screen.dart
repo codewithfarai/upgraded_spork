@@ -33,19 +33,24 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
   bool _isMapLoading = true;
   bool _hasMapError = false;
   bool _driverSymbolAdded = false;
-  geo.Position? _currentPosition;
+  geo.Position? _currentPosition;   // map-center pickup position (for routes)
+  geo.Position? _gpsPosition;        // actual GPS fix — drives the location dot
   String _centerAddress = 'Resolving location...';
 
   // Route preview state
   Map<String, dynamic>? _routeDestination;
   bool _isLoadingRoute = false;
 
+  // Pin-drop selection mode ('origin' or 'destination')
+  bool _isSelectingDestination = false;
+  String _mapSelectFor = 'destination';
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // Set Harare as default immediately so the map has a starting position
-    _currentPosition = geo.Position(
+    final harare = geo.Position(
       latitude: RideBaseConfig.defaultLat,
       longitude: RideBaseConfig.defaultLng,
       timestamp: DateTime.now(),
@@ -57,6 +62,8 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
       altitudeAccuracy: 0,
       headingAccuracy: 0,
     );
+    _currentPosition = harare;
+    _gpsPosition = harare;
     _initializeTileService();
     _tryGetRealLocation();
   }
@@ -78,19 +85,30 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
         ),
       ).timeout(const Duration(seconds: 10));
 
-      if (!mounted) { return; }
-      setState(() => _currentPosition = pos);
+      if (!mounted) return;
+      setState(() {
+        _currentPosition = pos;
+        _gpsPosition = pos;
+      });
       _mapController?.animateCamera(
         center: Geographic(lat: pos.latitude, lon: pos.longitude),
         zoom: 15,
         nativeDuration: const Duration(milliseconds: 1000),
       );
+      // One reverse-geocode to label the origin — no further calls until pin-drop.
+      final address = await ref
+          .read(searchServiceProvider)
+          .reverseGeocode(pos.latitude, pos.longitude);
+      if (mounted && address != null) setState(() => _centerAddress = address);
     } catch (_) {
       // Keep Harare default
     }
   }
 
   Future<void> _updateCenterAddress() async {
+    // Only reverse-geocode during active pin-drop — skipping all other camera
+    // idles eliminates the biggest source of unnecessary Geocoding API calls.
+    if (!_isSelectingDestination) return;
     if (_mapController == null) return;
     try {
       final camera = _mapController!.camera;
@@ -99,21 +117,29 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
           camera.center.lat,
           camera.center.lon,
         );
+        // Fall back to coordinates when geocoding is not yet configured.
+        final coordFallback =
+            '${camera.center.lat.toStringAsFixed(5)}, ${camera.center.lon.toStringAsFixed(5)}';
         if (mounted) {
           setState(() {
-            _centerAddress = address ?? 'Unknown location';
-            _currentPosition = geo.Position(
-              latitude: camera.center.lat,
-              longitude: camera.center.lon,
-              timestamp: DateTime.now(),
-              accuracy: 0,
-              altitude: 0,
-              heading: 0,
-              speed: 0,
-              speedAccuracy: 0,
-              altitudeAccuracy: 0,
-              headingAccuracy: 0,
-            );
+            _centerAddress = address ?? coordFallback;
+            // Only move the pickup position when pinning the origin.
+            // During destination pin-drop, _currentPosition must stay at the
+            // user's real location so the route has the correct start point.
+            if (_mapSelectFor == 'origin') {
+              _currentPosition = geo.Position(
+                latitude: camera.center.lat,
+                longitude: camera.center.lon,
+                timestamp: DateTime.now(),
+                accuracy: 0,
+                altitude: 0,
+                heading: 0,
+                speed: 0,
+                speedAccuracy: 0,
+                altitudeAccuracy: 0,
+                headingAccuracy: 0,
+              );
+            }
           });
         }
       }
@@ -138,6 +164,7 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
       }
     } catch (_) {}
   }
+
 
   Future<void> _drawRoute(
     List<List<double>> geometry,
@@ -217,7 +244,7 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
       center: Geographic(lat: midLat, lon: midLng),
       zoom: zoom,
       nativeDuration: const Duration(milliseconds: 1200),
-    );
+    ).ignore();
   }
 
   Future<void> _clearRoute() async {
@@ -235,6 +262,73 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
     if (mounted) setState(() => _routeDestination = null);
   }
 
+  /// Opens the search screen with the current pickup pre-filled. Handles the
+  /// returned result: either entering pin-drop mode (`map_select`) or drawing
+  /// a route from a selected place.
+  Future<void> _openSearchFlow() async {
+    if (!mounted) return;
+    final result = await context.push('/search', extra: {
+      'originAddress': _centerAddress,
+      'originLat': _currentPosition?.latitude ?? RideBaseConfig.defaultLat,
+      'originLng': _currentPosition?.longitude ?? RideBaseConfig.defaultLng,
+    });
+    if (!mounted || result == null || result is! Map<String, dynamic>) return;
+    if (result['type'] == 'map_select') {
+      setState(() {
+        _mapSelectFor = result['for'] as String? ?? 'destination';
+        _isSelectingDestination = true;
+      });
+    } else {
+      await _handleSearchResults(result);
+    }
+  }
+
+  Future<void> _confirmDestinationSelection() async {
+    if (_mapController == null) return;
+    final center = _mapController!.camera?.center;
+    if (center == null) return;
+
+    // Snapshot address & coordinates before any async work or setState that
+    // could trigger onEvent → _updateCenterAddress() and overwrite them.
+    final confirmedAddress = _centerAddress;
+
+    if (_mapSelectFor == 'origin') {
+      // Atomic: clear pin UI + update pickup in one setState so no
+      // MapEventCameraIdle fires between the two operations.
+      setState(() {
+        _isSelectingDestination = false;
+        _centerAddress = confirmedAddress;
+        _currentPosition = geo.Position(
+          latitude: center.lat,
+          longitude: center.lon,
+          timestamp: DateTime.now(),
+          accuracy: 0,
+          altitude: 0,
+          heading: 0,
+          speed: 0,
+          speedAccuracy: 0,
+          altitudeAccuracy: 0,
+          headingAccuracy: 0,
+        );
+      });
+      // Uber pattern: re-open search with new pickup pre-filled so user
+      // can continue and pick their destination.
+      await _openSearchFlow();
+    } else {
+      // For destination: draw the route FIRST, then clear the pin UI.
+      // Clearing _isSelectingDestination early fires MapEventCameraIdle →
+      // _updateCenterAddress() which races with _handleSearchResults and
+      // prevents the route from being drawn.
+      await _handleSearchResults({
+        'lat': center.lat,
+        'lng': center.lon,
+        'address': confirmedAddress,
+        'name': confirmedAddress,
+      });
+      if (mounted) setState(() => _isSelectingDestination = false);
+    }
+  }
+
   Future<void> _handleSearchResults(Map<String, dynamic> result) async {
     if (_mapController == null) return;
 
@@ -245,12 +339,13 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
 
     setState(() => _isLoadingRoute = true);
 
-    // Pan toward destination while route loads
+    // Pan toward destination while route loads — ignore cancellation if user
+    // navigates away before the animation completes.
     _mapController!.animateCamera(
       center: Geographic(lat: destLat, lon: destLng),
       zoom: 14,
       nativeDuration: const Duration(milliseconds: 700),
-    );
+    ).ignore();
 
     final startLat = _currentPosition?.latitude ?? RideBaseConfig.defaultLat;
     final startLng = _currentPosition?.longitude ?? RideBaseConfig.defaultLng;
@@ -343,12 +438,19 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
       ).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
-      setState(() => _currentPosition = pos);
+      setState(() {
+        _currentPosition = pos;
+        _gpsPosition = pos;
+      });
       _mapController!.animateCamera(
         center: Geographic(lat: pos.latitude, lon: pos.longitude),
         zoom: 15,
         nativeDuration: const Duration(milliseconds: 1200),
       );
+      final address = await ref
+          .read(searchServiceProvider)
+          .reverseGeocode(pos.latitude, pos.longitude);
+      if (mounted && address != null) setState(() => _centerAddress = address);
     } catch (_) {
       if (!mounted) return;
       _mapController!.animateCamera(
@@ -447,13 +549,10 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
           center: Geographic(lat: loc.latitude, lon: loc.longitude),
           zoom: 16,
           nativeDuration: const Duration(milliseconds: 1000),
-        );
+        ).ignore();
       }
     });
 
-    final bool showCenterPin = !activeRideState.isActive &&
-        !_isLoadingRoute &&
-        _routeDestination == null;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -469,7 +568,6 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
             ),
             onMapCreated: (controller) {
               _mapController = controller;
-              _updateCenterAddress();
             },
             onStyleLoaded: (_) async {
               await _loadCarImage();
@@ -479,15 +577,41 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
               });
             },
             onEvent: (event) {
-              if (event is MapEventCameraIdle && _routeDestination == null) {
+              if (event is MapEventCameraIdle && _isSelectingDestination) {
                 _updateCenterAddress();
               }
+              // When the rider pans or pinches the map from the home screen,
+              // auto-enter pickup adjustment mode — same behaviour as Uber.
+              if (event is MapEventUserInput &&
+                  !_isSelectingDestination &&
+                  _routeDestination == null &&
+                  !activeRideState.isActive &&
+                  currentRole == AppRole.rider) {
+                setState(() {
+                  _mapSelectFor = 'origin';
+                  _isSelectingDestination = true;
+                });
+              }
             },
-            children: const [MapCompass()],
+            children: [
+              if (_gpsPosition != null)
+                WidgetLayer(
+                  markers: [
+                    Marker(
+                      point: Geographic(
+                        lat: _gpsPosition!.latitude,
+                        lon: _gpsPosition!.longitude,
+                      ),
+                      size: const Size(56, 56),
+                      child: const _PulsingLocationDot(),
+                    ),
+                  ],
+                ),
+            ],
           ),
 
-          // ── Fixed Center Pin (only when idle) ────────────────────
-          if (showCenterPin)
+          // ── Fixed Center Pin (destination selection only) ─────────
+          if (_isSelectingDestination)
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 40.0),
@@ -497,7 +621,7 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black87.withValues(alpha: 0.8),
+                        color: Colors.black87.withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -508,7 +632,9 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Icon(Icons.location_on, size: 40, color: Colors.redAccent),
+                    _DropPin(
+                      color: _mapSelectFor == 'origin' ? Colors.green : RideBaseTheme.teal,
+                    ),
                   ],
                 ),
               ),
@@ -575,38 +701,9 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
           // ── Map Controls (zoom + location) ────────────────────────
           if (!activeRideState.isActive)
             Positioned(
-              bottom: 320,
+              bottom: 420,
               right: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _MapControlButton(
-                    icon: Icons.add,
-                    onTap: () async {
-                      try {
-                        await _mapController?.animateCamera(
-                          zoom: (_mapController!.getCamera().zoom + 1),
-                          nativeDuration: const Duration(milliseconds: 200),
-                        );
-                      } catch (_) {}
-                    },
-                  ),
-                  const SizedBox(height: 2),
-                  _MapControlButton(
-                    icon: Icons.remove,
-                    onTap: () async {
-                      try {
-                        await _mapController?.animateCamera(
-                          zoom: (_mapController!.getCamera().zoom - 1),
-                          nativeDuration: const Duration(milliseconds: 200),
-                        );
-                      } catch (_) {}
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  LocationButton(onPressed: _goToUserLocation),
-                ],
-              ),
+              child: LocationButton(onPressed: _goToUserLocation),
             ),
 
           // ── Bottom Sheet ──────────────────────────────────────────
@@ -618,11 +715,95 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
                 ? _buildDriverModeCard()
                 : activeRideState.isActive
                     ? const ActiveRidePanel()
-                    : _routeDestination != null
-                        ? _buildRoutePreviewCard()
-                        : _buildWhereToCard(),
+                    : _isSelectingDestination
+                        ? _buildDestinationSelectionCard()
+                        : _routeDestination != null
+                            ? _buildRoutePreviewCard()
+                            : _buildWhereToCard(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDestinationSelectionCard() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 16, offset: Offset(0, -4))],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.location_on, color: _mapSelectFor == 'origin' ? Colors.green : RideBaseTheme.teal, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _centerAddress,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 30),
+                child: Text(
+                  'Move the map to position the pin',
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => setState(() => _isSelectingDestination = false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('Cancel', style: GoogleFonts.inter(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _confirmDestinationSelection,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: RideBaseTheme.teal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        _mapSelectFor == 'origin' ? 'Confirm pickup' : 'Confirm destination',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -659,41 +840,104 @@ class _MapScreenState extends ConsumerState<MapScreen> with WidgetsBindingObserv
               ),
             )
           else ...[
-            // Search bar tap target
+            // Origin + Destination input card
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: InkWell(
-                onTap: () async {
-                  final result = await context.push('/search', extra: {
-                    'originAddress': _centerAddress,
-                    'originLat': _currentPosition?.latitude ?? RideBaseConfig.defaultLat,
-                    'originLng': _currentPosition?.longitude ?? RideBaseConfig.defaultLng,
-                  });
-                  if (result != null && result is Map<String, dynamic>) {
-                    _handleSearchResults(result);
-                  }
-                },
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Icon(Icons.search, color: RideBaseTheme.primaryContainer, size: 28),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Where to?',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    // Pickup row
+                    InkWell(
+                      onTap: () => setState(() {
+                        _mapSelectFor = 'origin';
+                        _isSelectingDestination = true;
+                      }),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                _centerAddress,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.location_on, size: 20, color: RideBaseTheme.teal),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    // Divider with connector line aligned to dots
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, right: 16),
+                      child: Row(
+                        children: [
+                          Container(width: 2, height: 12, color: Colors.grey.shade300),
+                          Expanded(child: Divider(height: 1, color: Colors.grey.shade200)),
+                        ],
+                      ),
+                    ),
+                    // Destination row — search text opens keyboard, pin opens map
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: RideBaseTheme.teal, width: 2),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _openSearchFlow,
+                              child: Text(
+                                'Where to?',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _mapSelectFor = 'destination';
+                              _isSelectingDestination = true;
+                            }),
+                            child: Icon(Icons.location_on, size: 20, color: RideBaseTheme.teal),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -981,27 +1225,130 @@ class _HamburgerButton extends StatelessWidget {
   }
 }
 
-class _MapControlButton extends StatelessWidget {
-  const _MapControlButton({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
+class _PulsingLocationDot extends StatefulWidget {
+  const _PulsingLocationDot();
+
+  @override
+  State<_PulsingLocationDot> createState() => _PulsingLocationDotState();
+}
+
+class _PulsingLocationDotState extends State<_PulsingLocationDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _pulseScale;
+  late final Animation<double> _pulseOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+
+    // Pulse fires in first 0.8s of the 3s cycle then idles
+    _pulseScale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 2.6), weight: 27),
+      TweenSequenceItem(tween: ConstantTween(2.6), weight: 73),
+    ]).animate(_controller);
+
+    _pulseOpacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.45, end: 0.0), weight: 27),
+      TweenSequenceItem(tween: ConstantTween(0.0), weight: 73),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, color: RideBaseTheme.teal, size: 22),
-        ),
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Expanding pulse ring
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (_, __) => Transform.scale(
+              scale: _pulseScale.value,
+              child: Opacity(
+                opacity: _pulseOpacity.value,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: RideBaseTheme.teal,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Static dot
+          Container(
+            width: 17,
+            height: 17,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: RideBaseTheme.teal,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _DropPin extends StatelessWidget {
+  const _DropPin({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Circle head
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        // Stem
+        Container(
+          width: 2,
+          height: 18,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(2)),
+          ),
+        ),
+      ],
     );
   }
 }
